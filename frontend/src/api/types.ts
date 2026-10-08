@@ -20,6 +20,44 @@ export interface CreatePrinterInput {
   sys_object_id?: string
 }
 
+export interface CreateSNMPCredentialInput {
+  version: '2c' | '3'
+  community?: string
+  username?: string
+  auth_protocol?: string
+  auth_passphrase?: string
+  priv_protocol?: string
+  priv_passphrase?: string
+}
+
+export interface CreateEndpointInput {
+  address: string
+  protocol?: 'snmp'
+  port?: number
+  credential_id: string
+  is_primary?: boolean
+}
+
+export interface RegisterPrinterInput extends CreatePrinterInput {
+  address: string
+  port?: number
+  version: '2c' | '3'
+  community?: string
+  username?: string
+  auth_protocol?: string
+  auth_passphrase?: string
+  priv_protocol?: string
+  priv_passphrase?: string
+}
+
+export interface RegisterPrinterResult {
+  printer: Printer
+  credential_id: string
+  endpoint_id: string
+  poll_job_id?: string | null
+  poll_status: 'queued' | 'not_started'
+}
+
 export interface Paginated<T> {
   data: T[]
   limit: number
@@ -39,6 +77,15 @@ export interface CounterReading {
   quality: CounterQuality
 }
 
+export interface DailyUsage {
+  definition_key: string
+  unit: string
+  scope: string
+  local_date: string
+  delta: number
+  quality: 'valid' | 'unverified' | string
+}
+
 export interface PollingRun {
   id: string
   job_kind: string
@@ -55,4 +102,28 @@ export interface PollJob {
   device_id: string
   status: 'queued' | 'success' | 'failed'
   error_code?: string | null
+}
+
+export interface PrinterProfile {
+  id: string
+  version: number
+  manufacturer: string
+  verification_status: 'verified' | 'unverified' | 'experimental' | string
+  counter_keys: string[]
+}
+
+export interface DiscoveryProbeInput {
+  address: string
+  version: '2c' | '3'
+  community?: string
+  port?: number
+  timeout?: number
+}
+
+export interface DiscoveryResult {
+  address: string
+  name: string
+  description: string
+  sys_object_id: string
+  serial: string
 }

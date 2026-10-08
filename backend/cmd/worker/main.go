@@ -17,6 +17,7 @@ import (
 	"npms/backend/internal/counter"
 	"npms/backend/internal/database"
 	"npms/backend/internal/ingestion"
+	"npms/backend/internal/logging"
 	"npms/backend/internal/polling"
 	"npms/backend/internal/profile"
 	"npms/backend/internal/repository"
@@ -30,6 +31,8 @@ type registryRunner struct {
 	counterPoller  *ingestion.CounterPoller
 	scheduler      *polling.Scheduler
 	counterService *polling.Service
+	reportLocation *time.Location
+	retention      repository.CleanupPolicy
 }
 
 func (r registryRunner) RunStatus(ctx context.Context) error {
@@ -51,7 +54,7 @@ func (r registryRunner) RunStatus(ctx context.Context) error {
 	for _, result := range results {
 		if result.Err != nil {
 			failed++
-			slog.Warn("status poll failed", "device_id", result.TargetID, "attempts", result.Attempts, "error", result.Err)
+			slog.Error("status poll failed", "device_id", result.TargetID, "attempts", result.Attempts, "error", result.Err)
 		}
 	}
 	slog.Info("status poll cycle complete", "devices", len(devices), "failed", failed)
@@ -103,10 +106,24 @@ func (r registryRunner) RunCounters(ctx context.Context) error {
 	for _, result := range results {
 		if result.Err != nil {
 			failed++
-			slog.Warn("counter poll failed", "target_id", result.TargetID, "attempts", result.Attempts, "error", result.Err)
+			slog.Error("counter poll failed", "target_id", result.TargetID, "attempts", result.Attempts, "error", result.Err)
+		}
+	}
+	for _, device := range devices {
+		if err := r.repository.RecalculateDailyUsage(ctx, device.ID, r.reportLocation); err != nil {
+			return fmt.Errorf("materialize usage for device %s: %w", device.ID, err)
 		}
 	}
 	slog.Info("counter poll cycle complete", "targets", len(targets), "failed", failed)
+	return nil
+}
+
+func (r registryRunner) RunCleanup(ctx context.Context) error {
+	stats, err := r.repository.CleanupPollerData(ctx, r.retention)
+	if err != nil {
+		return err
+	}
+	slog.Info("poller history cleanup complete", "polling_runs", stats.PollingRuns, "counter_events", stats.CounterEvents, "jobs", stats.Jobs)
 	return nil
 }
 
@@ -118,6 +135,11 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
+	closeLog, err := logging.Setup(cfg.Logging.ErrorFile, cfg.Logging.Daily, cfg.Logging.MaxSizeMB)
+	if err != nil {
+		fail(fmt.Errorf("setup error log: %w", err))
+	}
+	defer func() { _ = closeLog() }()
 	profiles, err := profile.LoadDir(cfg.Profiles.Path)
 	if err != nil {
 		fail(err)
@@ -131,6 +153,14 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
+	cleanupInterval, err := cfg.CleanupInterval()
+	if err != nil {
+		fail(err)
+	}
+	reportLocation, err := time.LoadLocation(cfg.Report.Timezone)
+	if err != nil {
+		fail(fmt.Errorf("load report timezone: %w", err))
+	}
 
 	db, err := database.OpenSQLite(cfg.Database.Path)
 	if err != nil {
@@ -140,7 +170,7 @@ func main() {
 	if err := db.Migrate(context.Background()); err != nil {
 		fail(err)
 	}
-	repository, err := repository.NewSQLiteRepository(db.DB)
+	repo, err := repository.NewSQLiteRepository(db.DB)
 	if err != nil {
 		fail(err)
 	}
@@ -152,8 +182,8 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
-	resolver := ingestion.ConfigResolver{Store: repository, Box: box}
-	poller, err := ingestion.NewStatusPoller(repository, resolver, ingestion.ConnectSNMP)
+	resolver := ingestion.ConfigResolver{Store: repo, Box: box}
+	poller, err := ingestion.NewStatusPoller(repo, resolver, ingestion.ConnectSNMP)
 	if err != nil {
 		fail(err)
 	}
@@ -165,18 +195,19 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
-	counterService, err := polling.NewService(scheduler, repository)
+	counterService, err := polling.NewService(scheduler, repo)
 	if err != nil {
 		fail(err)
 	}
-	runner := registryRunner{repository: repository, poller: poller, counterPoller: counterPoller, scheduler: scheduler, counterService: counterService}
+	now := time.Now().UTC()
+	runner := registryRunner{repository: repo, poller: poller, counterPoller: counterPoller, scheduler: scheduler, counterService: counterService, reportLocation: reportLocation, retention: repository.CleanupPolicy{PollingRunsBefore: now.AddDate(0, 0, -cfg.Retention.PollingRunsDays), CounterEventsBefore: now.AddDate(0, 0, -cfg.Retention.CounterEventsDays), JobsBefore: now.AddDate(0, 0, -cfg.Retention.JobsDays)}}
 	if *once {
 		if err := runner.RunStatus(context.Background()); err != nil {
 			fail(err)
 		}
 		return
 	}
-	loop, err := workerapp.NewLoop(workerapp.Config{StatusInterval: statusInterval, CounterInterval: counterInterval}, runner)
+	loop, err := workerapp.NewLoop(workerapp.Config{StatusInterval: statusInterval, CounterInterval: counterInterval, CleanupInterval: cleanupInterval}, runner)
 	if err != nil {
 		fail(err)
 	}

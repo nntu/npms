@@ -5,6 +5,22 @@ server state. The first screen is the printer registry and deliberately has
 explicit loading, API error and empty states. It does not invent printer data
 when the backend API is unavailable.
 
+The **Add printer** form uses the atomic `POST /api/v1/printers/register`
+operation to create the device, an encrypted SNMP v2c credential and a primary
+SNMP endpoint in one SQLite transaction. If a later step fails, the whole
+registration is rolled back. The community string is write-only from the UI
+and is never returned by the API. SNMPv3 credentials can be
+provisioned through the authenticated API endpoint documented in
+`docs/openapi.yaml`.
+
+Printer details include an SVG counter trend chart. It plots the raw values of
+the first counter definition returned for the device, keeps unit and quality
+visible, and keeps incompatible counters separate. The detail page also shows
+derived daily usage from trusted monotonic intervals; midnight-spanning
+intervals are marked `unverified` because their exact boundary allocation is
+estimated. Those daily deltas are also grouped by counter and calendar month,
+without mixing incompatible counter definitions.
+
 Use Node.js 20.19+ LTS on Linux or Windows. Dependencies are pinned in the
 lockfile; use `npm ci` for a clean reproducible install.
 

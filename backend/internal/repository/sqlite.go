@@ -12,6 +12,62 @@ import (
 
 type SQLiteRepository struct{ db *sql.DB }
 
+type CleanupPolicy struct {
+	PollingRunsBefore   time.Time
+	CounterEventsBefore time.Time
+	JobsBefore          time.Time
+}
+
+type CleanupStats struct {
+	PollingRuns   int64
+	CounterEvents int64
+	Jobs          int64
+}
+
+// CleanupPollerData removes operational history only. Raw counter readings
+// and derived daily usage are deliberately retained for reporting/audit.
+func (r *SQLiteRepository) CleanupPollerData(ctx context.Context, policy CleanupPolicy) (CleanupStats, error) {
+	if policy.PollingRunsBefore.IsZero() || policy.CounterEventsBefore.IsZero() || policy.JobsBefore.IsZero() {
+		return CleanupStats{}, fmt.Errorf("cleanup policy dates are required")
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return CleanupStats{}, fmt.Errorf("begin poller cleanup: %w", err)
+	}
+	defer tx.Rollback()
+	var stats CleanupStats
+	result, err := tx.ExecContext(ctx, `DELETE FROM polling_runs
+		WHERE ended_at IS NOT NULL AND started_at < ?
+		AND NOT EXISTS (SELECT 1 FROM counter_readings WHERE counter_readings.poll_run_id = polling_runs.id)`, policy.PollingRunsBefore.UTC().Format(time.RFC3339Nano))
+	if err != nil {
+		return CleanupStats{}, fmt.Errorf("delete polling runs: %w", err)
+	}
+	stats.PollingRuns, err = result.RowsAffected()
+	if err != nil {
+		return CleanupStats{}, fmt.Errorf("count deleted polling runs: %w", err)
+	}
+	result, err = tx.ExecContext(ctx, `DELETE FROM counter_events WHERE created_at < ?`, policy.CounterEventsBefore.UTC().Format(time.RFC3339Nano))
+	if err != nil {
+		return CleanupStats{}, fmt.Errorf("delete counter events: %w", err)
+	}
+	stats.CounterEvents, err = result.RowsAffected()
+	if err != nil {
+		return CleanupStats{}, fmt.Errorf("count deleted counter events: %w", err)
+	}
+	result, err = tx.ExecContext(ctx, `DELETE FROM jobs WHERE ended_at IS NOT NULL AND ended_at < ?`, policy.JobsBefore.UTC().Format(time.RFC3339Nano))
+	if err != nil {
+		return CleanupStats{}, fmt.Errorf("delete completed jobs: %w", err)
+	}
+	stats.Jobs, err = result.RowsAffected()
+	if err != nil {
+		return CleanupStats{}, fmt.Errorf("count deleted jobs: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return CleanupStats{}, fmt.Errorf("commit poller cleanup: %w", err)
+	}
+	return stats, nil
+}
+
 func NewSQLiteRepository(db *sql.DB) (*SQLiteRepository, error) {
 	if db == nil {
 		return nil, fmt.Errorf("database is required")
@@ -39,6 +95,33 @@ type DeviceEndpoint struct {
 	Port                                          uint16
 	IsPrimary                                     bool
 	LastSuccessAt                                 time.Time
+}
+
+func (e DeviceEndpoint) Validate() error {
+	if strings.TrimSpace(e.ID) == "" || strings.TrimSpace(e.DeviceID) == "" {
+		return fmt.Errorf("endpoint id and device id are required")
+	}
+	if strings.TrimSpace(e.Address) == "" {
+		return fmt.Errorf("endpoint address is required")
+	}
+	if e.Protocol != "snmp" {
+		return fmt.Errorf("unsupported endpoint protocol %q", e.Protocol)
+	}
+	if e.Port == 0 {
+		return fmt.Errorf("endpoint port must be greater than zero")
+	}
+	return nil
+}
+
+func (r *SQLiteRepository) CreateDeviceEndpoint(ctx context.Context, endpoint DeviceEndpoint) error {
+	if err := endpoint.Validate(); err != nil {
+		return err
+	}
+	_, err := r.db.ExecContext(ctx, `INSERT INTO device_endpoints(id, device_id, address, protocol, port, credential_id, is_primary) VALUES (?, ?, ?, ?, ?, NULLIF(?, ''), ?)`, endpoint.ID, endpoint.DeviceID, endpoint.Address, endpoint.Protocol, endpoint.Port, endpoint.CredentialID, boolInt(endpoint.IsPrimary))
+	if err != nil {
+		return fmt.Errorf("create device endpoint: %w", err)
+	}
+	return nil
 }
 
 func (r *SQLiteRepository) ListDeviceEndpoints(ctx context.Context, deviceID string) ([]DeviceEndpoint, error) {
@@ -88,6 +171,62 @@ type SNMPCredential struct {
 	ID, Version, SecurityMetadata string
 	EncryptedSecretMaterial       []byte
 	CreatedAt                     time.Time
+}
+
+type PrinterRegistration struct {
+	Device     Device
+	Credential SNMPCredential
+	Endpoint   DeviceEndpoint
+}
+
+func (r *SQLiteRepository) RegisterPrinter(ctx context.Context, registration PrinterRegistration) error {
+	if err := registration.Device.Validate(); err != nil {
+		return err
+	}
+	if registration.Credential.ID == "" || registration.Credential.Version == "" || len(registration.Credential.EncryptedSecretMaterial) == 0 {
+		return fmt.Errorf("credential id, version and encrypted material are required")
+	}
+	if err := registration.Endpoint.Validate(); err != nil {
+		return err
+	}
+	if registration.Endpoint.DeviceID != registration.Device.ID || registration.Endpoint.CredentialID != registration.Credential.ID {
+		return fmt.Errorf("endpoint references do not match registration")
+	}
+	now := time.Now().UTC()
+	if registration.Device.CreatedAt.IsZero() {
+		registration.Device.CreatedAt = now
+	}
+	if registration.Device.UpdatedAt.IsZero() {
+		registration.Device.UpdatedAt = now
+	}
+	if registration.Credential.CreatedAt.IsZero() {
+		registration.Credential.CreatedAt = now
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin printer registration: %w", err)
+	}
+	defer tx.Rollback()
+	_, err = tx.ExecContext(ctx, `INSERT INTO devices
+		(id, asset_code, display_name, manufacturer, model, serial, sys_object_id, status, first_seen_at, last_seen_at, created_at, updated_at)
+		VALUES (?, NULLIF(?, ''), ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, NULLIF(?, ''), NULLIF(?, ''), ?, ?)`,
+		registration.Device.ID, registration.Device.AssetCode, registration.Device.DisplayName, registration.Device.Manufacturer, registration.Device.Model, registration.Device.Serial, registration.Device.SysObjectID, registration.Device.Status,
+		formatTime(registration.Device.FirstSeenAt), formatTime(registration.Device.LastSeenAt), registration.Device.CreatedAt.Format(time.RFC3339Nano), registration.Device.UpdatedAt.Format(time.RFC3339Nano))
+	if err != nil {
+		return fmt.Errorf("register device: %w", err)
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO snmp_credentials(id, version, encrypted_secret_material, security_metadata, created_at) VALUES (?, ?, ?, ?, ?)`, registration.Credential.ID, registration.Credential.Version, registration.Credential.EncryptedSecretMaterial, registration.Credential.SecurityMetadata, registration.Credential.CreatedAt.Format(time.RFC3339Nano))
+	if err != nil {
+		return fmt.Errorf("register credential: %w", err)
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO device_endpoints(id, device_id, address, protocol, port, credential_id, is_primary) VALUES (?, ?, ?, ?, ?, NULLIF(?, ''), ?)`, registration.Endpoint.ID, registration.Endpoint.DeviceID, registration.Endpoint.Address, registration.Endpoint.Protocol, registration.Endpoint.Port, registration.Endpoint.CredentialID, boolInt(registration.Endpoint.IsPrimary))
+	if err != nil {
+		return fmt.Errorf("register endpoint: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit printer registration: %w", err)
+	}
+	return nil
 }
 
 func (r *SQLiteRepository) CreateSNMPCredential(ctx context.Context, credential SNMPCredential) error {
@@ -404,6 +543,41 @@ type CounterReadingRecord struct {
 	Quality       counter.Quality
 }
 
+type DailyUsageRecord struct {
+	DefinitionKey string
+	Unit          string
+	Scope         string
+	LocalDate     string
+	Delta         int64
+	Quality       counter.Quality
+}
+
+func (r *SQLiteRepository) ListDailyCounterUsage(ctx context.Context, deviceID, from, to string) ([]DailyUsageRecord, error) {
+	if strings.TrimSpace(deviceID) == "" {
+		return nil, fmt.Errorf("device id is required")
+	}
+	rows, err := r.db.QueryContext(ctx, `SELECT cd.key, cd.unit, cd.scope, dcu.local_date, dcu.delta, dcu.quality
+		FROM daily_counter_usage dcu JOIN counter_definitions cd ON cd.id = dcu.counter_definition_id
+		WHERE dcu.device_id = ? AND (? = '' OR dcu.local_date >= ?) AND (? = '' OR dcu.local_date <= ?)
+		ORDER BY dcu.local_date, cd.key`, deviceID, from, from, to, to)
+	if err != nil {
+		return nil, fmt.Errorf("list daily counter usage: %w", err)
+	}
+	defer rows.Close()
+	result := make([]DailyUsageRecord, 0)
+	for rows.Next() {
+		var item DailyUsageRecord
+		if err := rows.Scan(&item.DefinitionKey, &item.Unit, &item.Scope, &item.LocalDate, &item.Delta, &item.Quality); err != nil {
+			return nil, fmt.Errorf("scan daily counter usage: %w", err)
+		}
+		result = append(result, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate daily counter usage: %w", err)
+	}
+	return result, nil
+}
+
 func (r *SQLiteRepository) ListCounterReadings(ctx context.Context, deviceID string, limit, offset int) ([]CounterReadingRecord, error) {
 	if strings.TrimSpace(deviceID) == "" || limit < 1 || limit > 1000 || offset < 0 {
 		return nil, fmt.Errorf("invalid counter reading pagination")
@@ -432,6 +606,66 @@ func (r *SQLiteRepository) ListCounterReadings(ctx context.Context, deviceID str
 		return nil, fmt.Errorf("iterate counter readings: %w", err)
 	}
 	return result, nil
+}
+
+// RecalculateDailyUsage replaces only the derived aggregate for one device.
+// Raw counter readings remain immutable and the operation is safe to repeat.
+func (r *SQLiteRepository) RecalculateDailyUsage(ctx context.Context, deviceID string, location *time.Location) error {
+	if strings.TrimSpace(deviceID) == "" {
+		return fmt.Errorf("device id is required")
+	}
+	if location == nil {
+		location = time.UTC
+	}
+	rows, err := r.db.QueryContext(ctx, `SELECT cr.counter_definition_id, cr.raw_value, cr.collected_at, cr.quality
+		FROM counter_readings cr JOIN counter_definitions cd ON cd.id = cr.counter_definition_id
+		WHERE cd.device_id = ? ORDER BY cr.collected_at ASC, cr.id ASC`, deviceID)
+	if err != nil {
+		return fmt.Errorf("read counter history for usage: %w", err)
+	}
+	defer rows.Close()
+	grouped := make(map[string][]counter.Reading)
+	for rows.Next() {
+		var definitionID, collectedAt string
+		var rawValue int64
+		var quality counter.Quality
+		if err := rows.Scan(&definitionID, &rawValue, &collectedAt, &quality); err != nil {
+			return fmt.Errorf("scan counter history for usage: %w", err)
+		}
+		when, err := time.Parse(time.RFC3339Nano, collectedAt)
+		if err != nil {
+			return fmt.Errorf("parse counter history for usage: %w", err)
+		}
+		grouped[definitionID] = append(grouped[definitionID], counter.Reading{RawValue: rawValue, CollectedAt: when, Quality: quality})
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate counter history for usage: %w", err)
+	}
+
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin usage recalculation: %w", err)
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `DELETE FROM daily_counter_usage WHERE device_id = ?`, deviceID); err != nil {
+		return fmt.Errorf("clear daily usage: %w", err)
+	}
+	computedAt := time.Now().UTC().Format(time.RFC3339Nano)
+	for definitionID, readings := range grouped {
+		usage, err := counter.AggregateDaily(readings, location, counter.Policy{})
+		if err != nil {
+			return fmt.Errorf("calculate daily usage for %s: %w", definitionID, err)
+		}
+		for _, item := range usage {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO daily_counter_usage(device_id, counter_definition_id, local_date, delta, quality, computed_at) VALUES (?, ?, ?, ?, ?, ?)`, deviceID, definitionID, item.LocalDate, item.Delta, item.Quality, computedAt); err != nil {
+				return fmt.Errorf("store daily usage: %w", err)
+			}
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit usage recalculation: %w", err)
+	}
+	return nil
 }
 
 func (r *SQLiteRepository) CountCounterReadings(ctx context.Context, deviceID string) (int, error) {

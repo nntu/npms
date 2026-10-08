@@ -16,6 +16,76 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Health'
+  /api/v1/snmp/profiles:
+    get:
+      operationId: listSNMPProfiles
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Profiles loaded from the external YAML profile directory.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfilePage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/v1/discovery/probe:
+    post:
+      operationId: probePrinterDiscovery
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DiscoveryProbeRequest'
+      responses:
+        '200':
+          description: Printer identity read from one explicitly supplied IP address.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscoveryResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '502':
+          description: The printer did not respond or SNMP probing failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/printers/register:
+    post:
+      operationId: registerPrinter
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterPrinter'
+      responses:
+        '201':
+          description: Printer, encrypted credential and primary endpoint registered atomically.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegistrationResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Registration was rolled back because a record conflicted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/printers:
     post:
       operationId: createPrinter
@@ -102,6 +172,91 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CounterPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/v1/printers/{id}/usage:
+    get:
+      operationId: listPrinterDailyUsage
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: from
+          in: query
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          schema: { type: string, format: date }
+        - name: timezone
+          in: query
+          description: IANA timezone used for local calendar-day allocation.
+          schema: { type: string, default: UTC }
+      responses:
+        '200':
+          description: Deterministic daily usage derived from raw counter readings.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsagePage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/v1/printers/{id}/credentials:
+    post:
+      operationId: createPrinterCredential
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSNMPCredential'
+      responses:
+        '201':
+          description: Encrypted credential reference created. Secret material is never returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CredentialCreated'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/v1/printers/{id}/endpoints:
+    post:
+      operationId: createPrinterEndpoint
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEndpoint'
+      responses:
+        '201':
+          description: SNMP endpoint created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Endpoint'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
   /api/v1/printers/{id}/polling-runs:
@@ -233,6 +388,45 @@ components:
         model: { type: string, maxLength: 200 }
         serial: { type: string, maxLength: 200 }
         sys_object_id: { type: string, maxLength: 200 }
+    CreateSNMPCredential:
+      type: object
+      additionalProperties: false
+      required: [version]
+      properties:
+        version: { type: string, enum: [2c, '3'] }
+        community: { type: string, writeOnly: true }
+        username: { type: string, writeOnly: true }
+        auth_protocol: { type: string, enum: [MD5, SHA] }
+        auth_passphrase: { type: string, writeOnly: true }
+        priv_protocol: { type: string, enum: [DES, AES, AES128] }
+        priv_passphrase: { type: string, writeOnly: true }
+    CredentialCreated:
+      type: object
+      required: [id, version]
+      properties:
+        id: { type: string }
+        version: { type: string, enum: [2c, '3'] }
+    CreateEndpoint:
+      type: object
+      additionalProperties: false
+      required: [address]
+      properties:
+        address: { type: string, minLength: 1, maxLength: 253 }
+        protocol: { type: string, enum: [snmp], default: snmp }
+        port: { type: integer, minimum: 1, maximum: 65535, default: 161 }
+        credential_id: { type: string }
+        is_primary: { type: boolean, default: false }
+    Endpoint:
+      type: object
+      required: [id, device_id, address, protocol, port, is_primary]
+      properties:
+        id: { type: string }
+        device_id: { type: string, format: uuid }
+        address: { type: string }
+        protocol: { type: string, const: snmp }
+        port: { type: integer }
+        credential_id: { type: [string, 'null'] }
+        is_primary: { type: boolean }
     PrinterPage:
       type: object
       required: [data, limit, offset, total]
@@ -243,6 +437,78 @@ components:
         limit: { type: integer }
         offset: { type: integer }
         total: { type: integer }
+    Profile:
+      type: object
+      required: [id, version, manufacturer, verification_status, counter_keys]
+      properties:
+        id: { type: string }
+        version: { type: integer, minimum: 1 }
+        manufacturer: { type: string }
+        verification_status: { type: string, enum: [verified, unverified, experimental] }
+        counter_keys:
+          type: array
+          items: { type: string }
+    ProfilePage:
+      type: object
+      required: [data, total]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Profile' }
+        total: { type: integer, minimum: 0 }
+    DiscoveryProbeRequest:
+      type: object
+      additionalProperties: false
+      required: [address, version]
+      properties:
+        address: { type: string, format: ipv4 }
+        port: { type: integer, minimum: 1, maximum: 65535, default: 161 }
+        version: { type: string, enum: [2c, '3'] }
+        community: { type: string, writeOnly: true }
+        username: { type: string, writeOnly: true }
+        auth_protocol: { type: string, enum: [MD5, SHA] }
+        auth_passphrase: { type: string, writeOnly: true }
+        priv_protocol: { type: string, enum: [DES, AES, AES128] }
+        priv_passphrase: { type: string, writeOnly: true }
+        timeout: { type: integer, minimum: 1, maximum: 30, default: 3 }
+    DiscoveryResult:
+      type: object
+      required: [address, name, description, sys_object_id, serial]
+      properties:
+        address: { type: string, format: ipv4 }
+        name: { type: string }
+        description: { type: string }
+        sys_object_id: { type: string }
+        serial: { type: string }
+    RegisterPrinter:
+      type: object
+      additionalProperties: false
+      required: [display_name, address, version]
+      properties:
+        display_name: { type: string, minLength: 1, maxLength: 200 }
+        asset_code: { type: string, maxLength: 200 }
+        manufacturer: { type: string, maxLength: 200 }
+        model: { type: string, maxLength: 200 }
+        serial: { type: string, maxLength: 200 }
+        sys_object_id: { type: string, maxLength: 200 }
+        address: { type: string, minLength: 1, maxLength: 253 }
+        port: { type: integer, minimum: 1, maximum: 65535, default: 161 }
+        version: { type: string, enum: [2c, '3'] }
+        community: { type: string, writeOnly: true }
+        username: { type: string, writeOnly: true }
+        auth_protocol: { type: string, enum: [MD5, SHA] }
+        auth_passphrase: { type: string, writeOnly: true }
+        priv_protocol: { type: string, enum: [DES, AES, AES128] }
+        priv_passphrase: { type: string, writeOnly: true }
+    RegistrationResult:
+      type: object
+      required: [printer, credential_id, endpoint_id, poll_status]
+      properties:
+        printer: { $ref: '#/components/schemas/Printer' }
+        credential_id: { type: string }
+        endpoint_id: { type: string }
+        poll_job_id: { type: [string, 'null'] }
+        poll_status: { type: string, enum: [queued, not_started] }
     Counter:
       type: object
       required: [id, definition_key, unit, scope, raw_value, collected_at, quality]
@@ -264,6 +530,25 @@ components:
         limit: { type: integer }
         offset: { type: integer }
         total: { type: integer }
+    DailyUsage:
+      type: object
+      required: [definition_key, unit, scope, local_date, delta, quality]
+      properties:
+        definition_key: { type: string }
+        unit: { type: string, enum: [impressions, sheets] }
+        scope: { type: string }
+        local_date: { type: string, format: date }
+        delta: { type: integer, format: int64, minimum: 0 }
+        quality: { type: string, enum: [valid, unverified] }
+    UsagePage:
+      type: object
+      required: [data, total, timezone]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/DailyUsage' }
+        total: { type: integer, minimum: 0 }
+        timezone: { type: string }
     PollingRun:
       type: object
       required: [id, job_kind, started_at, result, attempt_count]

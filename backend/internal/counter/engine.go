@@ -2,6 +2,7 @@ package counter
 
 import (
 	"fmt"
+	"sort"
 	"time"
 )
 
@@ -91,6 +92,66 @@ type DailyAllocation struct {
 	LocalDate string
 	Delta     int64
 	Quality   Quality
+}
+
+type DailyUsage struct {
+	LocalDate string
+	Delta     int64
+	Quality   Quality
+}
+
+// AggregateDaily evaluates consecutive raw readings and aggregates only
+// trusted deltas into local calendar dates. Readings must belong to one
+// counter definition; callers should group incompatible definitions first.
+func AggregateDaily(readings []Reading, location *time.Location, policy Policy) ([]DailyUsage, error) {
+	if location == nil {
+		return nil, fmt.Errorf("location is required")
+	}
+	if len(readings) < 2 {
+		return []DailyUsage{}, nil
+	}
+	ordered := append([]Reading(nil), readings...)
+	sort.SliceStable(ordered, func(i, j int) bool { return ordered[i].CollectedAt.Before(ordered[j].CollectedAt) })
+	usage := make(map[string]DailyUsage)
+	var previous *Reading
+	for index := range ordered {
+		current := ordered[index]
+		decision, err := Evaluate(previous, current, policy)
+		if err != nil {
+			return nil, err
+		}
+		if decision.Delta != nil {
+			allocations, err := AllocateDaily(previous.CollectedAt, current.CollectedAt, *decision.Delta, location)
+			if err != nil {
+				return nil, err
+			}
+			for _, allocation := range allocations {
+				item := usage[allocation.LocalDate]
+				item.LocalDate = allocation.LocalDate
+				item.Delta += allocation.Delta
+				item.Quality = mergeQuality(item.Quality, allocation.Quality)
+				usage[allocation.LocalDate] = item
+			}
+		}
+		copy := current
+		previous = &copy
+	}
+	result := make([]DailyUsage, 0, len(usage))
+	for _, item := range usage {
+		result = append(result, item)
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].LocalDate < result[j].LocalDate })
+	return result, nil
+}
+
+func mergeQuality(current, next Quality) Quality {
+	if current == "" {
+		return next
+	}
+	if current == QualityUnverified || next == QualityUnverified {
+		return QualityUnverified
+	}
+	return current
 }
 
 // AllocateDaily distributes a trusted interval across local calendar dates.

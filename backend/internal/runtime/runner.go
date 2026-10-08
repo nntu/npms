@@ -21,13 +21,14 @@ type Runner struct {
 	counterPoller  *ingestion.CounterPoller
 	scheduler      *polling.Scheduler
 	counterService *polling.Service
+	retention      repository.CleanupPolicy
 }
 
-func NewRunner(repo *repository.SQLiteRepository, poller *ingestion.StatusPoller, counterPoller *ingestion.CounterPoller, scheduler *polling.Scheduler, counterService *polling.Service) (*Runner, error) {
+func NewRunner(repo *repository.SQLiteRepository, poller *ingestion.StatusPoller, counterPoller *ingestion.CounterPoller, scheduler *polling.Scheduler, counterService *polling.Service, retention repository.CleanupPolicy) (*Runner, error) {
 	if repo == nil || poller == nil || counterPoller == nil || scheduler == nil || counterService == nil {
 		return nil, fmt.Errorf("runtime runner dependencies are required")
 	}
-	return &Runner{repository: repo, poller: poller, counterPoller: counterPoller, scheduler: scheduler, counterService: counterService}, nil
+	return &Runner{repository: repo, poller: poller, counterPoller: counterPoller, scheduler: scheduler, counterService: counterService, retention: retention}, nil
 }
 
 func (r *Runner) RunStatus(ctx context.Context) error {
@@ -49,7 +50,7 @@ func (r *Runner) RunStatus(ctx context.Context) error {
 	for _, result := range results {
 		if result.Err != nil {
 			failed++
-			slog.Warn("status poll failed", "device_id", result.TargetID, "attempts", result.Attempts, "error", result.Err)
+			slog.Error("status poll failed", "device_id", result.TargetID, "attempts", result.Attempts, "error", result.Err)
 		}
 	}
 	slog.Info("status poll cycle complete", "devices", len(devices), "failed", failed)
@@ -101,10 +102,19 @@ func (r *Runner) RunCounters(ctx context.Context) error {
 	for _, result := range results {
 		if result.Err != nil {
 			failed++
-			slog.Warn("counter poll failed", "target_id", result.TargetID, "attempts", result.Attempts, "error", result.Err)
+			slog.Error("counter poll failed", "target_id", result.TargetID, "attempts", result.Attempts, "error", result.Err)
 		}
 	}
 	slog.Info("counter poll cycle complete", "targets", len(targets), "failed", failed)
+	return nil
+}
+
+func (r *Runner) RunCleanup(ctx context.Context) error {
+	stats, err := r.repository.CleanupPollerData(ctx, r.retention)
+	if err != nil {
+		return err
+	}
+	slog.Info("poller history cleanup complete", "polling_runs", stats.PollingRuns, "counter_events", stats.CounterEvents, "jobs", stats.Jobs)
 	return nil
 }
 
@@ -116,8 +126,8 @@ func newID() (string, error) {
 	return hex.EncodeToString(value), nil
 }
 
-func RunLoop(ctx context.Context, runner *Runner, statusInterval, counterInterval time.Duration) error {
-	loop, err := worker.NewLoop(worker.Config{StatusInterval: statusInterval, CounterInterval: counterInterval}, runner)
+func RunLoop(ctx context.Context, runner *Runner, statusInterval, counterInterval, cleanupInterval time.Duration) error {
+	loop, err := worker.NewLoop(worker.Config{StatusInterval: statusInterval, CounterInterval: counterInterval, CleanupInterval: cleanupInterval}, runner)
 	if err != nil {
 		return err
 	}

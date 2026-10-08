@@ -39,3 +39,7 @@ profile can be marked `verified`.
 The CLI prints raw values but never prints the supplied community string,
 username passphrases, or private keys. Do not place secrets directly in shell
 history or committed files.
+
+The authenticated API and frontend also provide a single-IP discovery probe at
+`POST /api/v1/discovery/probe`. It reads standard system identity OIDs and does
+not scan a CIDR, persist credentials, or create a device automatically.

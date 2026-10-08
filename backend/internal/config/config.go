@@ -12,11 +12,14 @@ import (
 )
 
 type Config struct {
-	Database Database `yaml:"database"`
-	Server   Server   `yaml:"server"`
-	Security Security `yaml:"security"`
-	Polling  Polling  `yaml:"polling"`
-	Profiles Profiles `yaml:"profiles"`
+	Database  Database  `yaml:"database"`
+	Server    Server    `yaml:"server"`
+	Security  Security  `yaml:"security"`
+	Polling   Polling   `yaml:"polling"`
+	Report    Report    `yaml:"report"`
+	Retention Retention `yaml:"retention"`
+	Logging   Logging   `yaml:"logging"`
+	Profiles  Profiles  `yaml:"profiles"`
 }
 
 type Database struct {
@@ -38,9 +41,23 @@ type Polling struct {
 type Profiles struct {
 	Path string `yaml:"path"`
 }
+type Report struct {
+	Timezone string `yaml:"timezone"`
+}
+type Retention struct {
+	PollingRunsDays   int    `yaml:"polling_runs_days"`
+	CounterEventsDays int    `yaml:"counter_events_days"`
+	JobsDays          int    `yaml:"jobs_days"`
+	CleanupInterval   string `yaml:"cleanup_interval"`
+}
+type Logging struct {
+	ErrorFile string `yaml:"error_file"`
+	Daily     bool   `yaml:"daily"`
+	MaxSizeMB int    `yaml:"max_size_mb"`
+}
 
 func Defaults() Config {
-	return Config{Database: Database{Path: "./data/npms.db"}, Server: Server{Listen: ":8080", AllowedOrigin: "http://localhost:5173"}, Polling: Polling{Concurrency: 5, StatusInterval: "5m", CounterInterval: "15m"}, Profiles: Profiles{Path: "./profiles"}}
+	return Config{Database: Database{Path: "./data/npms.db"}, Server: Server{Listen: ":8080", AllowedOrigin: "http://localhost:5173"}, Polling: Polling{Concurrency: 5, StatusInterval: "5m", CounterInterval: "15m"}, Report: Report{Timezone: "UTC"}, Retention: Retention{PollingRunsDays: 30, CounterEventsDays: 90, JobsDays: 30, CleanupInterval: "24h"}, Logging: Logging{ErrorFile: "./data/npms-errors.log", Daily: true, MaxSizeMB: 10}, Profiles: Profiles{Path: "./profiles"}}
 }
 
 func Load(path string) (Config, error) {
@@ -67,6 +84,9 @@ func Load(path string) (Config, error) {
 	if !filepath.IsAbs(result.Profiles.Path) {
 		result.Profiles.Path = filepath.Clean(filepath.Join(base, result.Profiles.Path))
 	}
+	if !filepath.IsAbs(result.Logging.ErrorFile) {
+		result.Logging.ErrorFile = filepath.Clean(filepath.Join(base, result.Logging.ErrorFile))
+	}
 	return result, nil
 }
 
@@ -92,6 +112,24 @@ func (c Config) Validate() error {
 	if _, err := c.CounterInterval(); err != nil {
 		return err
 	}
+	if strings.TrimSpace(c.Report.Timezone) == "" {
+		return errors.New("report.timezone is required")
+	}
+	if _, err := time.LoadLocation(c.Report.Timezone); err != nil {
+		return fmt.Errorf("report.timezone must be a valid IANA timezone: %w", err)
+	}
+	if c.Retention.PollingRunsDays < 1 || c.Retention.CounterEventsDays < 1 || c.Retention.JobsDays < 1 {
+		return errors.New("retention day values must be greater than zero")
+	}
+	if _, err := c.CleanupInterval(); err != nil {
+		return err
+	}
+	if strings.TrimSpace(c.Logging.ErrorFile) == "" {
+		return errors.New("logging.error_file is required")
+	}
+	if c.Logging.MaxSizeMB < 1 || c.Logging.MaxSizeMB > 1024 {
+		return errors.New("logging.max_size_mb must be between 1 and 1024")
+	}
 	return nil
 }
 
@@ -100,6 +138,9 @@ func (c Config) StatusInterval() (time.Duration, error) {
 }
 func (c Config) CounterInterval() (time.Duration, error) {
 	return parseDuration("polling.counter_interval", c.Polling.CounterInterval)
+}
+func (c Config) CleanupInterval() (time.Duration, error) {
+	return parseDuration("retention.cleanup_interval", c.Retention.CleanupInterval)
 }
 
 func parseDuration(name, value string) (time.Duration, error) {

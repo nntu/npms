@@ -1,4 +1,4 @@
-import type { CounterReading, CreatePrinterInput, Paginated, PollingRun, PollJob, Printer } from './types'
+import type { CounterReading, CreateEndpointInput, CreatePrinterInput, CreateSNMPCredentialInput, DailyUsage, DiscoveryProbeInput, DiscoveryResult, Paginated, PollingRun, PollJob, Printer, PrinterProfile, RegisterPrinterInput, RegisterPrinterResult } from './types'
 
 const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '/api/v1'
 const apiToken = import.meta.env.VITE_API_TOKEN as string | undefined
@@ -49,8 +49,24 @@ export async function createPrinter(input: CreatePrinterInput): Promise<Printer>
   return request<Printer>('/printers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) })
 }
 
+export async function registerPrinter(input: RegisterPrinterInput): Promise<RegisterPrinterResult> {
+  return request<RegisterPrinterResult>('/printers/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) })
+}
+
+export async function createPrinterCredential(id: string, input: CreateSNMPCredentialInput): Promise<{ id: string; version: string }> {
+  return request<{ id: string; version: string }>(`/printers/${encodeURIComponent(id)}/credentials`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) })
+}
+
+export async function createPrinterEndpoint(id: string, input: CreateEndpointInput): Promise<unknown> {
+  return request<unknown>(`/printers/${encodeURIComponent(id)}/endpoints`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) })
+}
+
 export async function listPrinterCounters(id: string, limit = 50, offset = 0): Promise<Paginated<CounterReading>> {
   return request<Paginated<CounterReading>>(`/printers/${encodeURIComponent(id)}/counters?limit=${limit}&offset=${offset}`)
+}
+
+export async function listPrinterUsage(id: string, timezone = Intl.DateTimeFormat().resolvedOptions().timeZone): Promise<{ data: DailyUsage[]; total: number; timezone: string }> {
+  return request<{ data: DailyUsage[]; total: number; timezone: string }>(`/printers/${encodeURIComponent(id)}/usage?timezone=${encodeURIComponent(timezone)}`)
 }
 
 export async function listPollingRuns(id: string, limit = 20, offset = 0): Promise<Paginated<PollingRun>> {
@@ -64,4 +80,12 @@ export async function startPrinterPoll(id: string): Promise<PollJob> {
 
 export async function getJob(id: string): Promise<PollJob> {
   return request<PollJob>(`/jobs/${encodeURIComponent(id)}`)
+}
+
+export async function listProfiles(): Promise<{ data: PrinterProfile[]; total: number }> {
+  return request<{ data: PrinterProfile[]; total: number }>('/snmp/profiles')
+}
+
+export async function probeDiscovery(input: DiscoveryProbeInput): Promise<DiscoveryResult> {
+  return request<DiscoveryResult>('/discovery/probe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) })
 }

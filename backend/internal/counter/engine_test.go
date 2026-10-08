@@ -64,3 +64,30 @@ func TestAllocateDailyUsesLocalTimezoneAndEstimatedQuality(t *testing.T) {
 		t.Fatalf("expected estimated quality: %#v", allocations)
 	}
 }
+
+func TestAggregateDailyConvertsTrustedRawReadings(t *testing.T) {
+	location := time.FixedZone("ICT", 7*60*60)
+	readings := []Reading{
+		reading(100, "2026-01-02T00:00:00Z", "epoch-1"),
+		reading(125, "2026-01-02T01:00:00Z", "epoch-1"),
+		reading(140, "2026-01-02T02:00:00Z", "epoch-1"),
+	}
+	usage, err := AggregateDaily(readings, location, Policy{})
+	if err != nil || len(usage) != 1 || usage[0].Delta != 40 || usage[0].Quality != QualityValid {
+		t.Fatalf("unexpected daily usage: %#v, %v", usage, err)
+	}
+}
+
+func TestAggregateDailyExcludesResetAndMarksMidnightEstimate(t *testing.T) {
+	location := time.FixedZone("ICT", 7*60*60)
+	readings := []Reading{
+		reading(100, "2026-01-01T16:45:00Z", "epoch-1"),
+		reading(110, "2026-01-01T17:15:00Z", "epoch-1"),
+		reading(5, "2026-01-01T18:00:00Z", "epoch-1"),
+		reading(15, "2026-01-01T19:00:00Z", "epoch-1"),
+	}
+	usage, err := AggregateDaily(readings, location, Policy{})
+	if err != nil || len(usage) != 2 || usage[0].Delta != 5 || usage[1].Delta != 15 || usage[0].Quality != QualityUnverified || usage[1].Quality != QualityUnverified {
+		t.Fatalf("unexpected reset/midnight usage: %#v, %v", usage, err)
+	}
+}

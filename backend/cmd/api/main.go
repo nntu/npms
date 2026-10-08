@@ -15,10 +15,13 @@ import (
 	"npms/backend/internal/api"
 	"npms/backend/internal/config"
 	"npms/backend/internal/database"
+	"npms/backend/internal/discovery"
 	"npms/backend/internal/ingestion"
+	"npms/backend/internal/logging"
 	"npms/backend/internal/profile"
 	"npms/backend/internal/repository"
 	"npms/backend/internal/security"
+	"npms/backend/internal/snmp"
 )
 
 func main() {
@@ -28,6 +31,11 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
+	closeLog, err := logging.Setup(cfg.Logging.ErrorFile, cfg.Logging.Daily, cfg.Logging.MaxSizeMB)
+	if err != nil {
+		fail(fmt.Errorf("setup error log: %w", err))
+	}
+	defer func() { _ = closeLog() }()
 	profiles, err := profile.LoadDir(cfg.Profiles.Path)
 	if err != nil {
 		fail(err)
@@ -50,6 +58,7 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
+	server.SetProfiles(profiles)
 	key, err := security.ParseKey(cfg.Security.EncryptionKey)
 	if err != nil {
 		fail(err)
@@ -58,6 +67,10 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
+	server.SetSecretBox(box)
+	server.SetDiscoveryProbe(func(ctx context.Context, config snmp.Config) (discovery.Result, error) {
+		return discovery.Probe(ctx, config, ingestion.ConnectSNMP)
+	})
 	poller, err := ingestion.NewStatusPoller(store, ingestion.ConfigResolver{Store: store, Box: box}, ingestion.ConnectSNMP)
 	if err != nil {
 		fail(err)

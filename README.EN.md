@@ -117,7 +117,7 @@ Use embedded SQLite SQL migrations and foreign keys. Core tables:
 - `daily_counter_usage`: device_id, counter_definition_id, local_date, delta, quality, first/last readings, computed_at; composite unique key.
 - `locations`, `users`, `audit_logs`.
 
-Indexes: `(counter_definition_id, collected_at DESC)`, `(device_id, started_at DESC)` on polling runs, unique asset_code when present, sensible endpoint uniqueness. Use UTC timestamps and explicit report timezone (`Asia/Ho_Chi_Minh` default). Add retention/configurable archiving later; do not prematurely partition.
+Indexes: `(counter_definition_id, collected_at DESC)`, `(device_id, started_at DESC)` on polling runs, unique asset_code when present, sensible endpoint uniqueness. Use UTC timestamps and explicit report timezone (`Asia/Ho_Chi_Minh` default). Retention cleanup removes only unreferenced old poll runs, old counter events and completed jobs; raw readings and daily usage remain available for audit.
 
 ### Counter algorithm
 
@@ -217,6 +217,11 @@ go vet ./...
 The database commands run locally against SQLite; no container is started. Keep
 `config.yaml` local and never commit real community strings, SNMPv3 keys,
 encryption keys or API tokens.
+Error-level diagnostics are written as JSON lines to `logging.error_file`
+(default `./data/npms-errors.log`) with restrictive file permissions. With
+`logging.daily: true`, files are suffixed by UTC date and split into
+`.part-001`, `.part-002` when `logging.max_size_mb` is exceeded. Secrets are
+never included in this file.
 
 ## 9.1. Build and deploy on Linux
 
