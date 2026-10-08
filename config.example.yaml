@@ -1,0 +1,21 @@
+database:
+  path: ./data/npms.db
+
+server:
+  listen: 127.0.0.1:8080
+  allowed_origin: http://localhost:8080
+  # Leave empty for localhost-only single-machine mode.
+  api_token: ""
+
+security:
+  # 32-byte base64 or 64-character hex key. Use a file permission-protected config.
+  encryption_key: replace-with-a-32-byte-base64-or-64-character-hex-key
+
+polling:
+  concurrency: 5
+  status_interval: 5m
+  counter_interval: 15m
+
+profiles:
+  # External directory; profiles are not embedded in the executable.
+  path: ./backend/profiles

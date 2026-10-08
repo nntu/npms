@@ -1,0 +1,313 @@
+openapi: 3.1.0
+info:
+  title: NPMS API
+  version: 0.1.0
+  description: Local printer management API for the standalone SQLite deployment.
+servers:
+  - url: http://localhost:8080
+paths:
+  /api/v1/health:
+    get:
+      operationId: getHealth
+      responses:
+        '200':
+          description: API is running.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+  /api/v1/printers:
+    post:
+      operationId: createPrinter
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePrinter'
+      responses:
+        '201':
+          description: Printer created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Printer'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    get:
+      operationId: listPrinters
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: Active printers.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrinterPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/v1/printers/{id}:
+    get:
+      operationId: getPrinter
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Printer details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Printer'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Printer not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/printers/{id}/counters:
+    get:
+      operationId: listPrinterCounters
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: Immutable raw counter readings.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CounterPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/v1/printers/{id}/polling-runs:
+    get:
+      operationId: listPrinterPollingRuns
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: Polling diagnostics.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PollingRunPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/v1/printers/{id}/poll:
+    post:
+      operationId: pollPrinter
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '202':
+          description: Poll accepted for asynchronous processing.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobAccepted'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          description: Polling is not configured.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/jobs/{id}:
+    get:
+      operationId: getJob
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Current asynchronous job state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  parameters:
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 1000
+        default: 50
+    Offset:
+      name: offset
+      in: query
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+  responses:
+    BadRequest:
+      description: Invalid request.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Missing or invalid bearer token.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    Health:
+      type: object
+      required: [status, time]
+      properties:
+        status: { type: string, const: ok }
+        time: { type: string, format: date-time }
+    Printer:
+      type: object
+      required: [id, display_name, status]
+      properties:
+        id: { type: string, format: uuid }
+        asset_code: { type: [string, 'null'] }
+        display_name: { type: string }
+        manufacturer: { type: [string, 'null'] }
+        model: { type: [string, 'null'] }
+        serial: { type: [string, 'null'] }
+        status: { type: string, enum: [online, offline, unknown, unavailable] }
+        last_seen_at: { type: [string, 'null'], format: date-time }
+    CreatePrinter:
+      type: object
+      required: [display_name]
+      additionalProperties: false
+      properties:
+        asset_code: { type: string, maxLength: 200 }
+        display_name: { type: string, minLength: 1, maxLength: 200 }
+        manufacturer: { type: string, maxLength: 200 }
+        model: { type: string, maxLength: 200 }
+        serial: { type: string, maxLength: 200 }
+        sys_object_id: { type: string, maxLength: 200 }
+    PrinterPage:
+      type: object
+      required: [data, limit, offset, total]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Printer' }
+        limit: { type: integer }
+        offset: { type: integer }
+        total: { type: integer }
+    Counter:
+      type: object
+      required: [id, definition_key, unit, scope, raw_value, collected_at, quality]
+      properties:
+        id: { type: integer }
+        definition_key: { type: string }
+        unit: { type: string, enum: [impressions, sheets] }
+        scope: { type: string }
+        raw_value: { type: integer, format: int64, minimum: 0 }
+        collected_at: { type: string, format: date-time }
+        quality: { type: string, enum: [valid, unverified, unsupported, unavailable, suspicious] }
+    CounterPage:
+      type: object
+      required: [data, limit, offset, total]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Counter' }
+        limit: { type: integer }
+        offset: { type: integer }
+        total: { type: integer }
+    PollingRun:
+      type: object
+      required: [id, job_kind, started_at, result, attempt_count]
+      properties:
+        id: { type: string }
+        job_kind: { type: string }
+        started_at: { type: string, format: date-time }
+        ended_at: { type: [string, 'null'], format: date-time }
+        result: { type: string, enum: [running, success, failed] }
+        error_code: { type: [string, 'null'] }
+        profile_version: { type: integer }
+        attempt_count: { type: integer, minimum: 1 }
+    PollingRunPage:
+      type: object
+      required: [data, limit, offset, total]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/PollingRun' }
+        limit: { type: integer }
+        offset: { type: integer }
+        total: { type: integer }
+    JobAccepted:
+      type: object
+      required: [job_id, status, status_url]
+      properties:
+        job_id: { type: string }
+        status: { type: string, const: queued }
+        status_url: { type: string }
+    Job:
+      type: object
+      required: [id, device_id, status]
+      properties:
+        id: { type: string }
+        device_id: { type: string, format: uuid }
+        status: { type: string, enum: [queued, success, failed] }
+        error_code: { type: [string, 'null'] }
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
