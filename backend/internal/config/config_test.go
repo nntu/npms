@@ -30,3 +30,18 @@ func TestRejectUnknownField(t *testing.T) {
 		t.Fatal("expected unknown field error")
 	}
 }
+
+func TestIANATimezoneValidation(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	contents := []byte("report:\n  timezone: Asia/Ho_Chi_Minh\n")
+	if err := os.WriteFile(path, contents, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("expected Asia/Ho_Chi_Minh timezone to be valid, got error: %v", err)
+	}
+	if cfg.Report.Timezone != "Asia/Ho_Chi_Minh" {
+		t.Fatalf("expected timezone Asia/Ho_Chi_Minh, got %s", cfg.Report.Timezone)
+	}
+}

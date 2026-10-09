@@ -2,7 +2,7 @@ BACKEND_DIR := backend
 DB_PATH ?= ./data/npms.db
 CONFIG_PATH ?= ./config.yaml
 
-.PHONY: test lint build build-standalone dev-up dev-down migrate-up
+.PHONY: test lint build build-standalone dev-up dev-down migrate-up init-config
 
 test:
 	cd $(BACKEND_DIR) && go test ./...
@@ -24,3 +24,7 @@ dev-down:
 
 migrate-up:
 	cd $(BACKEND_DIR) && go run ./cmd/db-migrate --config "../$(CONFIG_PATH)"
+
+init-config:
+	cd $(BACKEND_DIR) && go run ./cmd/init --config "../$(CONFIG_PATH)"
+

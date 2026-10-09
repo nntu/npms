@@ -25,12 +25,39 @@ import (
 )
 
 func main() {
+	if len(os.Args) > 1 && (os.Args[1] == "init" || os.Args[1] == "-init" || os.Args[1] == "--init") {
+		initCmd := flag.NewFlagSet("init", flag.ExitOnError)
+		configPath := initCmd.String("config", "./config.yaml", "Target YAML configuration path")
+		templatePath := initCmd.String("template", "./config.example.yaml", "Source template configuration path")
+		force := initCmd.Bool("force", false, "Overwrite existing configuration file")
+		genAPIToken := initCmd.Bool("generate-api-token", false, "Generate API token")
+		customKey := initCmd.String("key", "", "Custom 32-byte encryption key")
+		_ = initCmd.Parse(os.Args[2:])
+
+		res, err := config.InitConfig(config.InitOptions{
+			Path:             *configPath,
+			TemplatePath:     *templatePath,
+			Force:            *force,
+			GenerateAPIToken: *genAPIToken,
+			EncryptionKey:    *customKey,
+		})
+		if err != nil {
+			fail(err)
+		}
+		fmt.Printf("NPMS configuration initialized at %s\nEncryption Key: %s\n", res.ConfigPath, res.EncryptionKey)
+		if res.APIToken != "" {
+			fmt.Printf("API Token: %s\n", res.APIToken)
+		}
+		return
+	}
+
 	configPath := flag.String("config", "./config.yaml", "YAML configuration path")
 	flag.Parse()
 	cfg, err := config.Load(*configPath)
 	if err != nil {
 		fail(err)
 	}
+
 	closeLog, err := logging.Setup(cfg.Logging.ErrorFile, cfg.Logging.Daily, cfg.Logging.MaxSizeMB)
 	if err != nil {
 		fail(fmt.Errorf("setup error log: %w", err))

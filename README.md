@@ -89,7 +89,20 @@ Docker hoặc CGO runtime.
 
 ## Cấu hình
 
-Tạo cấu hình local:
+Tạo cấu hình local tự động (tự sinh encryption_key 32-byte an toàn):
+
+```bash
+# Sử dụng Makefile:
+make init-config
+
+# Hoặc dùng CLI npms:
+./npms init
+
+# Hoặc dùng binary npms-init:
+./bin/npms-init --generate-api-token
+```
+
+Hoặc sao chép thủ công từ file mẫu:
 
 ```bash
 cp config.example.yaml config.yaml
@@ -100,6 +113,7 @@ Windows PowerShell:
 ```powershell
 Copy-Item ./config.example.yaml ./config.yaml
 ```
+
 
 Các trường quan trọng:
 
@@ -160,20 +174,23 @@ go vet ./...
 
 ## Kiểm tra SNMP
 
-Lệnh sau hiển thị IP/host, thông tin máy in và marker value hiện tại; không ghi SQLite:
+Sử dụng CLI chẩn đoán `snmp-debug` để kiểm tra kết nối SNMP v2c/v3 và đọc counter máy in mà không ghi dữ liệu vào SQLite:
 
-```bash
-cd backend
-go run ./cmd/snmp-debug check --host 192.168.1.20 --version 2c --community public
+Windows PowerShell (dùng Binary đã build):
+```powershell
+.\dist\bin\npms-snmp-debug.exe check --host 192.168.1.20 --version 2c --community public
 ```
 
-SNMPv3 có thể dùng thêm `--username`, `--auth-protocol`, `--auth-passphrase`,
-`--priv-protocol` và `--priv-passphrase`. Không đưa credential thật vào shell
-history hoặc fixture commit.
+Linux / Go source:
+```bash
+./dist/bin/npms-snmp-debug check --host 192.168.1.20 --version 2c --community public
+# Hoặc chạy trực tiếp từ source:
+cd backend && go run ./cmd/snmp-debug check --host 192.168.1.20 --version 2c --community public
+```
 
-Frontend cũng có chức năng `Probe SNMP` cho một IP duy nhất. Discovery không
-quét CIDR, không tự động lưu device và không lưu credential probe. API tương ứng
-là `POST /api/v1/discovery/probe`.
+SNMPv3 sử dụng thêm các tham số `--username`, `--auth-protocol`, `--auth-passphrase`, `--priv-protocol` và `--priv-passphrase`. Hướng dẫn chi tiết đầy đủ tất cả 5 lệnh (`check`, `probe`, `get`, `walk`, `export`) xem tại [docs/snmp-debug.md](docs/snmp-debug.md).
+
+Frontend cũng hỗ trợ chức năng `Probe SNMP` cho một IP duy nhất qua API `POST /api/v1/discovery/probe`. Không tự động lưu device và không lưu credential probe.
 
 ## Profile máy in
 

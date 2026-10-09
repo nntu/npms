@@ -31,6 +31,9 @@ func TestParseKey(t *testing.T) {
 	if key, err := ParseKey("BwECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8"); err != nil || len(key) != 32 {
 		t.Fatalf("base64 key failed: %v", err)
 	}
+	if key, err := ParseKey("BwECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="); err != nil || len(key) != 32 {
+		t.Fatalf("padded base64 key failed: %v", err)
+	}
 	if key, err := ParseKey("0707070707070707070707070707070707070707070707070707070707070707"); err != nil || len(key) != 32 {
 		t.Fatalf("hex key failed: %v", err)
 	}
@@ -38,3 +41,20 @@ func TestParseKey(t *testing.T) {
 		t.Fatal("expected invalid key error")
 	}
 }
+
+func TestGenerateKeyAndToken(t *testing.T) {
+	keyStr, err := GenerateKey()
+	if err != nil {
+		t.Fatalf("GenerateKey failed: %v", err)
+	}
+	parsed, err := ParseKey(keyStr)
+	if err != nil || len(parsed) != 32 {
+		t.Fatalf("ParseKey failed on generated key %q: %v", keyStr, err)
+	}
+
+	tokStr, err := GenerateAPIToken()
+	if err != nil || len(tokStr) < 40 {
+		t.Fatalf("GenerateAPIToken failed: %v, tok=%q", err, tokStr)
+	}
+}
+

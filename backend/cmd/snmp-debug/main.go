@@ -43,12 +43,24 @@ func main() {
 }
 
 func run(args []string, stdout, stderr io.Writer) error {
-	if len(args) == 0 {
-		return errors.New("command is required: check, probe, get, walk, or export")
+	if len(args) == 0 || args[0] == "-h" || args[0] == "--help" || args[0] == "help" || args[0] == "-help" {
+		printUsage(stdout)
+		if len(args) == 0 {
+			return errors.New("command is required: check, probe, get, walk, or export (see usage above)")
+		}
+		return nil
 	}
 	command := args[0]
+	if command != "check" && command != "probe" && command != "get" && command != "walk" && command != "export" {
+		printUsage(stderr)
+		return fmt.Errorf("unknown command %q (see usage above)", command)
+	}
+
 	fs := flag.NewFlagSet(command, flag.ContinueOnError)
 	fs.SetOutput(stderr)
+	fs.Usage = func() {
+		printUsage(stderr)
+	}
 	host := fs.String("host", "", "printer hostname or IP")
 	port := fs.Int("port", 161, "SNMP UDP port")
 	version := fs.String("version", "2c", "SNMP version: 2c or 3")
@@ -65,9 +77,6 @@ func run(args []string, stdout, stderr io.Writer) error {
 	outputPath := fs.String("output", "", "JSON output path for export")
 	if err := fs.Parse(args[1:]); err != nil {
 		return err
-	}
-	if command != "check" && command != "probe" && command != "get" && command != "walk" && command != "export" {
-		return fmt.Errorf("unknown command %q", command)
 	}
 	if *maxRepetitions < 1 || *maxRepetitions > 255 {
 		return errors.New("max-repetitions must be between 1 and 255")
@@ -169,4 +178,50 @@ func findValue(results []snmp.VarBind, oid string) (any, bool) {
 		}
 	}
 	return nil, false
+}
+
+func printUsage(w io.Writer) {
+	usage := `NPMS SNMP Diagnostic CLI (snmp-debug)
+
+Usage:
+  snmp-debug <command> [options]
+
+Available Commands:
+  check     Perform console health & marker counter check (human-readable table output)
+  probe     Probe printer identity and marker OIDs (JSON output)
+  get       Fetch a single OID value (requires --oid)
+  walk      Walk an OID subtree (requires --oid)
+  export    Export full printer diagnostics to a JSON file (requires --output)
+  help      Show this help message
+
+Global Options:
+  --host string            Printer hostname or IP address (required)
+  --port int               SNMP UDP port (default: 161)
+  --version string         SNMP version: 2c or 3 (default: 2c)
+  --community string       SNMP v2c community string
+  --username string        SNMPv3 username
+  --auth-protocol string   SNMPv3 authentication protocol (MD5 or SHA)
+  --auth-passphrase string SNMPv3 authentication passphrase
+  --priv-protocol string   SNMPv3 privacy protocol (DES or AES)
+  --priv-passphrase string SNMPv3 privacy passphrase
+  --timeout int            Timeout in seconds (default: 3)
+  --retries int            Number of retries (default: 1)
+  --max-repetitions int    SNMP bulk walk repetitions (1-255, default: 25)
+  --oid string             Target OID for 'get' or 'walk' command
+  --output string          Target file path for 'export' command
+
+Examples:
+  # SNMP v2c console check:
+  snmp-debug check --host 192.168.1.50 --community public
+
+  # SNMP v3 authPriv walk:
+  snmp-debug walk --host 192.168.1.50 --version 3 --username admin \
+    --auth-protocol SHA --auth-passphrase "AuthPass123" \
+    --priv-protocol AES --priv-passphrase "PrivPass123" \
+    --oid 1.3.6.1.2.1.43.11.1.1
+
+  # Export diagnostics to JSON file:
+  snmp-debug export --host 192.168.1.50 --community public --output sample.json
+`
+	fmt.Fprintln(w, strings.TrimSpace(usage))
 }

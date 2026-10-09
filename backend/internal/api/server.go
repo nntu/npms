@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	_ "time/tzdata"
 
 	"npms/backend/internal/discovery"
 	"npms/backend/internal/profile"

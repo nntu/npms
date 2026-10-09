@@ -31,3 +31,16 @@ func TestFormatConsoleReportsMissingCounters(t *testing.T) {
 		t.Fatalf("unexpected output:\n%s", got)
 	}
 }
+
+func TestRunHelpCommand(t *testing.T) {
+	for _, flagArg := range [][]string{{"help"}, {"-h"}, {"--help"}} {
+		var stdout, stderr strings.Builder
+		err := run(flagArg, &stdout, &stderr)
+		if err != nil {
+			t.Fatalf("expected nil error for %v, got %v", flagArg, err)
+		}
+		if !strings.Contains(stdout.String(), "NPMS SNMP Diagnostic CLI (snmp-debug)") {
+			t.Fatalf("help output missing usage title:\n%s", stdout.String())
+		}
+	}
+}

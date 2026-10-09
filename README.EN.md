@@ -198,7 +198,7 @@ portable filesystem APIs, and no Docker/CGO service is required.
 On Linux/macOS, the convenience commands are:
 
 ```bash
-cp config.example.yaml config.yaml
+make init-config # Generates config.yaml with secure 32-byte encryption key
 make migrate-up
 make test
 make lint
