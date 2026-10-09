@@ -41,4 +41,7 @@ func TestConfigRejectsMissingSecretMaterial(t *testing.T) {
 	if err := (Config{Host: "printer", Port: 161, Version: Version3, TimeoutSeconds: 2, MaxRepetitions: 25}).Validate(); err == nil {
 		t.Fatal("expected missing username error")
 	}
+	if err := (Config{Host: "printer", Port: 161, Version: Version3, Username: "user", PrivProtocol: "AES", PrivPassphrase: "secret", TimeoutSeconds: 2, MaxRepetitions: 25}).Validate(); err == nil {
+		t.Fatal("expected privacy without auth error")
+	}
 }

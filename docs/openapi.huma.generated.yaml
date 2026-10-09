@@ -142,6 +142,9 @@ components:
           type: integer
         performed_at:
           type: string
+        printed_pages:
+          format: int64
+          type: integer
         quantity:
           format: int64
           type: integer

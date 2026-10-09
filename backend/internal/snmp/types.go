@@ -56,6 +56,9 @@ func (c Config) Validate() error {
 	if c.Version == Version3 && c.Username == "" {
 		return fmt.Errorf("username is required for SNMP v3")
 	}
+	if c.Version == Version3 && c.PrivProtocol != "" && c.AuthProtocol == "" {
+		return fmt.Errorf("privacy protocol requires an auth protocol for SNMP v3")
+	}
 	if c.AuthProtocol != "" && c.AuthPassphrase == "" {
 		return fmt.Errorf("auth passphrase is required when auth protocol is set")
 	}

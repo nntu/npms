@@ -63,6 +63,11 @@ func (c *GoSNMPClient) Get(ctx context.Context, oids []string) ([]VarBind, error
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	clearDeadline, err := c.applyContextDeadline(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer clearDeadline()
 	result, err := c.client.Get(oids)
 	if err != nil {
 		return nil, fmt.Errorf("SNMP GET: %w", err)
@@ -74,6 +79,11 @@ func (c *GoSNMPClient) Walk(ctx context.Context, oid string) ([]VarBind, error) 
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	clearDeadline, err := c.applyContextDeadline(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer clearDeadline()
 	var variables []gosnmp.SnmpPDU
 	if err := c.client.Walk(oid, func(pdu gosnmp.SnmpPDU) error {
 		variables = append(variables, pdu)
@@ -82,6 +92,20 @@ func (c *GoSNMPClient) Walk(ctx context.Context, oid string) ([]VarBind, error) 
 		return nil, fmt.Errorf("SNMP WALK %s: %w", oid, err)
 	}
 	return convertPDUs(variables), nil
+}
+
+func (c *GoSNMPClient) applyContextDeadline(ctx context.Context) (func(), error) {
+	if c.client.Conn == nil {
+		return func() {}, nil
+	}
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return func() {}, nil
+	}
+	if err := c.client.Conn.SetDeadline(deadline); err != nil {
+		return nil, fmt.Errorf("set SNMP context deadline: %w", err)
+	}
+	return func() { _ = c.client.Conn.SetDeadline(time.Time{}) }, nil
 }
 
 func (c *GoSNMPClient) Close() error {

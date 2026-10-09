@@ -153,6 +153,7 @@ func (fakeStore) RefillPrinterCartridge(context.Context, repository.RefillPrinte
 func (fakeStore) ListCartridgeLogs(context.Context, string, string, int, int) ([]repository.CartridgeLog, error) {
 	return []repository.CartridgeLog{}, nil
 }
+func (fakeStore) CountCartridgeLogs(context.Context, string, string) (int, error) { return 0, nil }
 
 func TestListPrintersReturnsPaginatedSafeDTO(t *testing.T) {
 	server, err := NewServer(fakeStore{devices: []repository.Device{{ID: "d1", DisplayName: "Front", Status: "online", Serial: "secret", LastSeenAt: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)}}, total: 1}, "token", "http://localhost:5173")

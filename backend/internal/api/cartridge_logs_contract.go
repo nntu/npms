@@ -27,8 +27,12 @@ func (s *Server) cartridgeLogsHandler() http.Handler {
 		if err != nil {
 			return nil, huma.Error500InternalServerError("could not list cartridge logs", err)
 		}
+		total, err := store.CountCartridgeLogs(ctx, strings.TrimSpace(input.CartridgeID), strings.TrimSpace(input.DeviceID))
+		if err != nil {
+			return nil, huma.Error500InternalServerError("could not count cartridge logs", err)
+		}
 		output := &contract.LogsOutput{}
-		output.Body.Limit, output.Body.Offset, output.Body.Total = limit, offset, len(logs)
+		output.Body.Limit, output.Body.Offset, output.Body.Total = limit, offset, total
 		output.Body.Data = make([]contract.CartridgeLog, 0, len(logs))
 		for _, item := range logs {
 			counterCollectedAt, performedAt := "", ""
@@ -41,7 +45,7 @@ func (s *Server) cartridgeLogsHandler() http.Handler {
 			output.Body.Data = append(output.Body.Data, contract.CartridgeLog{
 				ID: item.ID, CartridgeID: item.CartridgeID, DeviceID: item.DeviceID,
 				ActionType: item.ActionType, SourceType: item.SourceType, Quantity: item.Quantity,
-				PageCount: item.PageCount, CounterQuality: item.CounterQuality,
+				PageCount: item.PageCount, PrintedPages: item.PrintedPages, CounterQuality: item.CounterQuality,
 				CounterCollectedAt: counterCollectedAt,
 				Notes:              item.Notes, PerformedAt: performedAt,
 			})

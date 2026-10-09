@@ -40,8 +40,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!response.ok) {
     let message = `API request failed (${response.status})`
     try {
-      const body = (await response.json()) as { message?: string }
-      if (body.message) message = body.message
+      const body = (await response.json()) as { message?: string; error?: { message?: string } }
+      if (body.error?.message) message = body.error.message
+      else if (body.message) message = body.message
     } catch {
       // Keep the status-based message when the server has no JSON error body.
     }

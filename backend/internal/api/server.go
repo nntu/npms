@@ -77,6 +77,7 @@ type CartridgeStore interface {
 	RefillCartridges(context.Context, string, string, int, string) error
 	RefillPrinterCartridge(context.Context, repository.RefillPrinterCartridgeParams) error
 	ListCartridgeLogs(context.Context, string, string, int, int) ([]repository.CartridgeLog, error)
+	CountCartridgeLogs(context.Context, string, string) (int, error)
 }
 
 type CounterSnapshotter interface {

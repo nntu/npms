@@ -373,3 +373,21 @@ func (r *SQLiteRepository) ListCartridgeLogs(ctx context.Context, cartridgeID, d
 
 	return result, nil
 }
+
+func (r *SQLiteRepository) CountCartridgeLogs(ctx context.Context, cartridgeID, deviceID string) (int, error) {
+	query := `SELECT COUNT(*) FROM cartridge_logs WHERE 1=1`
+	args := []any{}
+	if cartridgeID != "" {
+		query += ` AND cartridge_id = ?`
+		args = append(args, cartridgeID)
+	}
+	if deviceID != "" {
+		query += ` AND device_id = ?`
+		args = append(args, deviceID)
+	}
+	var count int
+	if err := r.db.QueryRowContext(ctx, query, args...).Scan(&count); err != nil {
+		return 0, fmt.Errorf("count cartridge logs: %w", err)
+	}
+	return count, nil
+}

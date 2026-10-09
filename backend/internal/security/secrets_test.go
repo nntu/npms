@@ -58,3 +58,9 @@ func TestGenerateKeyAndToken(t *testing.T) {
 	}
 }
 
+func TestSNMPSecretRejectsPrivacyWithoutAuth(t *testing.T) {
+	secret := SNMPSecret{Version: "3", Username: "user", PrivProtocol: "AES", PrivPassphrase: "secret"}
+	if err := secret.Validate(); err == nil {
+		t.Fatal("expected privacy without auth error")
+	}
+}

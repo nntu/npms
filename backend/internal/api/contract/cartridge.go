@@ -117,6 +117,7 @@ type CartridgeLog struct {
 	SourceType         string `json:"source_type,omitempty"`
 	Quantity           int    `json:"quantity"`
 	PageCount          int    `json:"page_count,omitempty"`
+	PrintedPages       int    `json:"printed_pages,omitempty"`
 	CounterQuality     string `json:"counter_quality,omitempty"`
 	CounterCollectedAt string `json:"counter_collected_at,omitempty"`
 	Notes              string `json:"notes,omitempty"`

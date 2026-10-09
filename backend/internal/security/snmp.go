@@ -26,6 +26,9 @@ func (s SNMPSecret) Validate() error {
 		if s.Username == "" {
 			return fmt.Errorf("SNMPv3 username is required")
 		}
+		if s.PrivProtocol != "" && s.AuthProtocol == "" {
+			return fmt.Errorf("SNMPv3 privacy requires an auth protocol")
+		}
 		if s.AuthProtocol != "" && s.AuthPassphrase == "" {
 			return fmt.Errorf("SNMPv3 auth passphrase is required")
 		}
