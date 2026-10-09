@@ -134,8 +134,8 @@ func (s *Server) SetPollTimeout(timeout time.Duration) {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("/api/v1/health", s.healthHandler())
-	mux.HandleFunc("/api/v1/health/live", s.health)
-	mux.HandleFunc("/api/v1/health/ready", s.health)
+	mux.Handle("/api/v1/health/live", s.healthHandler())
+	mux.Handle("/api/v1/health/ready", s.healthHandler())
 	mux.Handle("/api/v1/snmp/profiles", s.profileHandler())
 	mux.HandleFunc("/api/v1/discovery/probe", s.probeDiscovery)
 	mux.HandleFunc("/api/v1/printers/register", s.registerPrinter)

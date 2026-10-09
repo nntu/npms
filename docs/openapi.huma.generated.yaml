@@ -1168,6 +1168,10 @@ components:
         - total
         - timezone
       type: object
+  securitySchemes:
+    bearerAuth:
+      scheme: bearer
+      type: http
 info:
   title: NPMS API
   version: 1.0.0
@@ -1189,6 +1193,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
+      security:
+        - bearerAuth: []
       summary: Get API v1 cartridges
     post:
       operationId: post-api-v1-cartridges
@@ -1211,6 +1217,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
+      security:
+        - bearerAuth: []
       summary: Post API v1 cartridges
   /api/v1/cartridges/logs:
     get:
@@ -1256,6 +1264,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
+      security:
+        - bearerAuth: []
       summary: Get API v1 cartridges logs
   /api/v1/cartridges/refill:
     post:
@@ -1279,6 +1289,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
+      security:
+        - bearerAuth: []
       summary: Post API v1 cartridges refill
   /api/v1/cartridges/refill-printer:
     post:
@@ -1302,6 +1314,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
+      security:
+        - bearerAuth: []
       summary: Post API v1 cartridges refill printer
   /api/v1/cartridges/replace:
     post:
@@ -1325,6 +1339,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
+      security:
+        - bearerAuth: []
       summary: Post API v1 cartridges replace
   /api/v1/cartridges/stock:
     post:
@@ -1348,6 +1364,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
+      security:
+        - bearerAuth: []
       summary: Post API v1 cartridges stock
   /api/v1/cartridges/stock/refill-bottles:
     post:
@@ -1371,6 +1389,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
+      security:
+        - bearerAuth: []
       summary: Post API v1 cartridges stock refill bottles
   /api/v1/discovery/probe:
     post:
@@ -1394,6 +1414,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
+      security:
+        - bearerAuth: []
       summary: Post API v1 discovery probe
   /api/v1/health:
     get:
@@ -1412,6 +1434,40 @@ paths:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
       summary: Get API v1 health
+  /api/v1/health/live:
+    get:
+      operationId: get-api-v1-health-live
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthOutputBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Get API v1 health live
+  /api/v1/health/ready:
+    get:
+      operationId: get-api-v1-health-ready
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthOutputBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Get API v1 health ready
   /api/v1/jobs/{id}:
     get:
       operationId: get-api-v1-jobs-by-id
@@ -1434,6 +1490,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
+      security:
+        - bearerAuth: []
       summary: Get API v1 jobs by ID
   /api/v1/printers:
     get:
@@ -1469,6 +1527,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
+      security:
+        - bearerAuth: []
       summary: Get API v1 printers
     post:
       operationId: post-api-v1-printers
@@ -1491,6 +1551,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
+      security:
+        - bearerAuth: []
       summary: Post API v1 printers
   /api/v1/printers/register:
     post:
@@ -1514,6 +1576,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
+      security:
+        - bearerAuth: []
       summary: Post API v1 printers register
   /api/v1/printers/{id}:
     get:
@@ -1538,6 +1602,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
+      security:
+        - bearerAuth: []
       summary: Get API v1 printers by ID
   /api/v1/printers/{id}/counters:
     get:
@@ -1579,6 +1645,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
+      security:
+        - bearerAuth: []
       summary: Get API v1 printers by ID counters
   /api/v1/printers/{id}/credentials:
     post:
@@ -1609,6 +1677,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
+      security:
+        - bearerAuth: []
       summary: Post API v1 printers by ID credentials
   /api/v1/printers/{id}/endpoints:
     post:
@@ -1639,6 +1709,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
+      security:
+        - bearerAuth: []
       summary: Post API v1 printers by ID endpoints
   /api/v1/printers/{id}/poll:
     post:
@@ -1663,6 +1735,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
+      security:
+        - bearerAuth: []
       summary: Post API v1 printers by ID poll
   /api/v1/printers/{id}/polling-runs:
     get:
@@ -1704,6 +1778,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
+      security:
+        - bearerAuth: []
       summary: Get API v1 printers by ID polling runs
   /api/v1/printers/{id}/usage:
     get:
@@ -1746,6 +1822,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
+      security:
+        - bearerAuth: []
       summary: Get API v1 printers by ID usage
   /api/v1/snmp/profiles:
     get:
@@ -1763,4 +1841,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
+      security:
+        - bearerAuth: []
       summary: Get API v1 snmp profiles

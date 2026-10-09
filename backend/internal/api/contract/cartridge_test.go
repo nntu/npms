@@ -9,6 +9,8 @@ func TestCartridgeContractRegistersAllOperations(t *testing.T) {
 	_, spec := NewCartridgeAPI()
 	want := map[string]string{
 		"/api/v1/health":                          "get",
+		"/api/v1/health/live":                     "get",
+		"/api/v1/health/ready":                    "get",
 		"/api/v1/snmp/profiles":                   "get",
 		"/api/v1/discovery/probe":                 "post",
 		"/api/v1/cartridges":                      "get",
@@ -40,5 +42,14 @@ func TestCartridgeContractRegistersAllOperations(t *testing.T) {
 		if method == http.MethodPost && item.Post == nil {
 			t.Fatalf("missing POST contract for %s", path)
 		}
+	}
+	if spec.Components == nil || spec.Components.SecuritySchemes["bearerAuth"] == nil {
+		t.Fatal("missing bearer authentication scheme")
+	}
+	if spec.Paths["/api/v1/cartridges"].Get.Security == nil {
+		t.Fatal("cartridge list must declare bearer authentication")
+	}
+	if spec.Paths["/api/v1/health"].Get.Security != nil {
+		t.Fatal("health must remain public")
 	}
 }

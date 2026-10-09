@@ -435,6 +435,21 @@ func (r *SQLiteRepository) CountDevices(ctx context.Context) (int, error) {
 	return count, nil
 }
 
+func (r *SQLiteRepository) GetDeviceProfileVersion(ctx context.Context, deviceID string) (int, error) {
+	var version sql.NullInt64
+	err := r.db.QueryRowContext(ctx, `SELECT sp.version
+		FROM device_profile_assignments dpa
+		JOIN snmp_profiles sp ON sp.id = dpa.profile_id
+		WHERE dpa.device_id = ?`, deviceID).Scan(&version)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, fmt.Errorf("get device profile version: %w", err)
+	}
+	return int(version.Int64), nil
+}
+
 func (r *SQLiteRepository) SoftDeleteDevice(ctx context.Context, id string) error {
 	result, err := r.db.ExecContext(ctx, "UPDATE devices SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL", time.Now().UTC().Format(time.RFC3339Nano), time.Now().UTC().Format(time.RFC3339Nano), id)
 	if err != nil {

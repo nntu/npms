@@ -72,6 +72,10 @@ func (r *Runner) RunCounters(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+		profileVersion, err := r.repository.GetDeviceProfileVersion(ctx, device.ID)
+		if err != nil {
+			return err
+		}
 		if len(endpoints) == 0 {
 			slog.Warn("counter poll skipped", "device_id", device.ID, "reason", "no endpoint")
 			continue
@@ -89,7 +93,7 @@ func (r *Runner) RunCounters(ctx context.Context) error {
 				return err
 			}
 			definition, endpoint := definition, endpoint
-			targets = append(targets, polling.RunTarget{Target: polling.Target{ID: device.ID + ":" + definition.ID}, Run: repository.PollingRun{ID: runID, DeviceID: device.ID, JobKind: "counter", ProfileVersion: 1}, CounterDefinitionID: definition.ID, Read: func(readCtx context.Context) (counter.Reading, error) {
+			targets = append(targets, polling.RunTarget{Target: polling.Target{ID: device.ID + ":" + definition.ID}, Run: repository.PollingRun{ID: runID, DeviceID: device.ID, JobKind: "counter", ProfileVersion: profileVersion}, CounterDefinitionID: definition.ID, Read: func(readCtx context.Context) (counter.Reading, error) {
 				return r.counterPoller.Read(readCtx, endpoint, definition)
 			}})
 		}

@@ -182,6 +182,8 @@ func NewCartridgeAPI() (http.Handler, *huma.OpenAPI) {
 	api := humago.New(mux, huma.DefaultConfig("NPMS API", "1.0.0"))
 	noop := func(context.Context) (*StatusOutput, error) { return &StatusOutput{}, nil }
 	huma.Get(api, "/api/v1/health", func(context.Context, *struct{}) (*HealthOutput, error) { return &HealthOutput{}, nil })
+	huma.Get(api, "/api/v1/health/live", func(context.Context, *struct{}) (*HealthOutput, error) { return &HealthOutput{}, nil })
+	huma.Get(api, "/api/v1/health/ready", func(context.Context, *struct{}) (*HealthOutput, error) { return &HealthOutput{}, nil })
 	huma.Get(api, "/api/v1/snmp/profiles", func(context.Context, *struct{}) (*ProfileListOutput, error) { return &ProfileListOutput{}, nil })
 	huma.Post(api, "/api/v1/discovery/probe", func(context.Context, *DiscoveryInput) (*DiscoveryOutput, error) { return &DiscoveryOutput{}, nil })
 	registerPrinterContracts(api)
@@ -202,5 +204,26 @@ func NewCartridgeAPI() (http.Handler, *huma.OpenAPI) {
 		return &ActionOutput{}, nil
 	})
 	huma.Get(api, "/api/v1/cartridges/logs", func(context.Context, *LogsInput) (*LogsOutput, error) { return &LogsOutput{}, nil })
+	configureContractSecurity(api)
 	return mux, api.OpenAPI()
+}
+
+func configureContractSecurity(api huma.API) {
+	openapi := api.OpenAPI()
+	if openapi.Components == nil {
+		openapi.Components = &huma.Components{}
+	}
+	openapi.Components.SecuritySchemes = map[string]*huma.SecurityScheme{
+		"bearerAuth": {Type: "http", Scheme: "bearer"},
+	}
+	for path, item := range openapi.Paths {
+		if path == "/api/v1/health" || path == "/api/v1/health/live" || path == "/api/v1/health/ready" {
+			continue
+		}
+		for _, operation := range []*huma.Operation{item.Get, item.Post, item.Put, item.Patch, item.Delete} {
+			if operation != nil {
+				operation.Security = []map[string][]string{{"bearerAuth": {}}}
+			}
+		}
+	}
 }

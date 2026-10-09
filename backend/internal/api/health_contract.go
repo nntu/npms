@@ -18,10 +18,21 @@ func (s *Server) healthHandler() http.Handler {
 	mux := http.NewServeMux()
 	api := humago.New(mux, huma.DefaultConfig("NPMS API", "1.0.0"))
 	huma.Get(api, "/api/v1/health", func(context.Context, *struct{}) (*contract.HealthOutput, error) {
-		output := &contract.HealthOutput{}
-		output.Body.Status = "ok"
-		output.Body.Time = time.Now().UTC().Format(time.RFC3339Nano)
-		return output, nil
+		return healthOutput(), nil
+	})
+	huma.Get(api, "/api/v1/health/live", func(context.Context, *struct{}) (*contract.HealthOutput, error) { return healthOutput(), nil })
+	huma.Get(api, "/api/v1/health/ready", func(ctx context.Context, _ *struct{}) (*contract.HealthOutput, error) {
+		if _, err := s.store.CountDevices(ctx); err != nil {
+			return nil, huma.Error503ServiceUnavailable("database is not ready")
+		}
+		return healthOutput(), nil
 	})
 	return mux
+}
+
+func healthOutput() *contract.HealthOutput {
+	output := &contract.HealthOutput{}
+	output.Body.Status = "ok"
+	output.Body.Time = time.Now().UTC().Format(time.RFC3339Nano)
+	return output
 }

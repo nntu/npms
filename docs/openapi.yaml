@@ -16,6 +16,32 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Health'
+  /api/v1/health/live:
+    get:
+      operationId: getHealthLive
+      responses:
+        '200':
+          description: Process liveness.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+  /api/v1/health/ready:
+    get:
+      operationId: getHealthReady
+      responses:
+        '200':
+          description: API and database readiness.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+        '503':
+          description: Database is not ready.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/snmp/profiles:
     get:
       operationId: listSNMPProfiles
@@ -359,6 +385,27 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Cartridge'
+  /api/v1/cartridges/logs:
+    get:
+      operationId: listCartridgeLogs
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: cartridge_id
+          in: query
+          schema: { type: string }
+        - name: device_id
+          in: query
+          schema: { type: string }
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: Cartridge operation history.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CartridgeLogPage'
   /api/v1/cartridges/replace:
     post:
       operationId: replacePrinterCartridge
@@ -775,4 +822,30 @@ components:
         data:
           type: array
           items: { $ref: '#/components/schemas/Cartridge' }
+        total: { type: integer }
+    CartridgeLog:
+      type: object
+      required: [id, cartridge_id, action_type, quantity, performed_at]
+      properties:
+        id: { type: string }
+        cartridge_id: { type: string }
+        device_id: { type: [string, 'null'] }
+        action_type: { type: string, enum: [import, replace, refill, discard] }
+        source_type: { type: [string, 'null'], enum: [new, refilled, null] }
+        quantity: { type: integer }
+        page_count: { type: integer, minimum: 0 }
+        printed_pages: { type: integer, minimum: 0 }
+        counter_quality: { type: [string, 'null'], enum: [valid, unverified, unsupported, unavailable, suspicious, null] }
+        counter_collected_at: { type: [string, 'null'], format: date-time }
+        notes: { type: [string, 'null'] }
+        performed_at: { type: string, format: date-time }
+    CartridgeLogPage:
+      type: object
+      required: [data, limit, offset, total]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/CartridgeLog' }
+        limit: { type: integer }
+        offset: { type: integer }
         total: { type: integer }

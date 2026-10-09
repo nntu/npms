@@ -54,6 +54,11 @@ func TestHealthUsesTypedRuntimeContract(t *testing.T) {
 	if response.Status != "ok" || response.Time == "" {
 		t.Fatalf("unexpected health response: %+v", response)
 	}
+	ready := httptest.NewRecorder()
+	server.Handler().ServeHTTP(ready, httptest.NewRequest(http.MethodGet, "/api/v1/health/ready", nil))
+	if ready.Code != http.StatusOK {
+		t.Fatalf("readiness status = %d, want %d", ready.Code, http.StatusOK)
+	}
 }
 
 func (fakeCounterSnapshotter) ReadDevice(context.Context, string) (counter.Reading, repository.CounterDefinition, error) {
