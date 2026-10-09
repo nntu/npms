@@ -46,10 +46,7 @@ func main() {
 		if err != nil {
 			fail(err)
 		}
-		fmt.Printf("NPMS configuration initialized at %s\nEncryption Key: %s\n", res.ConfigPath, res.EncryptionKey)
-		if res.APIToken != "" {
-			fmt.Printf("API Token: %s\n", res.APIToken)
-		}
+		fmt.Printf("NPMS configuration initialized at %s\nSecrets were written to the permission-protected configuration file.\n", res.ConfigPath)
 		return
 	}
 

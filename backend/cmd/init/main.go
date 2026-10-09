@@ -53,10 +53,7 @@ func main() {
 	fmt.Println("------------------------------")
 	fmt.Printf("Status:           Successfully created configuration\n")
 	fmt.Printf("Config Path:      %s\n", absPath)
-	fmt.Printf("Encryption Key:   %s\n", res.EncryptionKey)
-	if res.APIToken != "" {
-		fmt.Printf("API Token:        %s\n", res.APIToken)
-	}
+	fmt.Println("Secrets:          written to the permission-protected configuration file")
 	fmt.Printf("Database Path:    %s\n", res.Config.Database.Path)
 	fmt.Printf("Profiles Path:    %s\n", res.Config.Profiles.Path)
 	fmt.Println("------------------------------")

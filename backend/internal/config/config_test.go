@@ -8,7 +8,7 @@ import (
 
 func TestLoadYAMLConfig(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	contents := []byte("database:\n  path: ./data/test.db\nserver:\n  listen: 127.0.0.1:8080\nsecurity:\n  encryption_key: key\npolling:\n  concurrency: 3\n  status_interval: 10s\n  counter_interval: 1m\n")
+	contents := []byte("database:\n  path: ./data/test.db\nserver:\n  listen: 127.0.0.1:8080\n  api_token: test-token\nsecurity:\n  encryption_key: key\npolling:\n  concurrency: 3\n  status_interval: 10s\n  counter_interval: 1m\n")
 	if err := os.WriteFile(path, contents, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -33,7 +33,7 @@ func TestRejectUnknownField(t *testing.T) {
 
 func TestIANATimezoneValidation(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	contents := []byte("report:\n  timezone: Asia/Ho_Chi_Minh\n")
+	contents := []byte("server:\n  api_token: test-token\nreport:\n  timezone: Asia/Ho_Chi_Minh\n")
 	if err := os.WriteFile(path, contents, 0o600); err != nil {
 		t.Fatal(err)
 	}
