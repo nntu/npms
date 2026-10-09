@@ -3,6 +3,7 @@ package ingestion
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"npms/backend/internal/counter"
@@ -116,6 +117,15 @@ func readWalkCounter(ctx context.Context, client snmp.Client, definition reposit
 	rows := snmp.JoinMarkerRows(life, units, definition.OID, definition.UnitOID)
 	if len(rows) == 0 {
 		return counter.Reading{}, fmt.Errorf("walk counter %q returned no validated marker rows", definition.Key)
+	}
+	if definition.Instance != "" {
+		wanted := strings.TrimPrefix(definition.Instance, ".")
+		for _, row := range rows {
+			if row.Instance == wanted {
+				return counter.Reading{RawValue: row.Life, Quality: quality, EpochID: wanted}, nil
+			}
+		}
+		return counter.Reading{}, fmt.Errorf("walk counter %q did not return configured instance %q", definition.Key, definition.Instance)
 	}
 	if len(rows) > 1 {
 		return counter.Reading{}, fmt.Errorf("walk counter %q returned %d validated marker rows; explicit instance selection is required", definition.Key, len(rows))

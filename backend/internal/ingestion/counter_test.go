@@ -45,3 +45,26 @@ func TestReadWalkCounterRejectsAmbiguousRows(t *testing.T) {
 		t.Fatalf("expected ambiguous marker error, got %v", err)
 	}
 }
+
+func TestReadWalkCounterUsesConfiguredInstance(t *testing.T) {
+	reading, err := readWalkCounter(context.Background(), fakeCounterClient{
+		life:  []snmp.VarBind{{OID: ".1.2.3.4.7", Value: int64(321)}, {OID: ".1.2.3.4.8", Value: int64(654)}},
+		units: []snmp.VarBind{{OID: ".1.2.3.5.7", Value: int64(3)}, {OID: ".1.2.3.5.8", Value: int64(3)}},
+	}, repository.CounterDefinition{Key: "marker_life", OID: "1.2.3.4", UnitOID: "1.2.3.5", Instance: ".8", Mode: "walk", Selection: "validated_marker_rows"}, counter.QualityUnverified)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reading.RawValue != 654 || reading.EpochID != "8" {
+		t.Fatalf("unexpected configured-instance reading: %+v", reading)
+	}
+}
+
+func TestReadWalkCounterRejectsMissingConfiguredInstance(t *testing.T) {
+	_, err := readWalkCounter(context.Background(), fakeCounterClient{
+		life:  []snmp.VarBind{{OID: ".1.2.3.4.7", Value: int64(321)}},
+		units: []snmp.VarBind{{OID: ".1.2.3.5.7", Value: int64(3)}},
+	}, repository.CounterDefinition{Key: "marker_life", OID: "1.2.3.4", UnitOID: "1.2.3.5", Instance: "8", Mode: "walk", Selection: "validated_marker_rows"}, counter.QualityUnverified)
+	if err == nil || !strings.Contains(err.Error(), "configured instance") {
+		t.Fatalf("expected missing configured instance error, got %v", err)
+	}
+}
