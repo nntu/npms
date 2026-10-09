@@ -8,7 +8,7 @@ import (
 )
 
 type Printer struct {
-	ID           string  `json:"id" format:"uuid"`
+	ID           string  `json:"id"`
 	AssetCode    *string `json:"asset_code,omitempty"`
 	DisplayName  string  `json:"display_name"`
 	Manufacturer *string `json:"manufacturer,omitempty"`
@@ -34,7 +34,7 @@ type PrinterListInput struct {
 }
 
 type PrinterIDInput struct {
-	ID string `path:"id" format:"uuid"`
+	ID string `path:"id"`
 }
 
 type CreatePrinterInput struct {
@@ -86,7 +86,7 @@ type RegistrationOutput struct {
 }
 
 type CredentialInput struct {
-	PrinterID string `path:"id" format:"uuid"`
+	PrinterID string `path:"id"`
 	Body      struct {
 		Version        string `json:"version" enum:"2c,3"`
 		Community      string `json:"community,omitempty" writeOnly:"true"`
@@ -106,7 +106,7 @@ type CredentialOutput struct {
 }
 
 type EndpointInput struct {
-	PrinterID string `path:"id" format:"uuid"`
+	PrinterID string `path:"id"`
 	Body      struct {
 		Address      string `json:"address" minLength:"1" maxLength:"253"`
 		Protocol     string `json:"protocol,omitempty" enum:"snmp" default:"snmp"`
@@ -119,7 +119,7 @@ type EndpointInput struct {
 type EndpointOutput struct {
 	Body struct {
 		ID           string  `json:"id"`
-		DeviceID     string  `json:"device_id" format:"uuid"`
+		DeviceID     string  `json:"device_id"`
 		Address      string  `json:"address"`
 		Protocol     string  `json:"protocol" const:"snmp"`
 		Port         int     `json:"port"`
@@ -139,7 +139,7 @@ type Counter struct {
 }
 
 type CounterListInput struct {
-	PrinterID string `path:"id" format:"uuid"`
+	PrinterID string `path:"id"`
 	Limit     int    `query:"limit,omitempty" minimum:"1" maximum:"1000" default:"50"`
 	Offset    int    `query:"offset,omitempty" minimum:"0" default:"0"`
 }
@@ -163,7 +163,7 @@ type DailyUsage struct {
 }
 
 type UsageInput struct {
-	PrinterID string `path:"id" format:"uuid"`
+	PrinterID string `path:"id"`
 	From      string `query:"from,omitempty" format:"date"`
 	To        string `query:"to,omitempty" format:"date"`
 	Timezone  string `query:"timezone,omitempty" default:"UTC"`
@@ -189,7 +189,7 @@ type PollingRun struct {
 }
 
 type PollingRunInput struct {
-	PrinterID string `path:"id" format:"uuid"`
+	PrinterID string `path:"id"`
 	Limit     int    `query:"limit,omitempty" minimum:"1" maximum:"1000" default:"50"`
 	Offset    int    `query:"offset,omitempty" minimum:"0" default:"0"`
 }
@@ -214,7 +214,7 @@ type JobAcceptedOutput struct {
 type JobOutput struct {
 	Body struct {
 		ID        string  `json:"id"`
-		DeviceID  string  `json:"device_id" format:"uuid"`
+		DeviceID  string  `json:"device_id"`
 		Status    string  `json:"status" enum:"queued,success,failed"`
 		ErrorCode *string `json:"error_code,omitempty"`
 	}

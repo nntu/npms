@@ -163,7 +163,6 @@ paths:
           required: true
           schema:
             type: string
-            format: uuid
       responses:
         '200':
           description: Printer details.
@@ -188,7 +187,7 @@ paths:
         - name: id
           in: path
           required: true
-          schema: { type: string, format: uuid }
+          schema: { type: string }
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Offset'
       responses:
@@ -209,7 +208,7 @@ paths:
         - name: id
           in: path
           required: true
-          schema: { type: string, format: uuid }
+          schema: { type: string }
         - name: from
           in: query
           schema: { type: string, format: date }
@@ -240,7 +239,7 @@ paths:
         - name: id
           in: path
           required: true
-          schema: { type: string, format: uuid }
+          schema: { type: string }
       requestBody:
         required: true
         content:
@@ -267,7 +266,7 @@ paths:
         - name: id
           in: path
           required: true
-          schema: { type: string, format: uuid }
+          schema: { type: string }
       requestBody:
         required: true
         content:
@@ -294,7 +293,7 @@ paths:
         - name: id
           in: path
           required: true
-          schema: { type: string, format: uuid }
+          schema: { type: string }
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Offset'
       responses:
@@ -315,7 +314,7 @@ paths:
         - name: id
           in: path
           required: true
-          schema: { type: string, format: uuid }
+          schema: { type: string }
       responses:
         '202':
           description: Poll accepted for asynchronous processing.
@@ -527,7 +526,7 @@ components:
       type: object
       required: [id, display_name, status]
       properties:
-        id: { type: string, format: uuid }
+        id: { type: string }
         asset_code: { type: [string, 'null'] }
         display_name: { type: string }
         manufacturer: { type: [string, 'null'] }
@@ -581,7 +580,7 @@ components:
       required: [id, device_id, address, protocol, port, is_primary]
       properties:
         id: { type: string }
-        device_id: { type: string, format: uuid }
+        device_id: { type: string }
         address: { type: string }
         protocol: { type: string, const: snmp }
         port: { type: integer }
@@ -747,7 +746,7 @@ components:
       required: [id, device_id, status]
       properties:
         id: { type: string }
-        device_id: { type: string, format: uuid }
+        device_id: { type: string }
         status: { type: string, enum: [queued, success, failed] }
         error_code: { type: [string, 'null'] }
     ErrorResponse:
@@ -795,7 +794,7 @@ components:
       required: [cartridge_id, device_id, source_type]
       properties:
         cartridge_id: { type: string }
-        device_id: { type: string, format: uuid }
+        device_id: { type: string }
         source_type: { type: string, enum: [new, refilled] }
         page_count: { type: integer, minimum: 1, description: Optional manual counter when live SNMP capture is unavailable. Stored as unverified. }
         notes: { type: string }
@@ -811,7 +810,7 @@ components:
       required: [cartridge_id, device_id, quantity]
       properties:
         cartridge_id: { type: string }
-        device_id: { type: string, format: uuid }
+        device_id: { type: string }
         quantity: { type: integer, minimum: 1 }
         page_count: { type: integer, minimum: 1, description: Optional manual counter when live SNMP capture is unavailable. }
         notes: { type: string }
