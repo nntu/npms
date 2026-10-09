@@ -31,6 +31,17 @@ func TestRejectUnknownField(t *testing.T) {
 	}
 }
 
+func TestRejectsExampleAPITokenPlaceholder(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	contents := []byte("server:\n  api_token: replace-with-a-random-api-token\n")
+	if err := os.WriteFile(path, contents, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(path); err == nil {
+		t.Fatal("expected placeholder API token to be rejected")
+	}
+}
+
 func TestIANATimezoneValidation(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	contents := []byte("server:\n  api_token: test-token\nreport:\n  timezone: Asia/Ho_Chi_Minh\n")

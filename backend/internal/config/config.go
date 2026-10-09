@@ -102,7 +102,7 @@ func (c Config) Validate() error {
 	if strings.TrimSpace(c.Server.AllowedOrigin) == "" {
 		return errors.New("server.allowed_origin is required")
 	}
-	if strings.TrimSpace(c.Server.APIToken) == "" {
+	if strings.TrimSpace(c.Server.APIToken) == "" || c.Server.APIToken == "replace-with-a-random-api-token" {
 		return errors.New("server.api_token is required")
 	}
 	if strings.TrimSpace(c.Profiles.Path) == "" {

@@ -57,16 +57,8 @@ $cfgExample = Join-Path $root "config.example.yaml"
 if (Test-Path $cfgExample) {
     Copy-Item $cfgExample (Join-Path $distDir "config.example.yaml") -Force
     
-    $cfgTarget = Join-Path $distDir "config.yaml"
-    if (!(Test-Path $cfgTarget)) {
-        Copy-Item $cfgExample $cfgTarget -Force
-    }
-    (Get-Content $cfgTarget) -replace './backend/profiles', './profiles' | Set-Content $cfgTarget
-    
-    $rootCfgTarget = Join-Path $root "config.yaml"
-    if (!(Test-Path $rootCfgTarget)) {
-        Copy-Item $cfgExample $rootCfgTarget -Force
-    }
+    # Do not create a runnable config from the example: it contains a placeholder token.
+    # Run npms-init before first startup to generate secrets.
 }
 
 # 5. Copy profiles

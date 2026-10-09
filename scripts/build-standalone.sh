@@ -50,9 +50,8 @@ cp "$DIST_DIR/bin/npms-api" "$ROOT_DIR/npms"
 # 4. Copy config files
 if [ -f "$ROOT_DIR/config.example.yaml" ]; then
     cp "$ROOT_DIR/config.example.yaml" "$DIST_DIR/config.example.yaml"
-    [ -f "$DIST_DIR/config.yaml" ] || cp "$ROOT_DIR/config.example.yaml" "$DIST_DIR/config.yaml"
-    sed -i 's|\./backend/profiles|\./profiles|g' "$DIST_DIR/config.yaml" 2>/dev/null || true
-    [ -f "$ROOT_DIR/config.yaml" ] || cp "$ROOT_DIR/config.example.yaml" "$ROOT_DIR/config.yaml"
+    # Do not create a runnable config from the example: it contains a placeholder token.
+    # Run npms-init before first startup to generate secrets.
 fi
 
 # 5. Copy profiles
