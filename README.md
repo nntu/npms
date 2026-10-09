@@ -66,9 +66,9 @@ Nguyên tắc bảo vệ dữ liệu:
 ## Cấu trúc dự án
 
 ```text
-backend/cmd/api/          HTTP API
+backend/cmd/api/          HTTP API server (có nhúng Web frontend)
 backend/cmd/worker/       Polling worker
-backend/cmd/npms/         Binary hợp nhất
+backend/cmd/init/         CLI khởi tạo cấu hình (npms-init)
 backend/cmd/db-migrate/   SQLite migration
 backend/cmd/snmp-debug/   CLI chẩn đoán SNMP
 backend/internal/         Domain, SNMP, profile, polling, repository
@@ -124,6 +124,8 @@ server:
   listen: 127.0.0.1:8080
   allowed_origin: http://localhost:8080
   api_token: ""
+  # Tự động mở trình duyệt mặc định khi khởi động xong
+  open_browser: true
 security:
   encryption_key: thay-bang-khoa-32-byte-base64-hoac-64-ky-tu-hex
 polling:
@@ -140,8 +142,9 @@ retention:
 logging:
   error_file: ./data/npms-errors.log
 profiles:
-  path: ./backend/profiles
+  path: ./profiles
 ```
+
 
 `database.path` và `profiles.path` được tính tương đối từ vị trí `config.yaml`.
 `logging.error_file` cũng được tính tương đối và chỉ ghi log mức error dạng

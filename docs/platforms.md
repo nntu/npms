@@ -41,9 +41,10 @@ approved Windows service manager. Store secrets in the permission-protected
 `config.yaml`, never in the repository.
 
 For one-machine deployments, `scripts/build-standalone.sh` or
-`scripts/build-standalone.ps1` builds a single `npms`/`npms.exe`. It embeds the
-React assets, runs SQLite migrations at startup, starts the API and worker, and
+`scripts/build-standalone.ps1` builds the binaries (`npms`/`npms.exe`, `npms-init`, `npms-worker`, `npms-db-migrate`, `npms-snmp-debug`). It embeds the
+React assets, runs SQLite migrations at startup, starts the API and worker, automatically opens the default browser (if `open_browser: true`), and
 serves the UI from the same HTTP listener. Profiles remain external YAML files:
 ship the configured `profiles.path` directory beside the deployment and update
 that path when moving outside the source tree. Build on the target OS, keep the
 SQLite file outside the binary, and run the binary as the platform service.
+
