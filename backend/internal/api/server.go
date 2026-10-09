@@ -148,7 +148,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("/api/v1/cartridges/replace", cartridgeActionHandler)
 	mux.Handle("/api/v1/cartridges/refill", cartridgeActionHandler)
 	mux.Handle("/api/v1/cartridges/refill-printer", cartridgeActionHandler)
-	mux.HandleFunc("/api/v1/cartridges/logs", s.listCartridgeLogs)
+	mux.Handle("/api/v1/cartridges/logs", s.cartridgeLogsHandler())
 	var static http.Handler
 	if s.frontendFS != nil {
 		fileServer := http.FileServer(http.FS(s.frontendFS))
