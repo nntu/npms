@@ -26,6 +26,8 @@ jobs:
       - name: Vet
         working-directory: backend
         run: go vet ./...
+      - name: Generate and verify typed API contract
+        run: make api-contract-check
 
   frontend:
     name: Frontend
