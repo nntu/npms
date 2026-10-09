@@ -34,6 +34,14 @@ func TestJoinMarkerRowsOmitsMissingUnit(t *testing.T) {
 	}
 }
 
+func TestNumericValueRejectsNegativeAndMalformedValues(t *testing.T) {
+	for _, value := range []any{int64(-1), "-1", "123abc", ""} {
+		if got, ok := NumericValue(value); ok || got != 0 {
+			t.Fatalf("expected invalid non-counter value %v, got %d, %v", value, got, ok)
+		}
+	}
+}
+
 func TestConfigRejectsMissingSecretMaterial(t *testing.T) {
 	if err := (Config{Host: "printer", Port: 161, Version: Version2c, TimeoutSeconds: 2, MaxRepetitions: 25}).Validate(); err == nil {
 		t.Fatal("expected missing community error")

@@ -3,6 +3,7 @@ package snmp
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -131,15 +132,15 @@ func tableInstance(oid, base string) (string, bool) {
 func integerValue(value any) (int64, bool) {
 	switch n := value.(type) {
 	case int:
-		return int64(n), true
+		return nonNegativeInt(int64(n))
 	case int8:
-		return int64(n), true
+		return nonNegativeInt(int64(n))
 	case int16:
-		return int64(n), true
+		return nonNegativeInt(int64(n))
 	case int32:
-		return int64(n), true
+		return nonNegativeInt(int64(n))
 	case int64:
-		return n, true
+		return nonNegativeInt(n)
 	case uint:
 		return int64(n), true
 	case uint8:
@@ -153,12 +154,19 @@ func integerValue(value any) (int64, bool) {
 			return int64(n), true
 		}
 	case string:
-		var parsed int64
-		if _, err := fmt.Sscanf(n, "%d", &parsed); err == nil {
-			return parsed, true
+		parsed, err := strconv.ParseInt(strings.TrimSpace(n), 10, 64)
+		if err == nil {
+			return nonNegativeInt(parsed)
 		}
 	}
 	return 0, false
+}
+
+func nonNegativeInt(value int64) (int64, bool) {
+	if value < 0 {
+		return 0, false
+	}
+	return value, true
 }
 
 // NumericValue exposes the safe integer conversion needed by application
