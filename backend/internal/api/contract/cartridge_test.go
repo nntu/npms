@@ -8,13 +8,13 @@ import (
 func TestCartridgeContractRegistersAllOperations(t *testing.T) {
 	_, spec := NewCartridgeAPI()
 	want := map[string]string{
-		"/api/v1/cartridges":                       "get",
-		"/api/v1/cartridges/stock":                 "post",
-		"/api/v1/cartridges/stock/refill-bottles":  "post",
-		"/api/v1/cartridges/replace":               "post",
-		"/api/v1/cartridges/refill":                "post",
-		"/api/v1/cartridges/refill-printer":        "post",
-		"/api/v1/cartridges/logs":                  "get",
+		"/api/v1/cartridges":                      "get",
+		"/api/v1/cartridges/stock":                "post",
+		"/api/v1/cartridges/stock/refill-bottles": "post",
+		"/api/v1/cartridges/replace":              "post",
+		"/api/v1/cartridges/refill":               "post",
+		"/api/v1/cartridges/refill-printer":       "post",
+		"/api/v1/cartridges/logs":                 "get",
 	}
 	for path, method := range want {
 		item, ok := spec.Paths[path]

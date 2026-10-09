@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	output := flag.String("output", "../../docs/openapi.huma.generated.yaml", "output OpenAPI YAML path")
+	output := flag.String("output", "../docs/openapi.huma.generated.yaml", "output OpenAPI YAML path")
 	flag.Parse()
 	_, spec := contract.NewCartridgeAPI()
 	data, err := spec.YAML()

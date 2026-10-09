@@ -1,0 +1,616 @@
+components:
+  schemas:
+    ActionOutputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/ActionOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        counter:
+          format: int64
+          type: integer
+        counter_quality:
+          enum:
+            - valid
+            - unverified
+            - unsupported
+            - unavailable
+            - suspicious
+          type: string
+        message:
+          type: string
+        status:
+          type: string
+      required:
+        - status
+        - message
+        - counter
+        - counter_quality
+      type: object
+    AddRefillBottlesInputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/AddRefillBottlesInputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        cartridge_id:
+          minLength: 1
+          type: string
+        notes:
+          type: string
+        quantity:
+          format: int64
+          minimum: 1
+          type: integer
+      required:
+        - cartridge_id
+        - quantity
+      type: object
+    Cartridge:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/Cartridge.json
+          format: uri
+          readOnly: true
+          type: string
+        compatible_models:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+        sku_code:
+          type: string
+        stock_empty:
+          format: int64
+          minimum: 0
+          type: integer
+        stock_new:
+          format: int64
+          minimum: 0
+          type: integer
+        stock_refill_bottles:
+          format: int64
+          minimum: 0
+          type: integer
+        stock_refilled:
+          format: int64
+          minimum: 0
+          type: integer
+      required:
+        - id
+        - sku_code
+        - name
+        - stock_new
+        - stock_refilled
+        - stock_empty
+        - stock_refill_bottles
+      type: object
+    CartridgeListOutputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/CartridgeListOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        data:
+          items:
+            $ref: "#/components/schemas/Cartridge"
+          type:
+            - array
+            - "null"
+        total:
+          format: int64
+          type: integer
+      required:
+        - data
+        - total
+      type: object
+    CartridgeLog:
+      additionalProperties: false
+      properties:
+        action_type:
+          type: string
+        cartridge_id:
+          type: string
+        counter_collected_at:
+          type: string
+        counter_quality:
+          type: string
+        device_id:
+          type: string
+        id:
+          type: string
+        notes:
+          type: string
+        page_count:
+          format: int64
+          type: integer
+        performed_at:
+          type: string
+        quantity:
+          format: int64
+          type: integer
+        source_type:
+          type: string
+      required:
+        - id
+        - cartridge_id
+        - action_type
+        - quantity
+        - performed_at
+      type: object
+    CreateCartridgeInputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/CreateCartridgeInputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        compatible_models:
+          type: string
+        name:
+          minLength: 1
+          type: string
+        sku_code:
+          minLength: 1
+          type: string
+        stock_empty:
+          format: int64
+          minimum: 0
+          type: integer
+        stock_new:
+          format: int64
+          minimum: 0
+          type: integer
+        stock_refill_bottles:
+          format: int64
+          minimum: 0
+          type: integer
+        stock_refilled:
+          format: int64
+          minimum: 0
+          type: integer
+      required:
+        - sku_code
+        - name
+      type: object
+    ErrorDetail:
+      additionalProperties: false
+      properties:
+        location:
+          description: Where the error occurred, e.g. 'body.items[3].tags' or 'path.thing-id'
+          type: string
+        message:
+          description: Error message text
+          type: string
+        value:
+          description: The value at the given location
+      type: object
+    ErrorModel:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/ErrorModel.json
+          format: uri
+          readOnly: true
+          type: string
+        detail:
+          description: A human-readable explanation specific to this occurrence of the problem.
+          examples:
+            - Property foo is required but is missing.
+          type: string
+        errors:
+          description: Optional list of individual error details
+          items:
+            $ref: "#/components/schemas/ErrorDetail"
+          type:
+            - array
+            - "null"
+        instance:
+          description: A URI reference that identifies the specific occurrence of the problem.
+          examples:
+            - https://example.com/error-log/abc123
+          format: uri
+          type: string
+        status:
+          description: HTTP status code
+          examples:
+            - 400
+          format: int64
+          type: integer
+        title:
+          description: A short, human-readable summary of the problem type. This value should not change between occurrences of the error.
+          examples:
+            - Bad Request
+          type: string
+        type:
+          default: about:blank
+          description: A URI reference to human-readable documentation for the error.
+          examples:
+            - https://example.com/errors/example
+          format: uri
+          type: string
+      type: object
+    LogsOutputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/LogsOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        data:
+          items:
+            $ref: "#/components/schemas/CartridgeLog"
+          type:
+            - array
+            - "null"
+        limit:
+          format: int64
+          type: integer
+        offset:
+          format: int64
+          type: integer
+        total:
+          format: int64
+          type: integer
+      required:
+        - data
+        - limit
+        - offset
+        - total
+      type: object
+    RefillCartridgesInputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/RefillCartridgesInputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        cartridge_id:
+          minLength: 1
+          type: string
+        notes:
+          type: string
+        quantity:
+          format: int64
+          minimum: 1
+          type: integer
+      required:
+        - cartridge_id
+        - quantity
+      type: object
+    RefillPrinterInputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/RefillPrinterInputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        cartridge_id:
+          minLength: 1
+          type: string
+        device_id:
+          minLength: 1
+          type: string
+        notes:
+          type: string
+        page_count:
+          format: int64
+          minimum: 1
+          type: integer
+        quantity:
+          format: int64
+          minimum: 1
+          type: integer
+      required:
+        - cartridge_id
+        - device_id
+        - quantity
+      type: object
+    ReplaceCartridgeInputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/ReplaceCartridgeInputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        cartridge_id:
+          minLength: 1
+          type: string
+        device_id:
+          minLength: 1
+          type: string
+        notes:
+          type: string
+        page_count:
+          format: int64
+          minimum: 1
+          type: integer
+        source_type:
+          enum:
+            - new
+            - refilled
+          type: string
+      required:
+        - cartridge_id
+        - device_id
+        - source_type
+      type: object
+    StatusOutputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/StatusOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        status:
+          type: string
+      required:
+        - status
+      type: object
+    UpdateStockInputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/UpdateStockInputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        add_stock_empty:
+          format: int64
+          type: integer
+        add_stock_new:
+          format: int64
+          type: integer
+        add_stock_refilled:
+          format: int64
+          type: integer
+        cartridge_id:
+          minLength: 1
+          type: string
+        notes:
+          type: string
+      required:
+        - cartridge_id
+      type: object
+info:
+  title: NPMS API
+  version: 1.0.0
+openapi: 3.1.0
+paths:
+  /api/v1/cartridges:
+    get:
+      operationId: get-api-v1-cartridges
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CartridgeListOutputBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Get API v1 cartridges
+    post:
+      operationId: post-api-v1-cartridges
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCartridgeInputBody"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cartridge"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Post API v1 cartridges
+  /api/v1/cartridges/logs:
+    get:
+      operationId: get-api-v1-cartridges-logs
+      parameters:
+        - explode: false
+          in: query
+          name: cartridge_id
+          schema:
+            type: string
+        - explode: false
+          in: query
+          name: device_id
+          schema:
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            format: int64
+            maximum: 1000
+            minimum: 1
+            type: integer
+        - explode: false
+          in: query
+          name: offset
+          schema:
+            default: 0
+            format: int64
+            minimum: 0
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogsOutputBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Get API v1 cartridges logs
+  /api/v1/cartridges/refill:
+    post:
+      operationId: post-api-v1-cartridges-refill
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefillCartridgesInputBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusOutputBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Post API v1 cartridges refill
+  /api/v1/cartridges/refill-printer:
+    post:
+      operationId: post-api-v1-cartridges-refill-printer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefillPrinterInputBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionOutputBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Post API v1 cartridges refill printer
+  /api/v1/cartridges/replace:
+    post:
+      operationId: post-api-v1-cartridges-replace
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReplaceCartridgeInputBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionOutputBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Post API v1 cartridges replace
+  /api/v1/cartridges/stock:
+    post:
+      operationId: post-api-v1-cartridges-stock
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateStockInputBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusOutputBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Post API v1 cartridges stock
+  /api/v1/cartridges/stock/refill-bottles:
+    post:
+      operationId: post-api-v1-cartridges-stock-refill-bottles
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddRefillBottlesInputBody"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusOutputBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Post API v1 cartridges stock refill bottles

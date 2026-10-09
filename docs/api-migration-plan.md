@@ -117,6 +117,11 @@ Route matrix phải được cập nhật sau mỗi nhóm migration.
 
 ## 6. Giai đoạn 1 — Pilot cartridge
 
+Đã dựng shadow typed contract tại `backend/internal/api/contract` và lệnh
+`make api-contract`. Lệnh sinh `docs/openapi.huma.generated.yaml` để review
+route/schema trước khi thay router production. Contract shadow chưa xử lý
+request nghiệp vụ và chưa được dùng để phục vụ traffic thật.
+
 Chuyển các operation:
 
 ```text
