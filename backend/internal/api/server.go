@@ -138,7 +138,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("/api/v1/snmp/profiles", s.profileHandler())
 	mux.HandleFunc("/api/v1/discovery/probe", s.probeDiscovery)
 	mux.HandleFunc("/api/v1/printers/register", s.registerPrinter)
-	mux.HandleFunc("/api/v1/printers", s.listPrinters)
+	mux.Handle("/api/v1/printers", s.printerCollectionHandler())
 	mux.HandleFunc("/api/v1/printers/", s.getPrinter)
 	mux.HandleFunc("/api/v1/jobs/", s.getJob)
 	mux.Handle("/api/v1/cartridges", s.cartridgeListHandler())
