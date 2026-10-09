@@ -144,9 +144,10 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("/api/v1/cartridges", s.cartridgeListHandler())
 	mux.Handle("/api/v1/cartridges/stock", s.cartridgeStockHandler())
 	mux.Handle("/api/v1/cartridges/stock/refill-bottles", s.cartridgeStockHandler())
-	mux.HandleFunc("/api/v1/cartridges/replace", s.replaceCartridge)
-	mux.HandleFunc("/api/v1/cartridges/refill", s.refillCartridges)
-	mux.HandleFunc("/api/v1/cartridges/refill-printer", s.refillPrinterCartridge)
+	cartridgeActionHandler := s.cartridgeActionHandler()
+	mux.Handle("/api/v1/cartridges/replace", cartridgeActionHandler)
+	mux.Handle("/api/v1/cartridges/refill", cartridgeActionHandler)
+	mux.Handle("/api/v1/cartridges/refill-printer", cartridgeActionHandler)
 	mux.HandleFunc("/api/v1/cartridges/logs", s.listCartridgeLogs)
 	var static http.Handler
 	if s.frontendFS != nil {

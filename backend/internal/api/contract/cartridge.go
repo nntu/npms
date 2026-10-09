@@ -54,7 +54,8 @@ type UpdateStockInput struct {
 }
 type StatusOutput struct {
 	Body struct {
-		Status string `json:"status"`
+		Status  string `json:"status"`
+		Message string `json:"message,omitempty"`
 	}
 }
 

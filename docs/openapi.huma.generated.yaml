@@ -1104,6 +1104,8 @@ components:
           format: uri
           readOnly: true
           type: string
+        message:
+          type: string
         status:
           type: string
       required:
