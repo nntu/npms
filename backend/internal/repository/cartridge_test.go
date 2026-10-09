@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -140,6 +141,56 @@ func TestCartridgeValidationAndErrors(t *testing.T) {
 	err = repo.ReplacePrinterCartridge(ctx, ReplaceCartridgeParams{LogID: "l1", CartridgeID: "c1", DeviceID: "d1", SourceType: "new"})
 	if err == nil || !strings.Contains(err.Error(), "out of stock") {
 		t.Fatalf("expected out of stock error, got %v", err)
+	}
+}
+
+func TestCartridgeLogsEstimateYieldFromNearbyCounters(t *testing.T) {
+	db, err := database.OpenSQLite(filepath.Join(t.TempDir(), "cartridge_counter_estimate.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ctx := context.Background()
+	if err := db.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	repo, err := NewSQLiteRepository(db.DB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.CreateDevice(ctx, Device{ID: "device-estimate", DisplayName: "Front", Status: "online"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.CreateCartridge(ctx, Cartridge{ID: "cart-estimate", SKUCode: "BLACK-EST", Name: "Black"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.DB.ExecContext(ctx, `INSERT INTO counter_definitions(id, device_id, key, source_protocol, oid, unit, semantic_type, scope) VALUES ('counter-estimate', 'device-estimate', 'marker_life', 'snmp', '1.2.3', 'impressions', 'marker_life', 'engine')`); err != nil {
+		t.Fatal(err)
+	}
+	base := time.Now().UTC().Truncate(time.Second)
+	for i, value := range []int{100, 150} {
+		runID := fmt.Sprintf("run-estimate-%d", i)
+		when := base.Add(time.Duration(11+i*88) * time.Second)
+		if _, err := db.DB.ExecContext(ctx, `INSERT INTO polling_runs(id, device_id, job_kind, started_at, result) VALUES (?, 'device-estimate', 'counter', ?, 'success')`, runID, when.Format(time.RFC3339Nano)); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.DB.ExecContext(ctx, `INSERT INTO counter_readings(poll_run_id, counter_definition_id, raw_value, collected_at, quality) VALUES (?, 'counter-estimate', ?, ?, 'valid')`, runID, value, when.Format(time.RFC3339Nano)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	firstReplacement := base.Add(10 * time.Second)
+	secondReplacement := base.Add(100 * time.Second)
+	for id, when := range map[string]time.Time{"log-estimate-1": firstReplacement, "log-estimate-2": secondReplacement} {
+		if _, err := db.DB.ExecContext(ctx, `INSERT INTO cartridge_logs(id, cartridge_id, device_id, action_type, source_type, quantity, page_count, performed_at) VALUES (?, 'cart-estimate', 'device-estimate', 'replace', 'new', 1, 0, ?)`, id, when.Format(time.RFC3339Nano)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	logs, err := repo.ListCartridgeLogs(ctx, "cart-estimate", "device-estimate", 10, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(logs) != 2 || logs[1].ID != "log-estimate-1" || logs[1].PrintedPages != 50 {
+		t.Fatalf("expected nearest counter estimate of 50 pages, got %+v", logs)
 	}
 }
 

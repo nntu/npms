@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -57,6 +58,8 @@ type RefillPrinterCartridgeParams struct {
 	CounterCollectedAt time.Time
 	Notes              string
 }
+
+const cartridgeCounterFallbackWindow = 24 * time.Hour
 
 func (c Cartridge) Validate() error {
 	if strings.TrimSpace(c.ID) == "" {
@@ -349,29 +352,112 @@ func (r *SQLiteRepository) ListCartridgeLogs(ctx context.Context, cartridgeID, d
 	}
 	_ = rows.Close()
 
-	// Calculate PrintedPages for replacement logs
+	// Calculate PrintedPages for replacement logs. Counter data is best effort:
+	// it estimates yield and must never block or change inventory transactions.
 	for i := range result {
 		if result[i].ActionType != "replace" || result[i].DeviceID == "" {
 			continue
 		}
-		// Find next replace log for the same device (which occurred later than this log)
-		var nextLogPage sql.NullInt64
-		err := r.db.QueryRowContext(ctx, `SELECT page_count FROM cartridge_logs WHERE device_id = ? AND action_type = 'replace' AND performed_at > ? AND page_count > 0 ORDER BY performed_at ASC LIMIT 1`, result[i].DeviceID, result[i].PerformedAt.Format(time.RFC3339Nano)).Scan(&nextLogPage)
-		if err == nil && nextLogPage.Valid && result[i].PageCount > 0 {
-			if diff := int(nextLogPage.Int64) - result[i].PageCount; diff > 0 {
-				result[i].PrintedPages = diff
+		baseline := result[i].PageCount
+		if baseline <= 0 {
+			var found bool
+			baseline, found, err = r.nearestCartridgeCounter(ctx, result[i].DeviceID, result[i].PerformedAt, true)
+			if err != nil {
+				return nil, fmt.Errorf("find cartridge counter baseline: %w", err)
 			}
-		} else if result[i].PageCount > 0 {
-			// If it's the currently active cartridge, query current max counter reading
-			var currentMax sql.NullInt64
-			_ = r.db.QueryRowContext(ctx, `SELECT MAX(cr.raw_value) FROM counter_readings cr JOIN counter_definitions cd ON cd.id = cr.counter_definition_id WHERE cd.device_id = ? AND cr.quality = 'valid'`, result[i].DeviceID).Scan(&currentMax)
-			if currentMax.Valid && int(currentMax.Int64) > result[i].PageCount {
-				result[i].PrintedPages = int(currentMax.Int64) - result[i].PageCount
+			if !found {
+				continue
 			}
+		}
+
+		// Prefer the next replacement snapshot. If it was not captured, use the
+		// closest counter before that event, then a nearby reading after it.
+		var nextLogAtText string
+		var nextLogPage int
+		var nextLogFound bool
+		err := r.db.QueryRowContext(ctx, `SELECT performed_at, page_count FROM cartridge_logs WHERE device_id = ? AND action_type = 'replace' AND performed_at > ? ORDER BY performed_at ASC, id ASC LIMIT 1`, result[i].DeviceID, result[i].PerformedAt.Format(time.RFC3339Nano)).Scan(&nextLogAtText, &nextLogPage)
+		if err == nil {
+			nextLogAt, parseErr := time.Parse(time.RFC3339Nano, nextLogAtText)
+			if parseErr != nil {
+				return nil, fmt.Errorf("parse next cartridge replacement time: %w", parseErr)
+			}
+			if nextLogPage > 0 {
+				nextLogFound = true
+			} else {
+				nextLogPage, nextLogFound, err = r.nearestCartridgeCounter(ctx, result[i].DeviceID, nextLogAt, false)
+				if err != nil {
+					return nil, fmt.Errorf("find cartridge counter endpoint: %w", err)
+				}
+			}
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("find next cartridge replacement: %w", err)
+		} else {
+			// The current cartridge has no next replacement yet. Use the latest
+			// nearby reading as an interim estimate.
+			nextLogPage, nextLogFound, err = r.nearestCartridgeCounter(ctx, result[i].DeviceID, time.Now().UTC(), false)
+			if err != nil {
+				return nil, fmt.Errorf("find current cartridge counter: %w", err)
+			}
+		}
+		if nextLogFound && nextLogPage > baseline {
+			result[i].PrintedPages = nextLogPage - baseline
 		}
 	}
 
 	return result, nil
+}
+
+// nearestCartridgeCounter returns one stable, page-like counter for a device.
+// It prefers the profile's marker_life/engine counter and only considers valid
+// or unverified readings inside a small window. This intentionally produces an
+// estimate instead of pretending to provide an exact cartridge boundary.
+func (r *SQLiteRepository) nearestCartridgeCounter(ctx context.Context, deviceID string, at time.Time, preferAfter bool) (int, bool, error) {
+	var definitionID string
+	if err := r.db.QueryRowContext(ctx, `SELECT id FROM counter_definitions WHERE device_id = ? ORDER BY CASE WHEN semantic_type = 'marker_life' THEN 0 WHEN scope = 'engine' AND unit IN ('impressions', 'sheets') THEN 1 ELSE 2 END, id LIMIT 1`, deviceID).Scan(&definitionID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, false, nil
+		}
+		return 0, false, fmt.Errorf("select cartridge counter definition: %w", err)
+	}
+	if at.IsZero() {
+		at = time.Now().UTC()
+	}
+	from := at.Add(-cartridgeCounterFallbackWindow).Format(time.RFC3339Nano)
+	to := at.Add(cartridgeCounterFallbackWindow).Format(time.RFC3339Nano)
+	atText := at.Format(time.RFC3339Nano)
+	query := `SELECT raw_value FROM counter_readings WHERE counter_definition_id = ? AND quality IN ('valid', 'unverified') AND collected_at >= ? AND collected_at <= ? AND collected_at <= ? ORDER BY collected_at DESC, id DESC LIMIT 1`
+	args := []any{definitionID, from, to, atText}
+	if preferAfter {
+		query = `SELECT raw_value FROM counter_readings WHERE counter_definition_id = ? AND quality IN ('valid', 'unverified') AND collected_at >= ? AND collected_at <= ? AND collected_at >= ? ORDER BY collected_at ASC, id ASC LIMIT 1`
+		args = []any{definitionID, from, to, atText}
+	}
+	var value int64
+	if err := r.db.QueryRowContext(ctx, query, args...).Scan(&value); err == nil {
+		if value < 0 {
+			return 0, false, nil
+		}
+		return int(value), true, nil
+	} else if !errors.Is(err, sql.ErrNoRows) {
+		return 0, false, fmt.Errorf("read nearby cartridge counter: %w", err)
+	}
+
+	// If the preferred side is missing, accept the closest reading on the
+	// other side of the event within the same bounded window.
+	if preferAfter {
+		query = `SELECT raw_value FROM counter_readings WHERE counter_definition_id = ? AND quality IN ('valid', 'unverified') AND collected_at >= ? AND collected_at <= ? AND collected_at <= ? ORDER BY collected_at DESC, id DESC LIMIT 1`
+	} else {
+		query = `SELECT raw_value FROM counter_readings WHERE counter_definition_id = ? AND quality IN ('valid', 'unverified') AND collected_at >= ? AND collected_at <= ? AND collected_at >= ? ORDER BY collected_at ASC, id ASC LIMIT 1`
+	}
+	if err := r.db.QueryRowContext(ctx, query, args...).Scan(&value); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, false, nil
+		}
+		return 0, false, fmt.Errorf("read fallback cartridge counter: %w", err)
+	}
+	if value < 0 {
+		return 0, false, nil
+	}
+	return int(value), true, nil
 }
 
 func (r *SQLiteRepository) CountCartridgeLogs(ctx context.Context, cartridgeID, deviceID string) (int, error) {
