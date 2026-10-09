@@ -31,6 +31,10 @@ mkdir -p "$DIST_DIR/bin" "$DIST_DIR/profiles" "$DIST_DIR/data" "$ROOT_DIR/bin" "
 # 3. Build backend Go executables
 cd "$ROOT_DIR/backend"
 go mod download
+go run ./cmd/api-contract
+if command -v git >/dev/null 2>&1 && [ -d "$ROOT_DIR/.git" ]; then
+    git -C "$ROOT_DIR" diff --exit-code -- docs/openapi.huma.generated.yaml
+fi
 
 go build -trimpath -ldflags="-s -w" -o "$DIST_DIR/bin/npms-api" ./cmd/api
 go build -trimpath -ldflags="-s -w" -o "$DIST_DIR/bin/npms-worker" ./cmd/worker

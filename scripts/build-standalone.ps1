@@ -33,6 +33,14 @@ foreach ($dir in @($distDir, $distBinDir, $distProfilesDir, $distDataDir, $rootB
 Set-Location (Join-Path $root "backend")
 go mod download
 
+go run .\cmd\api-contract
+if ((Get-Command git -ErrorAction SilentlyContinue) -and (Test-Path (Join-Path $root ".git"))) {
+    git -C $root diff --exit-code -- docs/openapi.huma.generated.yaml
+    if ($LASTEXITCODE -ne 0) {
+        throw "Generated OpenAPI is out of date. Commit the regenerated docs/openapi.huma.generated.yaml before building standalone."
+    }
+}
+
 go build -trimpath -ldflags="-s -w" -o (Join-Path $distBinDir "npms-api.exe") .\cmd\api
 go build -trimpath -ldflags="-s -w" -o (Join-Path $distBinDir "npms-worker.exe") .\cmd\worker
 go build -trimpath -ldflags="-s -w" -o (Join-Path $distBinDir "npms-db-migrate.exe") .\cmd\db-migrate
