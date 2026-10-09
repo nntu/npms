@@ -154,6 +154,76 @@ components:
         - quantity
         - performed_at
       type: object
+    Counter:
+      additionalProperties: false
+      properties:
+        collected_at:
+          format: date-time
+          type: string
+        definition_key:
+          type: string
+        id:
+          format: int64
+          type: integer
+        quality:
+          enum:
+            - valid
+            - unverified
+            - unsupported
+            - unavailable
+            - suspicious
+          type: string
+        raw_value:
+          format: int64
+          minimum: 0
+          type: integer
+        scope:
+          type: string
+        unit:
+          enum:
+            - impressions
+            - sheets
+          type: string
+      required:
+        - id
+        - definition_key
+        - unit
+        - scope
+        - raw_value
+        - collected_at
+        - quality
+      type: object
+    CounterPageOutputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/CounterPageOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        data:
+          items:
+            $ref: "#/components/schemas/Counter"
+          type:
+            - array
+            - "null"
+        limit:
+          format: int64
+          type: integer
+        offset:
+          format: int64
+          type: integer
+        total:
+          format: int64
+          type: integer
+      required:
+        - data
+        - limit
+        - offset
+        - total
+      type: object
     CreateCartridgeInputBody:
       additionalProperties: false
       properties:
@@ -191,6 +261,135 @@ components:
       required:
         - sku_code
         - name
+      type: object
+    CreatePrinterInputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/CreatePrinterInputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        asset_code:
+          maxLength: 200
+          type: string
+        department:
+          maxLength: 200
+          type: string
+        display_name:
+          maxLength: 200
+          minLength: 1
+          type: string
+        manufacturer:
+          maxLength: 200
+          type: string
+        model:
+          maxLength: 200
+          type: string
+        serial:
+          maxLength: 200
+          type: string
+        sys_object_id:
+          maxLength: 200
+          type: string
+      required:
+        - display_name
+      type: object
+    CredentialInputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/CredentialInputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        auth_passphrase:
+          type: string
+          writeOnly: true
+        auth_protocol:
+          enum:
+            - MD5
+            - SHA
+          type: string
+        community:
+          type: string
+          writeOnly: true
+        priv_passphrase:
+          type: string
+          writeOnly: true
+        priv_protocol:
+          enum:
+            - DES
+            - AES
+            - AES128
+          type: string
+        username:
+          type: string
+          writeOnly: true
+        version:
+          enum:
+            - 2c
+            - "3"
+          type: string
+      required:
+        - version
+      type: object
+    CredentialOutputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/CredentialOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        id:
+          type: string
+        version:
+          enum:
+            - 2c
+            - "3"
+          type: string
+      required:
+        - id
+        - version
+      type: object
+    DailyUsage:
+      additionalProperties: false
+      properties:
+        definition_key:
+          type: string
+        delta:
+          format: int64
+          minimum: 0
+          type: integer
+        local_date:
+          format: date
+          type: string
+        quality:
+          enum:
+            - valid
+            - unverified
+          type: string
+        scope:
+          type: string
+        unit:
+          enum:
+            - impressions
+            - sheets
+          type: string
+      required:
+        - definition_key
+        - unit
+        - scope
+        - local_date
+        - delta
+        - quality
       type: object
     DiscoveryInputBody:
       additionalProperties: false
@@ -278,6 +477,74 @@ components:
         - sys_object_id
         - serial
       type: object
+    EndpointInputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/EndpointInputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        address:
+          maxLength: 253
+          minLength: 1
+          type: string
+        credential_id:
+          type: string
+        is_primary:
+          default: false
+          type: boolean
+        port:
+          default: 161
+          format: int64
+          maximum: 65535
+          minimum: 1
+          type: integer
+        protocol:
+          default: snmp
+          enum:
+            - snmp
+          type: string
+      required:
+        - address
+      type: object
+    EndpointOutputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/EndpointOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        address:
+          type: string
+        credential_id:
+          type: string
+        device_id:
+          format: uuid
+          type: string
+        id:
+          type: string
+        is_primary:
+          type: boolean
+        port:
+          format: int64
+          type: integer
+        protocol:
+          const: snmp
+          type: string
+      required:
+        - id
+        - device_id
+        - address
+        - protocol
+        - port
+        - is_primary
+      type: object
     ErrorDetail:
       additionalProperties: false
       properties:
@@ -357,6 +624,56 @@ components:
         - status
         - time
       type: object
+    JobAcceptedOutputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/JobAcceptedOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        job_id:
+          type: string
+        status:
+          const: queued
+          type: string
+        status_url:
+          type: string
+      required:
+        - job_id
+        - status
+        - status_url
+      type: object
+    JobOutputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/JobOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        device_id:
+          format: uuid
+          type: string
+        error_code:
+          type: string
+        id:
+          type: string
+        status:
+          enum:
+            - queued
+            - success
+            - failed
+          type: string
+      required:
+        - id
+        - device_id
+        - status
+      type: object
     LogsOutputBody:
       additionalProperties: false
       properties:
@@ -370,6 +687,143 @@ components:
         data:
           items:
             $ref: "#/components/schemas/CartridgeLog"
+          type:
+            - array
+            - "null"
+        limit:
+          format: int64
+          type: integer
+        offset:
+          format: int64
+          type: integer
+        total:
+          format: int64
+          type: integer
+      required:
+        - data
+        - limit
+        - offset
+        - total
+      type: object
+    PollingRun:
+      additionalProperties: false
+      properties:
+        attempt_count:
+          format: int64
+          minimum: 1
+          type: integer
+        ended_at:
+          format: date-time
+          type: string
+        error_code:
+          type: string
+        id:
+          type: string
+        job_kind:
+          type: string
+        profile_version:
+          format: int64
+          type: integer
+        result:
+          enum:
+            - running
+            - success
+            - failed
+          type: string
+        started_at:
+          format: date-time
+          type: string
+      required:
+        - id
+        - job_kind
+        - started_at
+        - result
+        - attempt_count
+      type: object
+    PollingRunPageOutputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/PollingRunPageOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        data:
+          items:
+            $ref: "#/components/schemas/PollingRun"
+          type:
+            - array
+            - "null"
+        limit:
+          format: int64
+          type: integer
+        offset:
+          format: int64
+          type: integer
+        total:
+          format: int64
+          type: integer
+      required:
+        - data
+        - limit
+        - offset
+        - total
+      type: object
+    Printer:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/Printer.json
+          format: uri
+          readOnly: true
+          type: string
+        asset_code:
+          type: string
+        department:
+          type: string
+        display_name:
+          type: string
+        id:
+          format: uuid
+          type: string
+        last_seen_at:
+          format: date-time
+          type: string
+        manufacturer:
+          type: string
+        model:
+          type: string
+        serial:
+          type: string
+        status:
+          enum:
+            - online
+            - offline
+            - unknown
+            - unavailable
+          type: string
+      required:
+        - id
+        - display_name
+        - status
+      type: object
+    PrinterPageOutputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/PrinterPageOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        data:
+          items:
+            $ref: "#/components/schemas/Printer"
           type:
             - array
             - "null"
@@ -495,6 +949,119 @@ components:
         - device_id
         - quantity
       type: object
+    RegisterPrinterInputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/RegisterPrinterInputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        address:
+          maxLength: 253
+          minLength: 1
+          type: string
+        asset_code:
+          maxLength: 200
+          type: string
+        auth_passphrase:
+          type: string
+          writeOnly: true
+        auth_protocol:
+          enum:
+            - MD5
+            - SHA
+          type: string
+        community:
+          type: string
+          writeOnly: true
+        department:
+          maxLength: 200
+          type: string
+        display_name:
+          maxLength: 200
+          minLength: 1
+          type: string
+        manufacturer:
+          maxLength: 200
+          type: string
+        model:
+          maxLength: 200
+          type: string
+        port:
+          default: 161
+          format: int64
+          maximum: 65535
+          minimum: 1
+          type: integer
+        priv_passphrase:
+          type: string
+          writeOnly: true
+        priv_protocol:
+          enum:
+            - DES
+            - AES
+            - AES128
+          type: string
+        profile_id:
+          type: string
+        serial:
+          maxLength: 200
+          type: string
+        sys_object_id:
+          maxLength: 200
+          type: string
+        username:
+          type: string
+          writeOnly: true
+        version:
+          enum:
+            - 2c
+            - "3"
+          type: string
+      required:
+        - display_name
+        - address
+        - version
+      type: object
+    RegistrationOutputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/RegistrationOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        counter_definition_count:
+          format: int64
+          minimum: 0
+          type: integer
+        credential_id:
+          type: string
+        endpoint_id:
+          type: string
+        poll_job_id:
+          type: string
+        poll_status:
+          enum:
+            - queued
+            - not_started
+          type: string
+        printer:
+          $ref: "#/components/schemas/Printer"
+        profile_id:
+          type: string
+      required:
+        - printer
+        - credential_id
+        - endpoint_id
+        - poll_status
+        - counter_definition_count
+      type: object
     ReplaceCartridgeInputBody:
       additionalProperties: false
       properties:
@@ -568,6 +1135,33 @@ components:
           type: string
       required:
         - cartridge_id
+      type: object
+    UsagePageOutputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/UsagePageOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        data:
+          items:
+            $ref: "#/components/schemas/DailyUsage"
+          type:
+            - array
+            - "null"
+        timezone:
+          type: string
+        total:
+          format: int64
+          minimum: 0
+          type: integer
+      required:
+        - data
+        - total
+        - timezone
       type: object
 info:
   title: NPMS API
@@ -813,6 +1407,341 @@ paths:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
       summary: Get API v1 health
+  /api/v1/jobs/{id}:
+    get:
+      operationId: get-api-v1-jobs-by-id
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobOutputBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Get API v1 jobs by ID
+  /api/v1/printers:
+    get:
+      operationId: get-api-v1-printers
+      parameters:
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            format: int64
+            maximum: 1000
+            minimum: 1
+            type: integer
+        - explode: false
+          in: query
+          name: offset
+          schema:
+            default: 0
+            format: int64
+            minimum: 0
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrinterPageOutputBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Get API v1 printers
+    post:
+      operationId: post-api-v1-printers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePrinterInputBody"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Printer"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Post API v1 printers
+  /api/v1/printers/register:
+    post:
+      operationId: post-api-v1-printers-register
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterPrinterInputBody"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegistrationOutputBody"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Post API v1 printers register
+  /api/v1/printers/{id}:
+    get:
+      operationId: get-api-v1-printers-by-id
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Printer"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Get API v1 printers by ID
+  /api/v1/printers/{id}/counters:
+    get:
+      operationId: get-api-v1-printers-by-id-counters
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            format: int64
+            maximum: 1000
+            minimum: 1
+            type: integer
+        - explode: false
+          in: query
+          name: offset
+          schema:
+            default: 0
+            format: int64
+            minimum: 0
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CounterPageOutputBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Get API v1 printers by ID counters
+  /api/v1/printers/{id}/credentials:
+    post:
+      operationId: post-api-v1-printers-by-id-credentials
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CredentialInputBody"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CredentialOutputBody"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Post API v1 printers by ID credentials
+  /api/v1/printers/{id}/endpoints:
+    post:
+      operationId: post-api-v1-printers-by-id-endpoints
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EndpointInputBody"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EndpointOutputBody"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Post API v1 printers by ID endpoints
+  /api/v1/printers/{id}/poll:
+    post:
+      operationId: post-api-v1-printers-by-id-poll
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobAcceptedOutputBody"
+          description: Accepted
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Post API v1 printers by ID poll
+  /api/v1/printers/{id}/polling-runs:
+    get:
+      operationId: get-api-v1-printers-by-id-polling-runs
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+        - explode: false
+          in: query
+          name: limit
+          schema:
+            default: 50
+            format: int64
+            maximum: 1000
+            minimum: 1
+            type: integer
+        - explode: false
+          in: query
+          name: offset
+          schema:
+            default: 0
+            format: int64
+            minimum: 0
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PollingRunPageOutputBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Get API v1 printers by ID polling runs
+  /api/v1/printers/{id}/usage:
+    get:
+      operationId: get-api-v1-printers-by-id-usage
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            format: uuid
+            type: string
+        - explode: false
+          in: query
+          name: from
+          schema:
+            format: date
+            type: string
+        - explode: false
+          in: query
+          name: to
+          schema:
+            format: date
+            type: string
+        - explode: false
+          in: query
+          name: timezone
+          schema:
+            default: UTC
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UsagePageOutputBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Get API v1 printers by ID usage
   /api/v1/snmp/profiles:
     get:
       operationId: get-api-v1-snmp-profiles

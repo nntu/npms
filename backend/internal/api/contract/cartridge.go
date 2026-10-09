@@ -182,6 +182,7 @@ func NewCartridgeAPI() (http.Handler, *huma.OpenAPI) {
 	huma.Get(api, "/api/v1/health", func(context.Context, *struct{}) (*HealthOutput, error) { return &HealthOutput{}, nil })
 	huma.Get(api, "/api/v1/snmp/profiles", func(context.Context, *struct{}) (*ProfileListOutput, error) { return &ProfileListOutput{}, nil })
 	huma.Post(api, "/api/v1/discovery/probe", func(context.Context, *DiscoveryInput) (*DiscoveryOutput, error) { return &DiscoveryOutput{}, nil })
+	registerPrinterContracts(api)
 
 	huma.Get(api, "/api/v1/cartridges", func(context.Context, *CartridgeListInput) (*CartridgeListOutput, error) {
 		return &CartridgeListOutput{}, nil

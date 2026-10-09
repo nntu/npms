@@ -18,6 +18,16 @@ func TestCartridgeContractRegistersAllOperations(t *testing.T) {
 		"/api/v1/cartridges/refill":               "post",
 		"/api/v1/cartridges/refill-printer":       "post",
 		"/api/v1/cartridges/logs":                 "get",
+		"/api/v1/printers/register":               "post",
+		"/api/v1/printers":                        "get",
+		"/api/v1/printers/{id}":                   "get",
+		"/api/v1/printers/{id}/counters":          "get",
+		"/api/v1/printers/{id}/usage":             "get",
+		"/api/v1/printers/{id}/credentials":       "post",
+		"/api/v1/printers/{id}/endpoints":         "post",
+		"/api/v1/printers/{id}/polling-runs":      "get",
+		"/api/v1/printers/{id}/poll":              "post",
+		"/api/v1/jobs/{id}":                       "get",
 	}
 	for path, method := range want {
 		item, ok := spec.Paths[path]
