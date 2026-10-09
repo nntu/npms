@@ -33,6 +33,29 @@ type fakePoller struct {
 
 type fakeCounterSnapshotter struct{}
 
+func TestHealthUsesTypedRuntimeContract(t *testing.T) {
+	server, err := NewServer(fakeStore{}, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/health", nil)
+	server.Handler().ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
+	}
+	var response struct {
+		Status string `json:"status"`
+		Time   string `json:"time"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if response.Status != "ok" || response.Time == "" {
+		t.Fatalf("unexpected health response: %+v", response)
+	}
+}
+
 func (fakeCounterSnapshotter) ReadDevice(context.Context, string) (counter.Reading, repository.CounterDefinition, error) {
 	return counter.Reading{RawValue: 12345, Quality: counter.QualityUnverified, CollectedAt: time.Date(2026, 10, 9, 1, 2, 3, 0, time.UTC)}, repository.CounterDefinition{Key: "marker_life"}, nil
 }
