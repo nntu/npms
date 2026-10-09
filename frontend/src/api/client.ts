@@ -16,7 +16,8 @@ import type {
 } from './types'
 
 const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '/api/v1'
-const apiToken = import.meta.env.VITE_API_TOKEN as string | undefined
+const configuredApiToken = import.meta.env.VITE_API_TOKEN as string | undefined
+const sessionApiTokenKey = 'npms_api_token'
 
 export class ApiError extends Error {
   readonly status: number
@@ -29,14 +30,26 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${apiBase}${path}`, {
-    ...init,
-    headers: {
-      Accept: 'application/json',
-      ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}),
-      ...init?.headers,
-    },
-  })
+  const requestWithToken = (token?: string) =>
+    fetch(`${apiBase}${path}`, {
+      ...init,
+      headers: {
+        Accept: 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...init?.headers,
+      },
+    })
+
+  const sessionApiToken =
+    typeof window === 'undefined' ? undefined : (window.sessionStorage.getItem(sessionApiTokenKey) ?? undefined)
+  let response = await requestWithToken(configuredApiToken || sessionApiToken)
+  if (response.status === 401 && !configuredApiToken && typeof window !== 'undefined') {
+    const enteredToken = window.prompt('Nhập API token NPMS để tiếp tục:')?.trim()
+    if (enteredToken) {
+      window.sessionStorage.setItem(sessionApiTokenKey, enteredToken)
+      response = await requestWithToken(enteredToken)
+    }
+  }
   if (!response.ok) {
     let message = `API request failed (${response.status})`
     try {
@@ -165,9 +178,7 @@ export async function updateCartridgeStock(
   })
 }
 
-export async function addRefillBottles(
-  input: import('./types').AddRefillBottlesInput,
-): Promise<{ status: string }> {
+export async function addRefillBottles(input: import('./types').AddRefillBottlesInput): Promise<{ status: string }> {
   return request<{ status: string }>('/cartridges/stock/refill-bottles', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -198,11 +209,14 @@ export async function refillCartridges(
 export async function refillPrinterCartridge(
   input: import('./types').RefillPrinterCartridgeInput,
 ): Promise<{ status: string; message: string; counter: number; counter_quality: string }> {
-  return request<{ status: string; message: string; counter: number; counter_quality: string }>('/cartridges/refill-printer', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(input),
-  })
+  return request<{ status: string; message: string; counter: number; counter_quality: string }>(
+    '/cartridges/refill-printer',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    },
+  )
 }
 
 export async function listCartridgeLogs(

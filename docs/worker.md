@@ -5,13 +5,13 @@ its local registry. It supports separate status and counter intervals and a
 `--once` mode for startup/registry checks:
 
 ```text
-cp config.example.yaml config.yaml
+go run ./cmd/init --config ./config.yaml --template ./config.example.yaml
 go run ./cmd/worker --config ./config.yaml --once
 go run ./cmd/worker --config ./config.yaml
 ```
 
-On PowerShell, copy `config.example.yaml` to `config.yaml`, set
-`security.encryption_key`, then start the worker with `--config .\config.yaml`.
+On PowerShell, run `go run ./cmd/init --config ./config.yaml --template
+./config.example.yaml`, then start the worker with `--config .\config.yaml`.
 
 The status cycle resolves encrypted endpoint credentials, connects through SNMP,
 reads `sysName`, and updates endpoint `last_success_at`. A failed device does

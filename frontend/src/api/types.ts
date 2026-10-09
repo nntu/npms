@@ -41,7 +41,7 @@ export interface CreateEndpointInput {
 }
 
 export interface RegisterPrinterInput extends CreatePrinterInput {
-	profile_id?: string
+  profile_id?: string
   address: string
   port?: number
   version: '2c' | '3'
@@ -59,8 +59,8 @@ export interface RegisterPrinterResult {
   endpoint_id: string
   poll_job_id?: string | null
   poll_status: 'queued' | 'not_started'
-	profile_id?: string | null
-	counter_definition_count?: number
+  profile_id?: string | null
+  counter_definition_count?: number
 }
 
 export interface Paginated<T> {

@@ -113,16 +113,16 @@ make init-config
 ./bin/npms-init --generate-api-token
 ```
 
-Hoặc sao chép thủ công từ file mẫu:
+Nếu cần tạo thủ công, dùng trình khởi tạo để thay token mẫu và encryption key:
 
 ```bash
-cp config.example.yaml config.yaml
+go run ./backend/cmd/init --config ./config.yaml --template ./config.example.yaml
 ```
 
 Windows PowerShell:
 
 ```powershell
-Copy-Item ./config.example.yaml ./config.yaml
+go run ./backend/cmd/init --config ./config.yaml --template ./config.example.yaml
 ```
 
 
@@ -134,7 +134,7 @@ database:
 server:
   listen: 127.0.0.1:8080
   allowed_origin: http://localhost:8080
-  api_token: ""
+  api_token: replace-with-a-random-api-token
   # Tự động mở trình duyệt mặc định khi khởi động xong
   open_browser: true
 security:
@@ -170,7 +170,7 @@ Khi đóng gói chỉ binary, chép thư mục profile đi kèm và cập nhật
 Linux/macOS:
 
 ```bash
-cp config.example.yaml config.yaml
+go run ./backend/cmd/init --config ./config.yaml --template ./config.example.yaml
 make migrate-up
 make test
 make lint
@@ -226,7 +226,7 @@ Xem [docs/snmp-profiles.md](docs/snmp-profiles.md).
 ## Triển khai Linux
 
 ```bash
-cp config.example.yaml config.yaml
+go run ./backend/cmd/init --config ./config.yaml --template ./config.example.yaml
 mkdir -p bin
 cd backend
 go mod download
@@ -251,7 +251,7 @@ Chạy worker ở process/service riêng:
 
 ```bash
 ./scripts/build-standalone.sh
-cp config.example.yaml config.yaml
+./bin/npms-init --config ./config.yaml --template ./config.example.yaml
 ./npms --config ./config.yaml
 ```
 
@@ -260,7 +260,7 @@ cp config.example.yaml config.yaml
 PowerShell từ thư mục gốc:
 
 ```powershell
-Copy-Item ./config.example.yaml ./config.yaml
+./bin/npms-init.exe --config ./config.yaml --template ./config.example.yaml
 New-Item -ItemType Directory -Force ./bin | Out-Null
 Set-Location backend
 go mod download
@@ -278,7 +278,7 @@ pnpm --dir frontend run build
 
 ```powershell
 ./scripts/build-standalone.ps1
-Copy-Item ./config.example.yaml ./config.yaml
+./bin/npms-init.exe --config ./config.yaml --template ./config.example.yaml
 ./npms.exe --config ./config.yaml
 ```
 

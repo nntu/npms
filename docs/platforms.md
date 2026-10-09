@@ -17,7 +17,7 @@ NPMS v1 is designed to run as a local Go process on Linux or Windows.
 ## Windows operation
 
 ```powershell
-Copy-Item ..\config.example.yaml ..\config.yaml
+go run ./cmd/init --config ..\config.yaml --template ..\config.example.yaml
 Set-Location backend
 go run ./cmd/db-migrate --config ..\config.yaml
 go run ./cmd/snmp-debug probe --host 192.0.2.10 --version 2c --community $env:SNMP_COMMUNITY

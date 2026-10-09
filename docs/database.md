@@ -4,7 +4,7 @@ NPMS uses SQLite for the standalone v1 deployment. No PostgreSQL server or
 Docker container is required.
 
 ```bash
-cp config.example.yaml config.yaml
+go run ./backend/cmd/init --config ./config.yaml --template ./config.example.yaml
 make migrate-up
 ```
 
