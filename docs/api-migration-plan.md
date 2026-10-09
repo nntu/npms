@@ -81,14 +81,14 @@ Trước khi chuyển, lập route matrix gồm:
 
 | Nhóm | Route | Go handler | Frontend dùng | OpenAPI | Test runtime | Trạng thái |
 | --- | --- | --- | --- | --- | --- | --- |
-| Health | `/api/v1/health*` | Có | Có/không | cần rà | cần bổ sung | Chưa chuyển |
-| Profiles | `/api/v1/snmp/profiles` | Có | Có | Có | Có một phần | Chưa chuyển |
+| Health | `/api/v1/health*` | Có | Có/không | cần rà | Có | `health` đã chuyển Huma; live/ready legacy |
+| Profiles | `/api/v1/snmp/profiles` | Có | Có | Có | Có | Đã chuyển Huma |
 | Discovery | `/api/v1/discovery/probe` | Có | Có | Có | Có | Chưa chuyển |
-| Printers | `/api/v1/printers*` | Có | Có | Có | Có một phần | Chưa chuyển |
+| Printers | `/api/v1/printers*` | Có | Có | Có | Có một phần | Collection đã chuyển Huma; detail/counter còn legacy |
 | Counters | `/api/v1/printers/{id}/counters` | Có | Có | Có | Cần contract test | Chưa chuyển |
 | Usage | `/api/v1/printers/{id}/usage` | Có | Có | Có | Cần contract test | Chưa chuyển |
 | Poll/jobs | `/api/v1/printers/{id}/poll`, `/api/v1/jobs/{id}` | Có | Có | Có | Có | Chưa chuyển |
-| Cartridge | `/api/v1/cartridges*` | Có | Có | đang bổ sung | Pilot đầu tiên | Pilot |
+| Cartridge | `/api/v1/cartridges*` | Có | Có | Generated + baseline cần so sánh | Có | Đã chuyển runtime toàn bộ nhóm |
 
 Route matrix phải được cập nhật sau mỗi nhóm migration.
 
@@ -117,10 +117,20 @@ Route matrix phải được cập nhật sau mỗi nhóm migration.
 
 ## 6. Giai đoạn 1 — Pilot cartridge
 
-Đã dựng shadow typed contract tại `backend/internal/api/contract` và lệnh
+Đã dựng typed contract tại `backend/internal/api/contract` và lệnh
 `make api-contract`. Lệnh sinh `docs/openapi.huma.generated.yaml` để review
-route/schema trước khi thay router production. Contract shadow chưa xử lý
-request nghiệp vụ và chưa được dùng để phục vụ traffic thật.
+route/schema. Nhóm cartridge hiện đã chạy qua Huma runtime; các operation
+giữ nguyên service/store và counter semantics, không dựng lại business logic.
+
+Các checkpoint đã lưu:
+
+- `7dc22e5`: shadow contract đầy đủ cho printer/counter/job.
+- `b800d24`: health runtime.
+- `2dbfe71`: profile catalog runtime.
+- `f5ce494`: cartridge runtime migration hoàn tất.
+
+Generated OpenAPI drift đã có gate `make api-contract-check` và CI sẽ fail nếu
+artifact thay đổi mà chưa được commit.
 
 Chuyển các operation:
 
@@ -213,12 +223,11 @@ Không được đăng ký cùng một method/path ở cả router cũ và Huma.
 
 Thứ tự:
 
-1. Cartridge.
-2. Printer registration/detail.
-3. Counter readings và daily usage.
-4. Polling jobs.
-5. Discovery.
-6. Profiles và health.
+1. Printer registration/detail collection (collection đã chuyển một phần).
+2. Counter readings và daily usage.
+3. Polling jobs.
+4. Discovery.
+5. Hoàn tất health live/ready và error parity.
 
 Lý do: cartridge có transaction rõ và dễ kiểm thử; discovery/profile có nhiều
 credential và validation nên chuyển sau.
