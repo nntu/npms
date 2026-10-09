@@ -137,6 +137,24 @@ export function DiscoveryPage() {
                 <dt className="text-[11px] font-bold uppercase text-slate-400">Số sê-ri</dt>
                 <dd className="text-sm font-semibold text-slate-200 mt-1">{discovery.data.serial || '—'}</dd>
               </div>
+
+              <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800 sm:col-span-2 lg:col-span-3">
+                <dt className="text-[11px] font-bold uppercase text-slate-400">Counter Printer-MIB</dt>
+                {discovery.data.markers?.length ? (
+                  <div className="mt-2 flex flex-wrap gap-3">
+                    {discovery.data.markers.map((marker) => (
+                      <span key={marker.instance} className="text-sm font-mono text-cyan-300">
+                        instance {marker.instance}: {marker.life_count.toLocaleString('vi-VN')} trang / unit{' '}
+                        {marker.counter_unit}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <dd className="text-sm text-slate-400 mt-1">
+                    Không có marker row hợp lệ hoặc thiết bị không hỗ trợ Printer-MIB.
+                  </dd>
+                )}
+              </div>
             </div>
           </div>
         )}

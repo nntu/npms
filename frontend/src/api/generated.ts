@@ -592,6 +592,13 @@ export interface components {
             /** @enum {string} */
             version: "2c" | "3";
         };
+        DiscoveryMarker: {
+            /** Format: int64 */
+            counter_unit: number;
+            instance: string;
+            /** Format: int64 */
+            life_count: number;
+        };
         DiscoveryOutputBody: {
             /**
              * Format: uri
@@ -602,6 +609,7 @@ export interface components {
             /** Format: ipv4 */
             address: string;
             description: string;
+            markers?: components["schemas"]["DiscoveryMarker"][] | null;
             name: string;
             serial: string;
             sys_object_id: string;

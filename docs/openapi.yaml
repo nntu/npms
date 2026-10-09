@@ -639,6 +639,17 @@ components:
         description: { type: string }
         sys_object_id: { type: string }
         serial: { type: string }
+        markers:
+          type: array
+          items:
+            $ref: '#/components/schemas/DiscoveryMarker'
+    DiscoveryMarker:
+      type: object
+      required: [instance, life_count, counter_unit]
+      properties:
+        instance: { type: string }
+        life_count: { type: integer, minimum: 0 }
+        counter_unit: { type: integer, minimum: 0 }
     RegisterPrinter:
       type: object
       additionalProperties: false

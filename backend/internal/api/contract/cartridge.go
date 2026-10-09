@@ -169,12 +169,19 @@ type DiscoveryInput struct {
 }
 type DiscoveryOutput struct {
 	Body struct {
-		Address     string `json:"address" format:"ipv4"`
-		Name        string `json:"name"`
-		Description string `json:"description"`
-		SysObjectID string `json:"sys_object_id"`
-		Serial      string `json:"serial"`
+		Address     string            `json:"address" format:"ipv4"`
+		Name        string            `json:"name"`
+		Description string            `json:"description"`
+		SysObjectID string            `json:"sys_object_id"`
+		Serial      string            `json:"serial"`
+		Markers     []DiscoveryMarker `json:"markers,omitempty"`
 	}
+}
+
+type DiscoveryMarker struct {
+	Instance string `json:"instance"`
+	Life     int64  `json:"life_count" minimum:"0"`
+	Unit     int64  `json:"counter_unit" minimum:"0"`
 }
 
 func NewCartridgeAPI() (http.Handler, *huma.OpenAPI) {

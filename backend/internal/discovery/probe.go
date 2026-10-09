@@ -16,11 +16,12 @@ const (
 )
 
 type Result struct {
-	Address     string `json:"address"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	SysObjectID string `json:"sys_object_id"`
-	Serial      string `json:"serial"`
+	Address     string           `json:"address"`
+	Name        string           `json:"name"`
+	Description string           `json:"description"`
+	SysObjectID string           `json:"sys_object_id"`
+	Serial      string           `json:"serial"`
+	Markers     []snmp.MarkerRow `json:"markers,omitempty"`
 }
 
 type ClientFactory func(snmp.Config) (snmp.Client, error)
@@ -43,6 +44,13 @@ func Probe(ctx context.Context, config snmp.Config, factory ClientFactory) (Resu
 	result.SysObjectID = lookup(values, SysObjectOID)
 	result.Name = lookup(values, SysNameOID)
 	result.Serial = lookup(values, SerialOID)
+	// Identity is the primary discovery result. Marker WALK is best effort so
+	// printers without a readable Printer-MIB remain discoverable.
+	life, lifeErr := client.Walk(ctx, snmp.MarkerLifeOID)
+	units, unitErr := client.Walk(ctx, snmp.MarkerUnitOID)
+	if lifeErr == nil && unitErr == nil {
+		result.Markers = snmp.JoinMarkerRows(life, units, snmp.MarkerLifeOID, snmp.MarkerUnitOID)
+	}
 	return result, nil
 }
 

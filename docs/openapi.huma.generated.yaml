@@ -452,6 +452,24 @@ components:
         - address
         - version
       type: object
+    DiscoveryMarker:
+      additionalProperties: false
+      properties:
+        counter_unit:
+          format: int64
+          minimum: 0
+          type: integer
+        instance:
+          type: string
+        life_count:
+          format: int64
+          minimum: 0
+          type: integer
+      required:
+        - instance
+        - life_count
+        - counter_unit
+      type: object
     DiscoveryOutputBody:
       additionalProperties: false
       properties:
@@ -467,6 +485,12 @@ components:
           type: string
         description:
           type: string
+        markers:
+          items:
+            $ref: "#/components/schemas/DiscoveryMarker"
+          type:
+            - array
+            - "null"
         name:
           type: string
         serial:
