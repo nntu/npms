@@ -6,6 +6,7 @@ export function usePollJob(id: string | null) {
     queryKey: ['job', id],
     queryFn: () => getJob(id as string),
     enabled: id !== null,
-    refetchInterval: (query) => query.state.data?.status === 'success' || query.state.data?.status === 'failed' ? false : 1000,
+    refetchInterval: (query) =>
+      query.state.data?.status === 'success' || query.state.data?.status === 'failed' ? false : 1000,
   })
 }

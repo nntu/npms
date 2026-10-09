@@ -83,6 +83,7 @@ type Device struct {
 	Model        string
 	Serial       string
 	SysObjectID  string
+	Department   string
 	Status       string
 	FirstSeenAt  time.Time
 	LastSeenAt   time.Time
@@ -208,9 +209,9 @@ func (r *SQLiteRepository) RegisterPrinter(ctx context.Context, registration Pri
 	}
 	defer tx.Rollback()
 	_, err = tx.ExecContext(ctx, `INSERT INTO devices
-		(id, asset_code, display_name, manufacturer, model, serial, sys_object_id, status, first_seen_at, last_seen_at, created_at, updated_at)
-		VALUES (?, NULLIF(?, ''), ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, NULLIF(?, ''), NULLIF(?, ''), ?, ?)`,
-		registration.Device.ID, registration.Device.AssetCode, registration.Device.DisplayName, registration.Device.Manufacturer, registration.Device.Model, registration.Device.Serial, registration.Device.SysObjectID, registration.Device.Status,
+		(id, asset_code, display_name, manufacturer, model, serial, sys_object_id, department, status, first_seen_at, last_seen_at, created_at, updated_at)
+		VALUES (?, NULLIF(?, ''), ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, NULLIF(?, ''), NULLIF(?, ''), ?, ?)`,
+		registration.Device.ID, registration.Device.AssetCode, registration.Device.DisplayName, registration.Device.Manufacturer, registration.Device.Model, registration.Device.Serial, registration.Device.SysObjectID, registration.Device.Department, registration.Device.Status,
 		formatTime(registration.Device.FirstSeenAt), formatTime(registration.Device.LastSeenAt), registration.Device.CreatedAt.Format(time.RFC3339Nano), registration.Device.UpdatedAt.Format(time.RFC3339Nano))
 	if err != nil {
 		return fmt.Errorf("register device: %w", err)
@@ -282,9 +283,9 @@ func (r *SQLiteRepository) CreateDevice(ctx context.Context, device Device) erro
 		device.UpdatedAt = now
 	}
 	_, err := r.db.ExecContext(ctx, `INSERT INTO devices
-		(id, asset_code, display_name, manufacturer, model, serial, sys_object_id, status, first_seen_at, last_seen_at, created_at, updated_at)
-		VALUES (?, NULLIF(?, ''), ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, NULLIF(?, ''), NULLIF(?, ''), ?, ?)`,
-		device.ID, device.AssetCode, device.DisplayName, device.Manufacturer, device.Model, device.Serial, device.SysObjectID, device.Status,
+		(id, asset_code, display_name, manufacturer, model, serial, sys_object_id, department, status, first_seen_at, last_seen_at, created_at, updated_at)
+		VALUES (?, NULLIF(?, ''), ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, NULLIF(?, ''), NULLIF(?, ''), ?, ?)`,
+		device.ID, device.AssetCode, device.DisplayName, device.Manufacturer, device.Model, device.Serial, device.SysObjectID, device.Department, device.Status,
 		formatTime(device.FirstSeenAt), formatTime(device.LastSeenAt), device.CreatedAt.UTC().Format(time.RFC3339Nano), device.UpdatedAt.UTC().Format(time.RFC3339Nano))
 	if err != nil {
 		return fmt.Errorf("create device: %w", err)
@@ -294,14 +295,14 @@ func (r *SQLiteRepository) CreateDevice(ctx context.Context, device Device) erro
 
 func (r *SQLiteRepository) GetDevice(ctx context.Context, id string) (Device, error) {
 	var d Device
-	var asset, manufacturer, model, serial, objectID, firstSeen, lastSeen sql.NullString
+	var asset, manufacturer, model, serial, objectID, department, firstSeen, lastSeen sql.NullString
 	var createdAt, updatedAt sql.NullString
-	err := r.db.QueryRowContext(ctx, `SELECT id, asset_code, display_name, manufacturer, model, serial, sys_object_id, status, first_seen_at, last_seen_at, created_at, updated_at
-		FROM devices WHERE id = ? AND deleted_at IS NULL`, id).Scan(&d.ID, &asset, &d.DisplayName, &manufacturer, &model, &serial, &objectID, &d.Status, &firstSeen, &lastSeen, &createdAt, &updatedAt)
+	err := r.db.QueryRowContext(ctx, `SELECT id, asset_code, display_name, manufacturer, model, serial, sys_object_id, department, status, first_seen_at, last_seen_at, created_at, updated_at
+		FROM devices WHERE id = ? AND deleted_at IS NULL`, id).Scan(&d.ID, &asset, &d.DisplayName, &manufacturer, &model, &serial, &objectID, &department, &d.Status, &firstSeen, &lastSeen, &createdAt, &updatedAt)
 	if err != nil {
 		return Device{}, fmt.Errorf("get device: %w", err)
 	}
-	d.AssetCode, d.Manufacturer, d.Model, d.Serial, d.SysObjectID = nullString(asset), nullString(manufacturer), nullString(model), nullString(serial), nullString(objectID)
+	d.AssetCode, d.Manufacturer, d.Model, d.Serial, d.SysObjectID, d.Department = nullString(asset), nullString(manufacturer), nullString(model), nullString(serial), nullString(objectID), nullString(department)
 	d.FirstSeenAt = parseTime(firstSeen)
 	d.LastSeenAt = parseTime(lastSeen)
 	d.CreatedAt, d.UpdatedAt = parseTime(createdAt), parseTime(updatedAt)
@@ -312,7 +313,7 @@ func (r *SQLiteRepository) ListDevices(ctx context.Context, limit, offset int) (
 	if limit < 1 || limit > 1000 || offset < 0 {
 		return nil, fmt.Errorf("invalid pagination")
 	}
-	rows, err := r.db.QueryContext(ctx, `SELECT id, asset_code, display_name, manufacturer, model, serial, sys_object_id, status, first_seen_at, last_seen_at, created_at, updated_at
+	rows, err := r.db.QueryContext(ctx, `SELECT id, asset_code, display_name, manufacturer, model, serial, sys_object_id, department, status, first_seen_at, last_seen_at, created_at, updated_at
 		FROM devices WHERE deleted_at IS NULL ORDER BY created_at DESC, id LIMIT ? OFFSET ?`, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("list devices: %w", err)
@@ -321,11 +322,11 @@ func (r *SQLiteRepository) ListDevices(ctx context.Context, limit, offset int) (
 	result := make([]Device, 0)
 	for rows.Next() {
 		var d Device
-		var asset, manufacturer, model, serial, objectID, firstSeen, lastSeen, createdAt, updatedAt sql.NullString
-		if err := rows.Scan(&d.ID, &asset, &d.DisplayName, &manufacturer, &model, &serial, &objectID, &d.Status, &firstSeen, &lastSeen, &createdAt, &updatedAt); err != nil {
+		var asset, manufacturer, model, serial, objectID, department, firstSeen, lastSeen, createdAt, updatedAt sql.NullString
+		if err := rows.Scan(&d.ID, &asset, &d.DisplayName, &manufacturer, &model, &serial, &objectID, &department, &d.Status, &firstSeen, &lastSeen, &createdAt, &updatedAt); err != nil {
 			return nil, fmt.Errorf("scan device: %w", err)
 		}
-		d.AssetCode, d.Manufacturer, d.Model, d.Serial, d.SysObjectID = nullString(asset), nullString(manufacturer), nullString(model), nullString(serial), nullString(objectID)
+		d.AssetCode, d.Manufacturer, d.Model, d.Serial, d.SysObjectID, d.Department = nullString(asset), nullString(manufacturer), nullString(model), nullString(serial), nullString(objectID), nullString(department)
 		d.FirstSeenAt, d.LastSeenAt = parseTime(firstSeen), parseTime(lastSeen)
 		d.CreatedAt, d.UpdatedAt = parseTime(createdAt), parseTime(updatedAt)
 		result = append(result, d)

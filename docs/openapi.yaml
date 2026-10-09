@@ -324,6 +324,63 @@ paths:
                 $ref: '#/components/schemas/Job'
         '401':
           $ref: '#/components/responses/Unauthorized'
+  /api/v1/cartridges:
+    get:
+      operationId: listCartridges
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Cartridge stock catalog.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CartridgePage'
+    post:
+      operationId: createCartridge
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCartridge'
+      responses:
+        '201':
+          description: Cartridge type created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cartridge'
+  /api/v1/cartridges/replace:
+    post:
+      operationId: replacePrinterCartridge
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReplaceCartridge'
+      responses:
+        '200':
+          description: Cartridge replaced successfully.
+  /api/v1/cartridges/refill:
+    post:
+      operationId: refillCartridges
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefillCartridges'
+      responses:
+        '200':
+          description: Cartridges refilled successfully.
 components:
   securitySchemes:
     bearerAuth:
@@ -375,6 +432,7 @@ components:
         manufacturer: { type: [string, 'null'] }
         model: { type: [string, 'null'] }
         serial: { type: [string, 'null'] }
+        department: { type: [string, 'null'] }
         status: { type: string, enum: [online, offline, unknown, unavailable] }
         last_seen_at: { type: [string, 'null'], format: date-time }
     CreatePrinter:
@@ -388,6 +446,7 @@ components:
         model: { type: string, maxLength: 200 }
         serial: { type: string, maxLength: 200 }
         sys_object_id: { type: string, maxLength: 200 }
+        department: { type: string, maxLength: 200 }
     CreateSNMPCredential:
       type: object
       additionalProperties: false
@@ -491,6 +550,7 @@ components:
         model: { type: string, maxLength: 200 }
         serial: { type: string, maxLength: 200 }
         sys_object_id: { type: string, maxLength: 200 }
+        department: { type: string, maxLength: 200 }
         address: { type: string, minLength: 1, maxLength: 253 }
         port: { type: integer, minimum: 1, maximum: 65535, default: 161 }
         version: { type: string, enum: [2c, '3'] }
@@ -596,3 +656,47 @@ components:
           properties:
             code: { type: string }
             message: { type: string }
+    Cartridge:
+      type: object
+      required: [id, sku_code, name, stock_new, stock_refilled, stock_empty]
+      properties:
+        id: { type: string }
+        sku_code: { type: string }
+        name: { type: string }
+        compatible_models: { type: [string, 'null'] }
+        stock_new: { type: integer, minimum: 0 }
+        stock_refilled: { type: integer, minimum: 0 }
+        stock_empty: { type: integer, minimum: 0 }
+    CreateCartridge:
+      type: object
+      required: [sku_code, name]
+      properties:
+        sku_code: { type: string }
+        name: { type: string }
+        compatible_models: { type: string }
+        stock_new: { type: integer, default: 0 }
+        stock_refilled: { type: integer, default: 0 }
+        stock_empty: { type: integer, default: 0 }
+    ReplaceCartridge:
+      type: object
+      required: [cartridge_id, device_id, source_type]
+      properties:
+        cartridge_id: { type: string }
+        device_id: { type: string, format: uuid }
+        source_type: { type: string, enum: [new, refilled] }
+        notes: { type: string }
+    RefillCartridges:
+      type: object
+      required: [cartridge_id, quantity]
+      properties:
+        cartridge_id: { type: string }
+        quantity: { type: integer, minimum: 1 }
+        notes: { type: string }
+    CartridgePage:
+      type: object
+      required: [data, total]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Cartridge' }
+        total: { type: integer }

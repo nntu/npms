@@ -1,45 +1,102 @@
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import type { CounterReading } from '../../api/types'
 
-const chartWidth = 760
-const chartHeight = 250
-const padding = { top: 20, right: 24, bottom: 42, left: 58 }
-
 function formatDate(value: string) {
-  return new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  const d = new Date(value)
+  return `${d.getDate()}/${d.getMonth() + 1} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`
 }
 
 export function CounterChart({ readings }: { readings: CounterReading[] }) {
   const firstKey = readings[0]?.definition_key
   const series = readings
-    .filter((reading) => reading.definition_key === firstKey && reading.quality !== 'unsupported' && reading.quality !== 'unavailable')
+    .filter(
+      (reading) =>
+        reading.definition_key === firstKey && reading.quality !== 'unsupported' && reading.quality !== 'unavailable',
+    )
     .slice()
     .sort((a, b) => new Date(a.collected_at).getTime() - new Date(b.collected_at).getTime())
+
   if (series.length === 0) return null
 
-  const plotWidth = chartWidth - padding.left - padding.right
-  const plotHeight = chartHeight - padding.top - padding.bottom
-  const values = series.map((reading) => reading.raw_value)
-  const min = Math.min(...values)
-  const max = Math.max(...values)
-  const range = max - min || 1
-  const x = (index: number) => padding.left + (series.length === 1 ? plotWidth / 2 : (index / (series.length - 1)) * plotWidth)
-  const y = (value: number) => padding.top + plotHeight - ((value - min) / range) * plotHeight
-  const points = series.map((reading, index) => `${x(index)},${y(reading.raw_value)}`).join(' ')
   const unit = series[0].unit
+  const chartData = series.map((item) => ({
+    time: formatDate(item.collected_at),
+    rawTime: item.collected_at,
+    value: item.raw_value,
+    quality: item.quality,
+    unit: item.unit,
+  }))
 
-  return <div className="counter-chart" role="img" aria-label={`Raw ${series[0].definition_key} counter history`}>
-    <div className="counter-chart-heading"><div><p className="eyebrow">Trend</p><h4>{series[0].definition_key}</h4></div><span>{unit} · {series.length} readings</span></div>
-    <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} preserveAspectRatio="none">
-      <title>{`Raw ${series[0].definition_key} values over time`}</title>
-      <line x1={padding.left} y1={padding.top + plotHeight} x2={chartWidth - padding.right} y2={padding.top + plotHeight} className="chart-axis" />
-      <line x1={padding.left} y1={padding.top} x2={padding.left} y2={padding.top + plotHeight} className="chart-axis" />
-      <text x={padding.left - 10} y={padding.top + 4} textAnchor="end" className="chart-label">{max.toLocaleString()}</text>
-      <text x={padding.left - 10} y={padding.top + plotHeight + 4} textAnchor="end" className="chart-label">{min.toLocaleString()}</text>
-      <polyline points={points} className="chart-line" />
-      {series.map((reading, index) => <circle key={reading.id} cx={x(index)} cy={y(reading.raw_value)} r="5" className={`chart-point chart-point-${reading.quality}`}><title>{`${reading.raw_value.toLocaleString()} ${reading.unit} · ${new Date(reading.collected_at).toLocaleString()} · ${reading.quality}`}</title></circle>)}
-      <text x={padding.left} y={chartHeight - 12} className="chart-label">{formatDate(series[0].collected_at)}</text>
-      <text x={chartWidth - padding.right} y={chartHeight - 12} textAnchor="end" className="chart-label">{formatDate(series[series.length - 1].collected_at)}</text>
-    </svg>
-    {series.some((reading) => reading.quality !== 'valid') && <p className="chart-note">Raw values include readings that are not marked valid; review quality before using them in reports.</p>}
-  </div>
+  return (
+    <div className="glass-card p-5 my-6">
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-4 pb-3 border-b border-slate-800">
+        <div>
+          <p className="text-xs uppercase font-bold tracking-wider text-cyan-400">Xu hướng lịch sử bộ đếm</p>
+          <h4 className="text-lg font-bold text-slate-100">{series[0].definition_key}</h4>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-slate-400 bg-slate-800/80 px-3 py-1 rounded-full border border-slate-700/60">
+            Đơn vị: <strong className="text-slate-200">{unit}</strong>
+          </span>
+          <span className="text-xs text-slate-400 bg-slate-800/80 px-3 py-1 rounded-full border border-slate-700/60">
+            Số lượng: <strong className="text-slate-200">{series.length} mẫu</strong>
+          </span>
+        </div>
+      </div>
+
+      <div className="h-64 w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
+            <defs>
+              <linearGradient id="counterGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.4} />
+                <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.5} />
+            <XAxis dataKey="time" stroke="#94a3b8" fontSize={11} tickLine={false} />
+            <YAxis
+              stroke="#94a3b8"
+              fontSize={11}
+              tickLine={false}
+              domain={['dataMin', 'dataMax']}
+              tickFormatter={(v: number) => v.toLocaleString()}
+            />
+            <Tooltip
+              content={(props: any) => {
+                if (!props.active || !props.payload?.length) return null
+                const data = props.payload[0].payload
+                return (
+                  <div className="bg-slate-900 border border-slate-700 p-3 rounded-xl shadow-xl text-xs space-y-1">
+                    <p className="font-semibold text-cyan-400">{new Date(data.rawTime).toLocaleString('vi-VN')}</p>
+                    <p className="text-slate-200 font-bold text-sm">
+                      Chỉ số: {data.value.toLocaleString()} {data.unit}
+                    </p>
+                    <p className="text-slate-400">
+                      Chất lượng: <span className={`quality-tag quality-${data.quality}`}>{data.quality}</span>
+                    </p>
+                  </div>
+                )
+              }}
+            />
+            <Area
+              type="monotone"
+              dataKey="value"
+              stroke="#06b6d4"
+              strokeWidth={2.5}
+              fillOpacity={1}
+              fill="url(#counterGradient)"
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+
+      {series.some((reading) => reading.quality !== 'valid') && (
+        <p className="text-xs text-amber-400/90 bg-amber-950/40 border border-amber-900/50 p-2.5 rounded-lg mt-3">
+          ⚠️ Chú ý: Dữ liệu chứa các mẫu ghi chưa được xác thực chuẩn (unverified/suspicious). Vui lòng đối chiếu kỹ
+          trước khi lập báo cáo.
+        </p>
+      )}
+    </div>
+  )
 }

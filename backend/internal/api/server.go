@@ -59,6 +59,16 @@ type RegistrationStore interface {
 	RegisterPrinter(context.Context, repository.PrinterRegistration) error
 }
 
+type CartridgeStore interface {
+	CreateCartridge(context.Context, repository.Cartridge) error
+	ListCartridges(context.Context) ([]repository.Cartridge, error)
+	GetCartridge(context.Context, string) (repository.Cartridge, error)
+	UpdateCartridgeStock(context.Context, string, int, int, int, string, string) error
+	ReplacePrinterCartridge(context.Context, repository.ReplaceCartridgeParams) error
+	RefillCartridges(context.Context, string, string, int, string) error
+	ListCartridgeLogs(context.Context, string, string, int, int) ([]repository.CartridgeLog, error)
+}
+
 type DiscoveryProbe func(context.Context, snmp.Config) (discovery.Result, error)
 
 type Server struct {
@@ -105,6 +115,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/v1/printers", s.listPrinters)
 	mux.HandleFunc("/api/v1/printers/", s.getPrinter)
 	mux.HandleFunc("/api/v1/jobs/", s.getJob)
+	mux.HandleFunc("/api/v1/cartridges", s.handleCartridges)
+	mux.HandleFunc("/api/v1/cartridges/stock", s.updateCartridgeStock)
+	mux.HandleFunc("/api/v1/cartridges/replace", s.replaceCartridge)
+	mux.HandleFunc("/api/v1/cartridges/refill", s.refillCartridges)
+	mux.HandleFunc("/api/v1/cartridges/logs", s.listCartridgeLogs)
 	var static http.Handler
 	if s.frontendFS != nil {
 		fileServer := http.FileServer(http.FS(s.frontendFS))
@@ -282,6 +297,7 @@ type createPrinterRequest struct {
 	Model        string `json:"model"`
 	Serial       string `json:"serial"`
 	SysObjectID  string `json:"sys_object_id"`
+	Department   string `json:"department"`
 }
 
 func (s *Server) createPrinter(w http.ResponseWriter, r *http.Request) {
@@ -300,7 +316,7 @@ func (s *Server) createPrinter(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_display_name", "display_name is required and must be at most 200 characters")
 		return
 	}
-	device := repository.Device{ID: newJobID(), AssetCode: strings.TrimSpace(input.AssetCode), DisplayName: strings.TrimSpace(input.DisplayName), Manufacturer: strings.TrimSpace(input.Manufacturer), Model: strings.TrimSpace(input.Model), Serial: strings.TrimSpace(input.Serial), SysObjectID: strings.TrimSpace(input.SysObjectID), Status: "unknown"}
+	device := repository.Device{ID: newJobID(), AssetCode: strings.TrimSpace(input.AssetCode), DisplayName: strings.TrimSpace(input.DisplayName), Manufacturer: strings.TrimSpace(input.Manufacturer), Model: strings.TrimSpace(input.Model), Serial: strings.TrimSpace(input.Serial), SysObjectID: strings.TrimSpace(input.SysObjectID), Department: strings.TrimSpace(input.Department), Status: "unknown"}
 	if err := s.store.CreateDevice(r.Context(), device); err != nil {
 		writeError(w, http.StatusConflict, "device_create_failed", "could not create printer")
 		return
@@ -426,6 +442,7 @@ type registerPrinterRequest struct {
 	Model          string `json:"model"`
 	Serial         string `json:"serial"`
 	SysObjectID    string `json:"sys_object_id"`
+	Department     string `json:"department"`
 	Address        string `json:"address"`
 	Port           int    `json:"port"`
 	Version        string `json:"version"`
@@ -483,7 +500,7 @@ func (s *Server) registerPrinter(w http.ResponseWriter, r *http.Request) {
 	}
 	deviceID, credentialID, endpointID := newJobID(), newJobID(), newJobID()
 	registration := repository.PrinterRegistration{
-		Device:     repository.Device{ID: deviceID, AssetCode: strings.TrimSpace(input.AssetCode), DisplayName: strings.TrimSpace(input.DisplayName), Manufacturer: strings.TrimSpace(input.Manufacturer), Model: strings.TrimSpace(input.Model), Serial: strings.TrimSpace(input.Serial), SysObjectID: strings.TrimSpace(input.SysObjectID), Status: "unknown"},
+		Device:     repository.Device{ID: deviceID, AssetCode: strings.TrimSpace(input.AssetCode), DisplayName: strings.TrimSpace(input.DisplayName), Manufacturer: strings.TrimSpace(input.Manufacturer), Model: strings.TrimSpace(input.Model), Serial: strings.TrimSpace(input.Serial), SysObjectID: strings.TrimSpace(input.SysObjectID), Department: strings.TrimSpace(input.Department), Status: "unknown"},
 		Credential: repository.SNMPCredential{ID: credentialID, Version: secret.Version, EncryptedSecretMaterial: ciphertext, SecurityMetadata: fmt.Sprintf(`{"version":%q}`, secret.Version)},
 		Endpoint:   repository.DeviceEndpoint{ID: endpointID, DeviceID: deviceID, Address: strings.TrimSpace(input.Address), Protocol: "snmp", Port: uint16(port), CredentialID: credentialID, IsPrimary: true},
 	}
@@ -775,6 +792,7 @@ type printerResponse struct {
 	Manufacturer *string `json:"manufacturer,omitempty"`
 	Model        *string `json:"model,omitempty"`
 	Serial       *string `json:"serial,omitempty"`
+	Department   *string `json:"department,omitempty"`
 	Status       string  `json:"status"`
 	LastSeenAt   *string `json:"last_seen_at,omitempty"`
 }
@@ -821,6 +839,7 @@ func toPrinterResponse(device repository.Device) printerResponse {
 	return printerResponse{
 		ID: device.ID, AssetCode: nullable(device.AssetCode), DisplayName: device.DisplayName,
 		Manufacturer: nullable(device.Manufacturer), Model: nullable(device.Model), Serial: nullable(device.Serial),
+		Department: nullable(device.Department),
 		Status: device.Status, LastSeenAt: nullableTime(device.LastSeenAt),
 	}
 }
@@ -871,4 +890,209 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(value)
+}
+
+type createCartridgeRequest struct {
+	SKUCode          string `json:"sku_code"`
+	Name             string `json:"name"`
+	CompatibleModels string `json:"compatible_models"`
+	StockNew         int    `json:"stock_new"`
+	StockRefilled    int    `json:"stock_refilled"`
+	StockEmpty       int    `json:"stock_empty"`
+}
+
+type updateCartridgeStockRequest struct {
+	CartridgeID      string `json:"cartridge_id"`
+	AddStockNew      int    `json:"add_stock_new"`
+	AddStockRefilled int    `json:"add_stock_refilled"`
+	AddStockEmpty    int    `json:"add_stock_empty"`
+	Notes            string `json:"notes"`
+}
+
+type replaceCartridgeRequest struct {
+	CartridgeID string `json:"cartridge_id"`
+	DeviceID    string `json:"device_id"`
+	SourceType  string `json:"source_type"`
+	PageCount   int    `json:"page_count"`
+	Notes       string `json:"notes"`
+}
+
+type refillCartridgesRequest struct {
+	CartridgeID string `json:"cartridge_id"`
+	Quantity    int    `json:"quantity"`
+	Notes       string `json:"notes"`
+}
+
+func (s *Server) handleCartridges(w http.ResponseWriter, r *http.Request) {
+	if !s.authorized(r) {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "valid bearer token is required")
+		return
+	}
+	store, ok := s.store.(CartridgeStore)
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "cartridge_store_unavailable", "cartridge management is not configured")
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		items, err := store.ListCartridges(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "cartridge_list_failed", "could not list cartridges")
+			return
+		}
+		if items == nil {
+			items = []repository.Cartridge{}
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"data": items, "total": len(items)})
+	case http.MethodPost:
+		var input createCartridgeRequest
+		decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 32<<10))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&input); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", "request body must be valid JSON")
+			return
+		}
+		c := repository.Cartridge{
+			ID:               newJobID(),
+			SKUCode:          strings.TrimSpace(input.SKUCode),
+			Name:             strings.TrimSpace(input.Name),
+			CompatibleModels: strings.TrimSpace(input.CompatibleModels),
+			StockNew:         input.StockNew,
+			StockRefilled:    input.StockRefilled,
+			StockEmpty:       input.StockEmpty,
+		}
+		if err := store.CreateCartridge(r.Context(), c); err != nil {
+			writeError(w, http.StatusBadRequest, "cartridge_create_failed", err.Error())
+			return
+		}
+		writeJSON(w, http.StatusCreated, c)
+	default:
+		s.methodNotAllowed(w)
+	}
+}
+
+func (s *Server) updateCartridgeStock(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		s.methodNotAllowed(w)
+		return
+	}
+	if !s.authorized(r) {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "valid bearer token is required")
+		return
+	}
+	store, ok := s.store.(CartridgeStore)
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "cartridge_store_unavailable", "cartridge management is not configured")
+		return
+	}
+	var input updateCartridgeStockRequest
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 32<<10))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&input); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", "request body must be valid JSON")
+		return
+	}
+	logID := newJobID()
+	if err := store.UpdateCartridgeStock(r.Context(), input.CartridgeID, input.AddStockNew, input.AddStockRefilled, input.AddStockEmpty, logID, strings.TrimSpace(input.Notes)); err != nil {
+		writeError(w, http.StatusBadRequest, "stock_update_failed", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (s *Server) replaceCartridge(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		s.methodNotAllowed(w)
+		return
+	}
+	if !s.authorized(r) {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "valid bearer token is required")
+		return
+	}
+	store, ok := s.store.(CartridgeStore)
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "cartridge_store_unavailable", "cartridge management is not configured")
+		return
+	}
+	var input replaceCartridgeRequest
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 32<<10))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&input); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", "request body must be valid JSON")
+		return
+	}
+	params := repository.ReplaceCartridgeParams{
+		LogID:       newJobID(),
+		CartridgeID: strings.TrimSpace(input.CartridgeID),
+		DeviceID:    strings.TrimSpace(input.DeviceID),
+		SourceType:  strings.TrimSpace(input.SourceType),
+		PageCount:   input.PageCount,
+		Notes:       strings.TrimSpace(input.Notes),
+	}
+	if err := store.ReplacePrinterCartridge(r.Context(), params); err != nil {
+		writeError(w, http.StatusBadRequest, "cartridge_replace_failed", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "success", "message": "cartridge replaced successfully"})
+}
+
+func (s *Server) refillCartridges(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		s.methodNotAllowed(w)
+		return
+	}
+	if !s.authorized(r) {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "valid bearer token is required")
+		return
+	}
+	store, ok := s.store.(CartridgeStore)
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "cartridge_store_unavailable", "cartridge management is not configured")
+		return
+	}
+	var input refillCartridgesRequest
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 32<<10))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&input); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", "request body must be valid JSON")
+		return
+	}
+	logID := newJobID()
+	if err := store.RefillCartridges(r.Context(), logID, strings.TrimSpace(input.CartridgeID), input.Quantity, strings.TrimSpace(input.Notes)); err != nil {
+		writeError(w, http.StatusBadRequest, "cartridge_refill_failed", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "success", "message": "cartridges refilled successfully"})
+}
+
+func (s *Server) listCartridgeLogs(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		s.methodNotAllowed(w)
+		return
+	}
+	if !s.authorized(r) {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "valid bearer token is required")
+		return
+	}
+	store, ok := s.store.(CartridgeStore)
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "cartridge_store_unavailable", "cartridge management is not configured")
+		return
+	}
+	limit, offset, err := pagination(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_pagination", err.Error())
+		return
+	}
+	cartridgeID := strings.TrimSpace(r.URL.Query().Get("cartridge_id"))
+	deviceID := strings.TrimSpace(r.URL.Query().Get("device_id"))
+	logs, err := store.ListCartridgeLogs(r.Context(), cartridgeID, deviceID, limit, offset)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "cartridge_logs_failed", "could not list cartridge logs")
+		return
+	}
+	if logs == nil {
+		logs = []repository.CartridgeLog{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": logs, "limit": limit, "offset": offset, "total": len(logs)})
 }

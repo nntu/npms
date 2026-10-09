@@ -10,7 +10,9 @@ Bản tiếng Anh được giữ tại [README.en.md](README.en.md).
 
 NPMS cung cấp:
 
-- Device registry và endpoint SNMP bằng UUID ổn định.
+- Device registry và endpoint SNMP bằng UUID ổn định, tích hợp quản lý **Phòng ban** chứa máy in.
+- Quản lý kho **Bình mực / Vật tư**: theo dõi số bình mực mới (100%), bình đã bơm sẵn sàng thay, và số vỏ bình hết gom đi bơm lại.
+- Thao tác thay mực nhanh trực tiếp cho máy in và bơm lại vỏ mực hàng loạt kèm nhật ký biến động.
 - SNMP v2c/v3, ưu tiên v3 `authPriv`.
 - CLI chẩn đoán GET/WALK và console check.
 - Probe discovery một IP cụ thể để đọc identity máy in.
@@ -50,7 +52,8 @@ Nguyên tắc bảo vệ dữ liệu:
 
 ### Có trong v1
 
-- Quản lý thiết bị và credential SNMP.
+- Quản lý thiết bị (gồm phòng ban) và credential SNMP.
+- Quản lý kho bình mực (mới, đã bơm, vỏ hết) & nhật ký thay/bơm mực.
 - Polling trạng thái và counter.
 - SQLite migration/repository.
 - Profile generic Printer-MIB và profile theo model.

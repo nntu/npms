@@ -68,6 +68,25 @@ func (fakeStore) GetJob(context.Context, string) (repository.JobRecord, error) {
 }
 func (fakeStore) StartJob(context.Context, string, time.Time) error                  { return nil }
 func (fakeStore) FinishJob(context.Context, string, string, string, time.Time) error { return nil }
+func (fakeStore) CreateCartridge(context.Context, repository.Cartridge) error         { return nil }
+func (fakeStore) ListCartridges(context.Context) ([]repository.Cartridge, error) {
+	return []repository.Cartridge{{ID: "c1", SKUCode: "HP-26A", Name: "HP Toner", StockNew: 5, StockRefilled: 2, StockEmpty: 1}}, nil
+}
+func (fakeStore) GetCartridge(context.Context, string) (repository.Cartridge, error) {
+	return repository.Cartridge{ID: "c1", SKUCode: "HP-26A", Name: "HP Toner", StockNew: 5, StockRefilled: 2, StockEmpty: 1}, nil
+}
+func (fakeStore) UpdateCartridgeStock(context.Context, string, int, int, int, string, string) error {
+	return nil
+}
+func (fakeStore) ReplacePrinterCartridge(context.Context, repository.ReplaceCartridgeParams) error {
+	return nil
+}
+func (fakeStore) RefillCartridges(context.Context, string, string, int, string) error {
+	return nil
+}
+func (fakeStore) ListCartridgeLogs(context.Context, string, string, int, int) ([]repository.CartridgeLog, error) {
+	return []repository.CartridgeLog{}, nil
+}
 
 func TestListPrintersReturnsPaginatedSafeDTO(t *testing.T) {
 	server, err := NewServer(fakeStore{devices: []repository.Device{{ID: "d1", DisplayName: "Front", Status: "online", Serial: "secret", LastSeenAt: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)}}, total: 1}, "token", "http://localhost:5173")
@@ -223,6 +242,21 @@ func TestCreatePrinterValidatesAndReturnsCreatedDevice(t *testing.T) {
 	}
 }
 
+func TestCreatePrinterAcceptsDepartment(t *testing.T) {
+	server, _ := NewServer(fakeStore{}, "token", "")
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/printers", strings.NewReader(`{"display_name":"IT Printer","department":"Phòng IT"}`))
+	req.Header.Set("Authorization", "Bearer token")
+	req.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201: %s", recorder.Code, recorder.Body.String())
+	}
+	if !containsAll(recorder.Body.String(), `"display_name":"IT Printer"`, `"department":"Phòng IT"`) {
+		t.Fatalf("unexpected response: %s", recorder.Body.String())
+	}
+}
+
 func TestCreatePrinterRejectsUnknownFields(t *testing.T) {
 	server, _ := NewServer(fakeStore{}, "", "")
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/printers", strings.NewReader(`{"display_name":"Lab","community":"secret"}`))
@@ -266,6 +300,29 @@ func TestStartPollReturnsAcceptedAndJobStatus(t *testing.T) {
 	}
 	if !strings.Contains(recorder.Body.String(), `"job_id"`) {
 		t.Fatalf("missing job id: %s", recorder.Body.String())
+	}
+}
+
+func TestCartridgeEndpoints(t *testing.T) {
+	server, _ := NewServer(fakeStore{}, "token", "")
+
+	// GET cartridges
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/cartridges", nil)
+	req.Header.Set("Authorization", "Bearer token")
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !containsAll(rec.Body.String(), `"sku_code":"HP-26A"`) {
+		t.Fatalf("unexpected list cartridges response: status=%d body=%s", rec.Code, rec.Body.String())
+	}
+
+	// Replace printer cartridge
+	replaceReq := httptest.NewRequest(http.MethodPost, "/api/v1/cartridges/replace", strings.NewReader(`{"cartridge_id":"c1","device_id":"d1","source_type":"new"}`))
+	replaceReq.Header.Set("Authorization", "Bearer token")
+	replaceReq.Header.Set("Content-Type", "application/json")
+	recReplace := httptest.NewRecorder()
+	server.Handler().ServeHTTP(recReplace, replaceReq)
+	if recReplace.Code != http.StatusOK {
+		t.Fatalf("unexpected replace response: status=%d body=%s", recReplace.Code, recReplace.Body.String())
 	}
 }
 

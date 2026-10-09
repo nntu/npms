@@ -17,7 +17,7 @@ Build a self-hosted system for **fewer than 50 network printers** in a LAN. Auto
 
 Initial test fleet: HP LaserJet Enterprise M501dn, HP LaserJet Pro M404dn, Brother HL-L5100DN (model to verify), and Ricoh IM 2xxx (exact model to verify). Design must accommodate other manufacturers and models through versioned profiles.
 
-**v1 in scope:** device registry, SNMP v2c/v3 credentials, bounded discovery, generic/vendor profiles, diagnostic CLI, polling, raw readings, counter validation, online/offline/unknown monitoring, toner where available, daily/monthly usage reports, authenticated REST API, React dashboard, standalone SQLite operation.
+**v1 in scope:** device registry with department tracking, toner/cartridge inventory management (new stock, refilled stock, empty shells, replace & refill workflows), SNMP v2c/v3 credentials, bounded discovery, generic/vendor profiles, diagnostic CLI, polling, raw readings, counter validation, online/offline/unknown monitoring, toner where available, daily/monthly usage reports, authenticated REST API, React dashboard, standalone SQLite operation.
 
 **Out of scope for v1:** Windows/Linux agent, USB, CUPS, IPP, print-job accounting, print server, print quotas, billing, multi-site distributed collector. Future extensions must not require replacing device IDs or counter schema.
 

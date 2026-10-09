@@ -7,6 +7,7 @@ export interface Printer {
   manufacturer?: string | null
   model?: string | null
   serial?: string | null
+  department?: string | null
   status: PrinterStatus
   last_seen_at?: string | null
 }
@@ -18,6 +19,7 @@ export interface CreatePrinterInput {
   model?: string
   serial?: string
   sys_object_id?: string
+  department?: string
 }
 
 export interface CreateSNMPCredentialInput {
@@ -126,4 +128,60 @@ export interface DiscoveryResult {
   description: string
   sys_object_id: string
   serial: string
+}
+
+export interface Cartridge {
+  id: string
+  sku_code: string
+  name: string
+  compatible_models?: string | null
+  stock_new: number
+  stock_refilled: number
+  stock_empty: number
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateCartridgeInput {
+  sku_code: string
+  name: string
+  compatible_models?: string
+  stock_new?: number
+  stock_refilled?: number
+  stock_empty?: number
+}
+
+export interface UpdateCartridgeStockInput {
+  cartridge_id: string
+  add_stock_new?: number
+  add_stock_refilled?: number
+  add_stock_empty?: number
+  notes?: string
+}
+
+export interface ReplaceCartridgeInput {
+  cartridge_id: string
+  device_id: string
+  source_type: 'new' | 'refilled'
+  page_count?: number
+  notes?: string
+}
+
+export interface RefillCartridgesInput {
+  cartridge_id: string
+  quantity: number
+  notes?: string
+}
+
+export interface CartridgeLog {
+  id: string
+  cartridge_id: string
+  device_id?: string | null
+  action_type: 'import' | 'replace' | 'refill' | 'discard'
+  source_type?: 'new' | 'refilled' | null
+  quantity: number
+  page_count?: number
+  printed_pages?: number
+  notes?: string | null
+  performed_at: string
 }
