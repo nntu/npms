@@ -372,7 +372,55 @@ paths:
               $ref: '#/components/schemas/ReplaceCartridge'
       responses:
         '200':
-          description: Cartridge replaced successfully.
+          description: Cartridge replaced successfully; counter is captured from SNMP when available.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, message, counter, counter_quality]
+                properties:
+                  status: { type: string, example: success }
+                  message: { type: string }
+                  counter: { type: integer, format: int64, description: Counter captured before the operation, or 0 when unavailable. }
+                  counter_quality: { type: string, enum: [valid, unverified, unsupported, unavailable, suspicious] }
+  /api/v1/cartridges/stock/refill-bottles:
+    post:
+      operationId: addRefillBottles
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddRefillBottles'
+      responses:
+        '200':
+          description: Refill bottle stock updated.
+  /api/v1/cartridges/refill-printer:
+    post:
+      operationId: refillPrinterCartridge
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefillPrinterCartridge'
+      responses:
+        '200':
+          description: Printer cartridge refilled; counter is captured from SNMP when available.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, message, counter, counter_quality]
+                properties:
+                  status: { type: string, example: success }
+                  message: { type: string }
+                  counter: { type: integer, format: int64 }
+                  counter_quality: { type: string, enum: [valid, unverified, unsupported, unavailable, suspicious] }
   /api/v1/cartridges/refill:
     post:
       operationId: refillCartridges
@@ -676,6 +724,7 @@ components:
         stock_new: { type: integer, minimum: 0 }
         stock_refilled: { type: integer, minimum: 0 }
         stock_empty: { type: integer, minimum: 0 }
+        stock_refill_bottles: { type: integer, minimum: 0 }
     CreateCartridge:
       type: object
       required: [sku_code, name]
@@ -686,6 +735,14 @@ components:
         stock_new: { type: integer, default: 0 }
         stock_refilled: { type: integer, default: 0 }
         stock_empty: { type: integer, default: 0 }
+        stock_refill_bottles: { type: integer, default: 0 }
+    AddRefillBottles:
+      type: object
+      required: [cartridge_id, quantity]
+      properties:
+        cartridge_id: { type: string }
+        quantity: { type: integer, minimum: 1 }
+        notes: { type: string }
     ReplaceCartridge:
       type: object
       required: [cartridge_id, device_id, source_type]
@@ -693,6 +750,7 @@ components:
         cartridge_id: { type: string }
         device_id: { type: string, format: uuid }
         source_type: { type: string, enum: [new, refilled] }
+        page_count: { type: integer, minimum: 1, description: Optional manual counter when live SNMP capture is unavailable. Stored as unverified. }
         notes: { type: string }
     RefillCartridges:
       type: object
@@ -700,6 +758,15 @@ components:
       properties:
         cartridge_id: { type: string }
         quantity: { type: integer, minimum: 1 }
+        notes: { type: string }
+    RefillPrinterCartridge:
+      type: object
+      required: [cartridge_id, device_id, quantity]
+      properties:
+        cartridge_id: { type: string }
+        device_id: { type: string, format: uuid }
+        quantity: { type: integer, minimum: 1 }
+        page_count: { type: integer, minimum: 1, description: Optional manual counter when live SNMP capture is unavailable. }
         notes: { type: string }
     CartridgePage:
       type: object

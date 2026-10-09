@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"npms/backend/internal/database"
 )
@@ -48,11 +49,14 @@ func TestCartridgeStockAndReplacementFlow(t *testing.T) {
 
 	// 3. Replace Printer Cartridge using 'new'
 	err = repo.ReplacePrinterCartridge(ctx, ReplaceCartridgeParams{
-		LogID:       "log-1",
-		CartridgeID: "cart-1",
-		DeviceID:    "device-1",
-		SourceType:  "new",
-		Notes:       "Replaced with new toner",
+		LogID:              "log-1",
+		CartridgeID:        "cart-1",
+		DeviceID:           "device-1",
+		SourceType:         "new",
+		PageCount:          12345,
+		CounterQuality:     "unverified",
+		CounterCollectedAt: time.Date(2026, 10, 9, 1, 2, 3, 0, time.UTC),
+		Notes:              "Replaced with new toner",
 	})
 	if err != nil {
 		t.Fatalf("failed to replace cartridge with new toner: %v", err)
@@ -108,6 +112,9 @@ func TestCartridgeStockAndReplacementFlow(t *testing.T) {
 	if len(logs) != 2 {
 		t.Fatalf("expected 2 logs for device-1, got %d", len(logs))
 	}
+	if logs[1].PageCount != 12345 || logs[1].CounterQuality != "unverified" {
+		t.Fatalf("expected captured counter metadata, got %+v", logs[1])
+	}
 }
 
 func TestCartridgeValidationAndErrors(t *testing.T) {
@@ -133,5 +140,41 @@ func TestCartridgeValidationAndErrors(t *testing.T) {
 	err = repo.ReplacePrinterCartridge(ctx, ReplaceCartridgeParams{LogID: "l1", CartridgeID: "c1", DeviceID: "d1", SourceType: "new"})
 	if err == nil || !strings.Contains(err.Error(), "out of stock") {
 		t.Fatalf("expected out of stock error, got %v", err)
+	}
+}
+
+func TestPrinterRefillConsumesBottleStockAndStoresCounter(t *testing.T) {
+	db, err := database.OpenSQLite(filepath.Join(t.TempDir(), "printer_refill_test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ctx := context.Background()
+	if err := db.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	repo, err := NewSQLiteRepository(db.DB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.CreateDevice(ctx, Device{ID: "device-refill", DisplayName: "Front", Status: "online"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.CreateCartridge(ctx, Cartridge{ID: "cart-refill", SKUCode: "BLACK", Name: "Black", StockRefillBottles: 3}); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.RefillPrinterCartridge(ctx, RefillPrinterCartridgeParams{
+		LogID: "refill-log", CartridgeID: "cart-refill", DeviceID: "device-refill", Quantity: 2,
+		PageCount: 1200, CounterQuality: "unverified", CounterCollectedAt: time.Date(2026, 10, 9, 1, 2, 3, 0, time.UTC),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	cartridge, err := repo.GetCartridge(ctx, "cart-refill")
+	if err != nil || cartridge.StockRefillBottles != 1 {
+		t.Fatalf("bottle stock = %d, err=%v", cartridge.StockRefillBottles, err)
+	}
+	logs, err := repo.ListCartridgeLogs(ctx, "cart-refill", "device-refill", 10, 0)
+	if err != nil || len(logs) != 1 || logs[0].PageCount != 1200 || logs[0].CounterQuality != "unverified" {
+		t.Fatalf("unexpected refill logs: %+v, err=%v", logs, err)
 	}
 }

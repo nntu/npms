@@ -164,10 +164,20 @@ export async function updateCartridgeStock(
   })
 }
 
+export async function addRefillBottles(
+  input: import('./types').AddRefillBottlesInput,
+): Promise<{ status: string }> {
+  return request<{ status: string }>('/cartridges/stock/refill-bottles', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+}
+
 export async function replacePrinterCartridge(
   input: import('./types').ReplaceCartridgeInput,
-): Promise<{ status: string; message: string }> {
-  return request<{ status: string; message: string }>('/cartridges/replace', {
+): Promise<{ status: string; message: string; counter: number; counter_quality: string }> {
+  return request<{ status: string; message: string; counter: number; counter_quality: string }>('/cartridges/replace', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -178,6 +188,16 @@ export async function refillCartridges(
   input: import('./types').RefillCartridgesInput,
 ): Promise<{ status: string; message: string }> {
   return request<{ status: string; message: string }>('/cartridges/refill', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+}
+
+export async function refillPrinterCartridge(
+  input: import('./types').RefillPrinterCartridgeInput,
+): Promise<{ status: string; message: string; counter: number; counter_quality: string }> {
+  return request<{ status: string; message: string; counter: number; counter_quality: string }>('/cartridges/refill-printer', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),

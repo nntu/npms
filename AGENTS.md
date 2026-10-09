@@ -73,6 +73,16 @@ Do not start with a decorative dashboard. The first demonstrable feature is a re
 - Generate/maintain `docs/openapi.yaml` alongside handler changes. Validate request input and discovery CIDRs.
 - Never hard-delete historical counters as a side effect of removing a printer; use soft deletion.
 
+## API contract and agent coding rules (MUST)
+
+- Use `net/http` as the runtime and Huma as the typed API boundary when adding or migrating REST endpoints; do not introduce a larger web framework without a documented need.
+- Define each API operation's request, response, validation, errors and operation ID in Go typed API code. Keep business logic in application services and persistence in repositories; API handlers must not contain SQL.
+- Treat generated OpenAPI and TypeScript client/types as artifacts. Do not hand-edit generated files or maintain duplicate frontend DTOs.
+- Generate `docs/openapi.yaml` and frontend API types/client from the typed API contract. A contract change is incomplete until generated artifacts, frontend usage, tests and documentation are synchronized.
+- CI/deployment gates MUST run generation, fail on a dirty generated diff, validate OpenAPI, run Go tests/vet, run frontend typecheck/lint/build, and run API contract tests against real handler responses.
+- Migrate endpoint groups incrementally (cartridge, printer/counter, discovery/jobs); do not rewrite the entire API or mix framework migration with unrelated SNMP/domain changes.
+- Before deployment, verify database migrations on a clean SQLite database and an existing database, then run the generated-contract check and the complete automated test suite. Report real command results.
+
 ## Coding and tests
 
 - Go: idiomatic small interfaces defined near consumers; `context.Context` for I/O; wrap errors; structured `slog`; `gofmt`, `go vet`, `go test ./...`.

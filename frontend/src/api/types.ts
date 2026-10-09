@@ -141,6 +141,7 @@ export interface Cartridge {
   stock_new: number
   stock_refilled: number
   stock_empty: number
+  stock_refill_bottles: number
   created_at: string
   updated_at: string
 }
@@ -152,6 +153,7 @@ export interface CreateCartridgeInput {
   stock_new?: number
   stock_refilled?: number
   stock_empty?: number
+  stock_refill_bottles?: number
 }
 
 export interface UpdateCartridgeStockInput {
@@ -159,6 +161,12 @@ export interface UpdateCartridgeStockInput {
   add_stock_new?: number
   add_stock_refilled?: number
   add_stock_empty?: number
+  notes?: string
+}
+
+export interface AddRefillBottlesInput {
+  cartridge_id: string
+  quantity: number
   notes?: string
 }
 
@@ -176,6 +184,14 @@ export interface RefillCartridgesInput {
   notes?: string
 }
 
+export interface RefillPrinterCartridgeInput {
+  cartridge_id: string
+  device_id: string
+  quantity: number
+  page_count?: number
+  notes?: string
+}
+
 export interface CartridgeLog {
   id: string
   cartridge_id: string
@@ -185,6 +201,8 @@ export interface CartridgeLog {
   quantity: number
   page_count?: number
   printed_pages?: number
+  counter_quality?: 'valid' | 'unverified' | 'unsupported' | 'unavailable' | 'suspicious'
+  counter_collected_at?: string | null
   notes?: string | null
   performed_at: string
 }

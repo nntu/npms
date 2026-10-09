@@ -26,7 +26,6 @@ import (
 	"npms/backend/web"
 )
 
-
 func main() {
 	if len(os.Args) > 1 && (os.Args[1] == "init" || os.Args[1] == "-init" || os.Args[1] == "--init") {
 		initCmd := flag.NewFlagSet("init", flag.ExitOnError)
@@ -111,6 +110,11 @@ func main() {
 		fail(err)
 	}
 	server.SetStatusPoller(poller)
+	counterPoller, err := ingestion.NewCounterPoller(ingestion.ConfigResolver{Store: store, Box: box}, ingestion.ConnectSNMP)
+	if err != nil {
+		fail(err)
+	}
+	server.SetCounterSnapshotter(counterPoller)
 
 	shouldOpenBrowser := (*openBrowserFlag || cfg.Server.OpenBrowser) && !*noBrowserFlag
 	if shouldOpenBrowser {

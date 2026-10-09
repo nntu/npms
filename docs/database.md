@@ -36,3 +36,12 @@ When a printer is registered with a loaded profile, the profile snapshot,
 checksum, device assignment and counter definitions are committed in the same
 transaction as the device, credential and endpoint. A profile with the same
 key/version but a different checksum is rejected until its version is bumped.
+
+Cartridge replacement logs also store counter quality and capture time. The API
+reads the configured marker counter over SNMP before a replacement when
+possible; a manual page count is retained as `unverified`, and an SNMP failure
+is recorded as `unavailable` rather than as zero.
+The cartridge catalog keeps refill-bottle stock separately from new, refilled,
+and empty cartridge stock. `refill-printer` consumes refill bottles and logs
+the target device; the existing `refill` endpoint remains the workflow for
+turning empty cartridges into refilled cartridges in inventory.

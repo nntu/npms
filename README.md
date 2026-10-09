@@ -318,6 +318,7 @@ Test mặc định không cần máy in thật. Kiểm thử phần cứng phả
 - [docs/database.md](docs/database.md) — SQLite, migration và backup.
 - [docs/openapi.yaml](docs/openapi.yaml) — hợp đồng API.
 - [docs/frontend.md](docs/frontend.md) — frontend.
+- [docs/api-migration-plan.md](docs/api-migration-plan.md) — kế hoạch chuyển API typed contract và Huma.
 
 ## Giới hạn hiện tại
 

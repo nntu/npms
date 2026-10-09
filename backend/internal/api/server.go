@@ -23,6 +23,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"npms/backend/internal/counter"
 	"npms/backend/internal/discovery"
 	"npms/backend/internal/profile"
 	"npms/backend/internal/repository"
@@ -71,23 +72,30 @@ type CartridgeStore interface {
 	ListCartridges(context.Context) ([]repository.Cartridge, error)
 	GetCartridge(context.Context, string) (repository.Cartridge, error)
 	UpdateCartridgeStock(context.Context, string, int, int, int, string, string) error
+	AddRefillBottles(context.Context, string, int, string, string) error
 	ReplacePrinterCartridge(context.Context, repository.ReplaceCartridgeParams) error
 	RefillCartridges(context.Context, string, string, int, string) error
+	RefillPrinterCartridge(context.Context, repository.RefillPrinterCartridgeParams) error
 	ListCartridgeLogs(context.Context, string, string, int, int) ([]repository.CartridgeLog, error)
+}
+
+type CounterSnapshotter interface {
+	ReadDevice(context.Context, string) (counter.Reading, repository.CounterDefinition, error)
 }
 
 type DiscoveryProbe func(context.Context, snmp.Config) (discovery.Result, error)
 
 type Server struct {
-	store         DeviceStore
-	apiToken      string
-	allowedOrigin string
-	poller        StatusPoller
-	frontendFS    fs.FS
-	profiles      []profile.Profile
-	secretBox     *security.SecretBox
-	discovery     DiscoveryProbe
-	pollTimeout   time.Duration
+	store              DeviceStore
+	apiToken           string
+	allowedOrigin      string
+	poller             StatusPoller
+	frontendFS         fs.FS
+	profiles           []profile.Profile
+	secretBox          *security.SecretBox
+	discovery          DiscoveryProbe
+	counterSnapshotter CounterSnapshotter
+	pollTimeout        time.Duration
 }
 
 func NewServer(store DeviceStore, apiToken, allowedOrigin string) (*Server, error) {
@@ -112,6 +120,10 @@ func (s *Server) SetSecretBox(box *security.SecretBox) { s.secretBox = box }
 
 func (s *Server) SetDiscoveryProbe(probe DiscoveryProbe) { s.discovery = probe }
 
+func (s *Server) SetCounterSnapshotter(snapshotter CounterSnapshotter) {
+	s.counterSnapshotter = snapshotter
+}
+
 func (s *Server) SetPollTimeout(timeout time.Duration) {
 	if timeout > 0 {
 		s.pollTimeout = timeout
@@ -131,8 +143,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/v1/jobs/", s.getJob)
 	mux.HandleFunc("/api/v1/cartridges", s.handleCartridges)
 	mux.HandleFunc("/api/v1/cartridges/stock", s.updateCartridgeStock)
+	mux.HandleFunc("/api/v1/cartridges/stock/refill-bottles", s.addRefillBottles)
 	mux.HandleFunc("/api/v1/cartridges/replace", s.replaceCartridge)
 	mux.HandleFunc("/api/v1/cartridges/refill", s.refillCartridges)
+	mux.HandleFunc("/api/v1/cartridges/refill-printer", s.refillPrinterCartridge)
 	mux.HandleFunc("/api/v1/cartridges/logs", s.listCartridgeLogs)
 	var static http.Handler
 	if s.frontendFS != nil {
@@ -966,12 +980,13 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 }
 
 type createCartridgeRequest struct {
-	SKUCode          string `json:"sku_code"`
-	Name             string `json:"name"`
-	CompatibleModels string `json:"compatible_models"`
-	StockNew         int    `json:"stock_new"`
-	StockRefilled    int    `json:"stock_refilled"`
-	StockEmpty       int    `json:"stock_empty"`
+	SKUCode            string `json:"sku_code"`
+	Name               string `json:"name"`
+	CompatibleModels   string `json:"compatible_models"`
+	StockNew           int    `json:"stock_new"`
+	StockRefilled      int    `json:"stock_refilled"`
+	StockEmpty         int    `json:"stock_empty"`
+	StockRefillBottles int    `json:"stock_refill_bottles"`
 }
 
 type updateCartridgeStockRequest struct {
@@ -980,6 +995,12 @@ type updateCartridgeStockRequest struct {
 	AddStockRefilled int    `json:"add_stock_refilled"`
 	AddStockEmpty    int    `json:"add_stock_empty"`
 	Notes            string `json:"notes"`
+}
+
+type addRefillBottlesRequest struct {
+	CartridgeID string `json:"cartridge_id"`
+	Quantity    int    `json:"quantity"`
+	Notes       string `json:"notes"`
 }
 
 type replaceCartridgeRequest struct {
@@ -993,6 +1014,14 @@ type replaceCartridgeRequest struct {
 type refillCartridgesRequest struct {
 	CartridgeID string `json:"cartridge_id"`
 	Quantity    int    `json:"quantity"`
+	Notes       string `json:"notes"`
+}
+
+type refillPrinterCartridgeRequest struct {
+	CartridgeID string `json:"cartridge_id"`
+	DeviceID    string `json:"device_id"`
+	Quantity    int    `json:"quantity"`
+	PageCount   int    `json:"page_count"`
 	Notes       string `json:"notes"`
 }
 
@@ -1026,13 +1055,14 @@ func (s *Server) handleCartridges(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		c := repository.Cartridge{
-			ID:               newJobID(),
-			SKUCode:          strings.TrimSpace(input.SKUCode),
-			Name:             strings.TrimSpace(input.Name),
-			CompatibleModels: strings.TrimSpace(input.CompatibleModels),
-			StockNew:         input.StockNew,
-			StockRefilled:    input.StockRefilled,
-			StockEmpty:       input.StockEmpty,
+			ID:                 newJobID(),
+			SKUCode:            strings.TrimSpace(input.SKUCode),
+			Name:               strings.TrimSpace(input.Name),
+			CompatibleModels:   strings.TrimSpace(input.CompatibleModels),
+			StockNew:           input.StockNew,
+			StockRefilled:      input.StockRefilled,
+			StockEmpty:         input.StockEmpty,
+			StockRefillBottles: input.StockRefillBottles,
 		}
 		if err := store.CreateCartridge(r.Context(), c); err != nil {
 			writeError(w, http.StatusBadRequest, "cartridge_create_failed", err.Error())
@@ -1073,6 +1103,34 @@ func (s *Server) updateCartridgeStock(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
+func (s *Server) addRefillBottles(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		s.methodNotAllowed(w)
+		return
+	}
+	if !s.authorized(r) {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "valid bearer token is required")
+		return
+	}
+	store, ok := s.store.(CartridgeStore)
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "cartridge_store_unavailable", "cartridge management is not configured")
+		return
+	}
+	var input addRefillBottlesRequest
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 32<<10))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&input); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", "request body must be valid JSON")
+		return
+	}
+	if err := store.AddRefillBottles(r.Context(), strings.TrimSpace(input.CartridgeID), input.Quantity, newJobID(), strings.TrimSpace(input.Notes)); err != nil {
+		writeError(w, http.StatusBadRequest, "refill_bottle_stock_failed", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
 func (s *Server) replaceCartridge(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		s.methodNotAllowed(w)
@@ -1102,11 +1160,24 @@ func (s *Server) replaceCartridge(w http.ResponseWriter, r *http.Request) {
 		PageCount:   input.PageCount,
 		Notes:       strings.TrimSpace(input.Notes),
 	}
+	counterStatus := "unavailable"
+	if input.PageCount > 0 {
+		params.CounterQuality = string(counter.QualityUnverified)
+		counterStatus = params.CounterQuality
+	} else if s.counterSnapshotter != nil {
+		reading, _, snapshotErr := s.counterSnapshotter.ReadDevice(r.Context(), params.DeviceID)
+		if snapshotErr == nil {
+			params.PageCount = int(reading.RawValue)
+			params.CounterQuality = string(reading.Quality)
+			params.CounterCollectedAt = reading.CollectedAt
+			counterStatus = params.CounterQuality
+		}
+	}
 	if err := store.ReplacePrinterCartridge(r.Context(), params); err != nil {
 		writeError(w, http.StatusBadRequest, "cartridge_replace_failed", err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "success", "message": "cartridge replaced successfully"})
+	writeJSON(w, http.StatusOK, map[string]any{"status": "success", "message": "cartridge replaced successfully", "counter": params.PageCount, "counter_quality": counterStatus})
 }
 
 func (s *Server) refillCartridges(w http.ResponseWriter, r *http.Request) {
@@ -1136,6 +1207,48 @@ func (s *Server) refillCartridges(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "success", "message": "cartridges refilled successfully"})
+}
+
+func (s *Server) refillPrinterCartridge(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		s.methodNotAllowed(w)
+		return
+	}
+	if !s.authorized(r) {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "valid bearer token is required")
+		return
+	}
+	store, ok := s.store.(CartridgeStore)
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "cartridge_store_unavailable", "cartridge management is not configured")
+		return
+	}
+	var input refillPrinterCartridgeRequest
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 32<<10))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&input); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", "request body must be valid JSON")
+		return
+	}
+	params := repository.RefillPrinterCartridgeParams{LogID: newJobID(), CartridgeID: strings.TrimSpace(input.CartridgeID), DeviceID: strings.TrimSpace(input.DeviceID), Quantity: input.Quantity, PageCount: input.PageCount, Notes: strings.TrimSpace(input.Notes)}
+	counterStatus := "unavailable"
+	if input.PageCount > 0 {
+		params.CounterQuality = string(counter.QualityUnverified)
+		counterStatus = params.CounterQuality
+	} else if s.counterSnapshotter != nil {
+		reading, _, snapshotErr := s.counterSnapshotter.ReadDevice(r.Context(), params.DeviceID)
+		if snapshotErr == nil {
+			params.PageCount = int(reading.RawValue)
+			params.CounterQuality = string(reading.Quality)
+			params.CounterCollectedAt = reading.CollectedAt
+			counterStatus = params.CounterQuality
+		}
+	}
+	if err := store.RefillPrinterCartridge(r.Context(), params); err != nil {
+		writeError(w, http.StatusBadRequest, "printer_refill_failed", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"status": "success", "message": "printer cartridge refilled successfully", "counter": params.PageCount, "counter_quality": counterStatus})
 }
 
 func (s *Server) listCartridgeLogs(w http.ResponseWriter, r *http.Request) {

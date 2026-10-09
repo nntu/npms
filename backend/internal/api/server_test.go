@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"npms/backend/internal/counter"
 	"npms/backend/internal/discovery"
 	"npms/backend/internal/profile"
 	"npms/backend/internal/repository"
@@ -28,6 +29,12 @@ type fakeStore struct {
 
 type fakePoller struct {
 	poll func(context.Context, string) error
+}
+
+type fakeCounterSnapshotter struct{}
+
+func (fakeCounterSnapshotter) ReadDevice(context.Context, string) (counter.Reading, repository.CounterDefinition, error) {
+	return counter.Reading{RawValue: 12345, Quality: counter.QualityUnverified, CollectedAt: time.Date(2026, 10, 9, 1, 2, 3, 0, time.UTC)}, repository.CounterDefinition{Key: "marker_life"}, nil
 }
 
 func (f fakePoller) PollDevice(ctx context.Context, deviceID string) error {
@@ -110,10 +117,14 @@ func (fakeStore) GetCartridge(context.Context, string) (repository.Cartridge, er
 func (fakeStore) UpdateCartridgeStock(context.Context, string, int, int, int, string, string) error {
 	return nil
 }
+func (fakeStore) AddRefillBottles(context.Context, string, int, string, string) error { return nil }
 func (fakeStore) ReplacePrinterCartridge(context.Context, repository.ReplaceCartridgeParams) error {
 	return nil
 }
 func (fakeStore) RefillCartridges(context.Context, string, string, int, string) error {
+	return nil
+}
+func (fakeStore) RefillPrinterCartridge(context.Context, repository.RefillPrinterCartridgeParams) error {
 	return nil
 }
 func (fakeStore) ListCartridgeLogs(context.Context, string, string, int, int) ([]repository.CartridgeLog, error) {
@@ -421,6 +432,7 @@ func TestStartPollRejectsConcurrentPollLease(t *testing.T) {
 
 func TestCartridgeEndpoints(t *testing.T) {
 	server, _ := NewServer(fakeStore{}, "token", "")
+	server.SetCounterSnapshotter(fakeCounterSnapshotter{})
 
 	// GET cartridges
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/cartridges", nil)
@@ -437,7 +449,7 @@ func TestCartridgeEndpoints(t *testing.T) {
 	replaceReq.Header.Set("Content-Type", "application/json")
 	recReplace := httptest.NewRecorder()
 	server.Handler().ServeHTTP(recReplace, replaceReq)
-	if recReplace.Code != http.StatusOK {
+	if recReplace.Code != http.StatusOK || !containsAll(recReplace.Body.String(), `"counter":12345`, `"counter_quality":"unverified"`) {
 		t.Fatalf("unexpected replace response: status=%d body=%s", recReplace.Code, recReplace.Body.String())
 	}
 }

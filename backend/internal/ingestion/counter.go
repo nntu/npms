@@ -15,6 +15,48 @@ type CounterPoller struct {
 	Factory  ClientFactory
 }
 
+type DeviceCounterStore interface {
+	ListDeviceEndpoints(context.Context, string) ([]repository.DeviceEndpoint, error)
+	ListCounterDefinitions(context.Context, string) ([]repository.CounterDefinition, error)
+}
+
+// ReadDevice reads a configured counter without creating a polling run. It is
+// used for point-in-time actions such as cartridge replacement.
+func (p *CounterPoller) ReadDevice(ctx context.Context, deviceID string) (counter.Reading, repository.CounterDefinition, error) {
+	store, ok := p.Resolver.Store.(DeviceCounterStore)
+	if !ok {
+		return counter.Reading{}, repository.CounterDefinition{}, fmt.Errorf("counter snapshot store is not configured")
+	}
+	endpoints, err := store.ListDeviceEndpoints(ctx, deviceID)
+	if err != nil {
+		return counter.Reading{}, repository.CounterDefinition{}, err
+	}
+	var endpoint repository.DeviceEndpoint
+	for _, candidate := range endpoints {
+		if candidate.IsPrimary {
+			endpoint = candidate
+			break
+		}
+	}
+	if endpoint.ID == "" && len(endpoints) > 0 {
+		endpoint = endpoints[0]
+	}
+	if endpoint.ID == "" {
+		return counter.Reading{}, repository.CounterDefinition{}, fmt.Errorf("device %s has no SNMP endpoint", deviceID)
+	}
+	definitions, err := store.ListCounterDefinitions(ctx, deviceID)
+	if err != nil {
+		return counter.Reading{}, repository.CounterDefinition{}, err
+	}
+	for _, definition := range definitions {
+		if definition.Key == "marker_life" || definition.SemanticType == "marker_life" {
+			reading, readErr := p.Read(ctx, endpoint, definition)
+			return reading, definition, readErr
+		}
+	}
+	return counter.Reading{}, repository.CounterDefinition{}, fmt.Errorf("device %s has no marker counter definition", deviceID)
+}
+
 func NewCounterPoller(resolver ConfigResolver, factory ClientFactory) (*CounterPoller, error) {
 	if resolver.Store == nil || resolver.Box == nil {
 		return nil, fmt.Errorf("credential resolver is required")
