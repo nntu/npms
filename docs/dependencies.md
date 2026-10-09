@@ -1,7 +1,7 @@
 # Dependency review
 
-Dependency versions are pinned exactly in `frontend/package.json` and
-`frontend/package-lock.json` so Linux and Windows installs resolve the same
+Dependency versions are pinned in `frontend/package.json` and
+`frontend/pnpm-lock.yaml` so Linux and Windows installs resolve the same
 frontend toolchain.
 
 ## Frontend
@@ -10,22 +10,24 @@ frontend toolchain.
 | --- | ---: | --- |
 | React / React DOM | 19.3.0 | Current stable major used by the app |
 | TanStack Query | 5.104.1 | Current v5 line |
-| Vite | 8.3.4 | Current npm resolution |
+| Vite | 8.3.4 | Pinned in `pnpm-lock.yaml` |
 | `@vitejs/plugin-react` | 6.1.2 | Compatible with Vite 8 |
-| ESLint | 10.12.0 | Current npm resolution |
+| ESLint | 10.12.0 | Pinned in `pnpm-lock.yaml` |
 | TypeScript | 5.9.3 | Latest compatible with `typescript-eslint` 8.71.1 |
 
 Vite 8 and ESLint 10 require Node.js `^20.19.0`, `^22.13.0` or a newer
 supported release. Use Node.js 20.19+ LTS on both Linux and Windows. The
-lockfile is committed; use `npm ci` for reproducible installation.
+lockfile is committed; use pnpm 12.8.1 and `pnpm install --frozen-lockfile`
+for reproducible installation.
 
-Verified locally:
+The frontend CI workflow runs the same four checks below after a frozen
+lockfile install. Run them locally before opening a pull request:
 
 ```text
-npm run typecheck  PASS
-npm run lint       PASS
-npm run build      PASS
-npm audit          blocked by registry DNS in the current environment
+pnpm run typecheck
+pnpm run format:check
+pnpm run lint
+pnpm run build
 ```
 
 ## Backend

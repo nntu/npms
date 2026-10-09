@@ -236,8 +236,8 @@ go build -trimpath -ldflags="-s -w" -o ../bin/npms-api ./cmd/api
 go build -trimpath -ldflags="-s -w" -o ../bin/npms-worker ./cmd/worker
 go build -trimpath -ldflags="-s -w" -o ../bin/npms-db-migrate ./cmd/db-migrate
 cd ../frontend
-npm ci
-npm run build
+pnpm install --frozen-lockfile
+pnpm run build
 cd ..
 ./bin/npms-db-migrate --config ./config.yaml
 ./bin/npms-api --config ./config.yaml
@@ -263,8 +263,8 @@ go build -trimpath -ldflags="-s -w" -o ..\bin\npms-api.exe .\cmd\api
 go build -trimpath -ldflags="-s -w" -o ..\bin\npms-worker.exe .\cmd\worker
 go build -trimpath -ldflags="-s -w" -o ..\bin\npms-db-migrate.exe .\cmd\db-migrate
 Set-Location ..\frontend
-npm ci
-npm run build
+pnpm install --frozen-lockfile
+pnpm run build
 Set-Location ..
 .\bin\npms-db-migrate.exe --config ..\config.yaml
 .\bin\npms-api.exe --config ..\config.yaml
@@ -273,7 +273,7 @@ Set-Location ..
 Run the worker in a second PowerShell window or register both executables as
 Windows services with the approved service manager. Allow outbound UDP/161
 only to authorized printer IPs. Do not expose the API or SQLite file through a
-shared folder. For either OS, set `VITE_API_BASE_URL` before `npm run build`
+shared folder. For either OS, set `VITE_API_BASE_URL` before `pnpm run build`
 when the frontend is served from a different origin. Set that value in the
 frontend build environment, not in the backend runtime configuration.
 

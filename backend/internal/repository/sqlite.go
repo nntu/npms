@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -22,6 +23,46 @@ type CleanupStats struct {
 	PollingRuns   int64
 	CounterEvents int64
 	Jobs          int64
+}
+
+var ErrPollLeaseHeld = errors.New("poll lease is already held")
+
+func (r *SQLiteRepository) AcquirePollLease(ctx context.Context, deviceID, jobKind, ownerID string, acquiredAt, leaseUntil time.Time) (bool, error) {
+	if strings.TrimSpace(deviceID) == "" || strings.TrimSpace(jobKind) == "" || strings.TrimSpace(ownerID) == "" {
+		return false, fmt.Errorf("device id, job kind and owner id are required")
+	}
+	if acquiredAt.IsZero() {
+		acquiredAt = time.Now().UTC()
+	}
+	if leaseUntil.IsZero() || !leaseUntil.After(acquiredAt) {
+		return false, fmt.Errorf("lease_until must be after acquired_at")
+	}
+	result, err := r.db.ExecContext(ctx, `INSERT INTO poll_leases(device_id, job_kind, owner_id, acquired_at, lease_until)
+		VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT(device_id, job_kind) DO UPDATE SET owner_id = excluded.owner_id, acquired_at = excluded.acquired_at, lease_until = excluded.lease_until
+		WHERE poll_leases.lease_until <= excluded.acquired_at OR poll_leases.owner_id = excluded.owner_id`, deviceID, jobKind, ownerID, acquiredAt.UTC().Format(time.RFC3339Nano), leaseUntil.UTC().Format(time.RFC3339Nano))
+	if err != nil {
+		return false, fmt.Errorf("acquire poll lease: %w", err)
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("count acquired poll lease: %w", err)
+	}
+	return count == 1, nil
+}
+
+func (r *SQLiteRepository) ReleasePollLease(ctx context.Context, deviceID, jobKind, ownerID string) error {
+	if strings.TrimSpace(deviceID) == "" || strings.TrimSpace(jobKind) == "" || strings.TrimSpace(ownerID) == "" {
+		return fmt.Errorf("device id, job kind and owner id are required")
+	}
+	result, err := r.db.ExecContext(ctx, `DELETE FROM poll_leases WHERE device_id = ? AND job_kind = ? AND owner_id = ?`, deviceID, jobKind, ownerID)
+	if err != nil {
+		return fmt.Errorf("release poll lease: %w", err)
+	}
+	if count, _ := result.RowsAffected(); count == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
 }
 
 // CleanupPollerData removes operational history only. Raw counter readings
@@ -175,9 +216,17 @@ type SNMPCredential struct {
 }
 
 type PrinterRegistration struct {
-	Device     Device
-	Credential SNMPCredential
-	Endpoint   DeviceEndpoint
+	Device             Device
+	Credential         SNMPCredential
+	Endpoint           DeviceEndpoint
+	Profile            *SNMPProfile
+	ProfileExplicit    bool
+	CounterDefinitions []CounterDefinition
+}
+
+type SNMPProfile struct {
+	ID, ProfileKey, Content, Checksum, VerificationStatus string
+	Version, SchemaVersion                                int
 }
 
 func (r *SQLiteRepository) RegisterPrinter(ctx context.Context, registration PrinterRegistration) error {
@@ -192,6 +241,22 @@ func (r *SQLiteRepository) RegisterPrinter(ctx context.Context, registration Pri
 	}
 	if registration.Endpoint.DeviceID != registration.Device.ID || registration.Endpoint.CredentialID != registration.Credential.ID {
 		return fmt.Errorf("endpoint references do not match registration")
+	}
+	if registration.Profile == nil && len(registration.CounterDefinitions) > 0 {
+		return fmt.Errorf("counter definitions require a profile")
+	}
+	if registration.Profile != nil {
+		if registration.Profile.ID == "" || registration.Profile.ProfileKey == "" || registration.Profile.Version < 1 || registration.Profile.SchemaVersion < 1 || registration.Profile.Content == "" || registration.Profile.Checksum == "" || registration.Profile.VerificationStatus == "" {
+			return fmt.Errorf("profile id, key, version, content, checksum and verification status are required")
+		}
+	}
+	for _, definition := range registration.CounterDefinitions {
+		if definition.ID == "" || definition.DeviceID != registration.Device.ID || definition.Key == "" || definition.SourceProtocol != "snmp" || definition.OID == "" || definition.Unit == "" || definition.SemanticType == "" || definition.Scope == "" {
+			return fmt.Errorf("invalid counter definition %q", definition.Key)
+		}
+		if definition.Mode != "get" && definition.Mode != "walk" {
+			return fmt.Errorf("counter definition %q has unsupported mode %q", definition.Key, definition.Mode)
+		}
 	}
 	now := time.Now().UTC()
 	if registration.Device.CreatedAt.IsZero() {
@@ -223,6 +288,31 @@ func (r *SQLiteRepository) RegisterPrinter(ctx context.Context, registration Pri
 	_, err = tx.ExecContext(ctx, `INSERT INTO device_endpoints(id, device_id, address, protocol, port, credential_id, is_primary) VALUES (?, ?, ?, ?, ?, NULLIF(?, ''), ?)`, registration.Endpoint.ID, registration.Endpoint.DeviceID, registration.Endpoint.Address, registration.Endpoint.Protocol, registration.Endpoint.Port, registration.Endpoint.CredentialID, boolInt(registration.Endpoint.IsPrimary))
 	if err != nil {
 		return fmt.Errorf("register endpoint: %w", err)
+	}
+	if registration.Profile != nil {
+		var existingID, existingChecksum string
+		err = tx.QueryRowContext(ctx, `SELECT id, checksum FROM snmp_profiles WHERE profile_key = ? AND version = ?`, registration.Profile.ProfileKey, registration.Profile.Version).Scan(&existingID, &existingChecksum)
+		switch {
+		case err == sql.ErrNoRows:
+			_, err = tx.ExecContext(ctx, `INSERT INTO snmp_profiles(id, profile_key, version, schema_version, content, checksum, verification_status) VALUES (?, ?, ?, ?, ?, ?, ?)`, registration.Profile.ID, registration.Profile.ProfileKey, registration.Profile.Version, registration.Profile.SchemaVersion, registration.Profile.Content, registration.Profile.Checksum, registration.Profile.VerificationStatus)
+		case err == nil:
+			if existingID != registration.Profile.ID || existingChecksum != registration.Profile.Checksum {
+				return fmt.Errorf("profile %q version %d conflicts with stored content", registration.Profile.ProfileKey, registration.Profile.Version)
+			}
+		default:
+			return fmt.Errorf("check stored profile: %w", err)
+		}
+		if err != nil {
+			return fmt.Errorf("store profile: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO device_profile_assignments(device_id, profile_id, assigned_at, explicit) VALUES (?, ?, ?, ?)`, registration.Device.ID, registration.Profile.ID, now.Format(time.RFC3339Nano), boolInt(registration.ProfileExplicit)); err != nil {
+			return fmt.Errorf("assign profile: %w", err)
+		}
+		for _, definition := range registration.CounterDefinitions {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO counter_definitions(id, device_id, key, source_protocol, oid, instance, unit, semantic_type, scope, verified, mode, unit_oid, selection, aggregation, require_unit_validation) VALUES (?, ?, ?, ?, ?, NULLIF(?, ''), ?, ?, ?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?)`, definition.ID, definition.DeviceID, definition.Key, definition.SourceProtocol, definition.OID, definition.Instance, definition.Unit, definition.SemanticType, definition.Scope, boolInt(definition.Verified), definition.Mode, definition.UnitOID, definition.Selection, definition.Aggregation, boolInt(definition.RequireUnitValidation)); err != nil {
+				return fmt.Errorf("store counter definition %q: %w", definition.Key, err)
+			}
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit printer registration: %w", err)
@@ -529,7 +619,8 @@ func (r *SQLiteRepository) FinishPollingRun(ctx context.Context, id, result, err
 
 type CounterDefinition struct {
 	ID, DeviceID, Key, SourceProtocol, OID, Instance, Unit, SemanticType, Scope string
-	Verified                                                                    bool
+	Mode, UnitOID, Selection, Aggregation                                       string
+	Verified, RequireUnitValidation                                             bool
 }
 
 type CounterReadingRecord struct {
@@ -681,7 +772,13 @@ func (r *SQLiteRepository) CreateCounterDefinition(ctx context.Context, definiti
 	if definition.ID == "" || definition.DeviceID == "" || definition.Key == "" || definition.OID == "" {
 		return fmt.Errorf("counter definition identity and OID are required")
 	}
-	_, err := r.db.ExecContext(ctx, `INSERT INTO counter_definitions(id, device_id, key, source_protocol, oid, instance, unit, semantic_type, scope, verified) VALUES (?, ?, ?, ?, ?, NULLIF(?, ''), ?, ?, ?, ?)`, definition.ID, definition.DeviceID, definition.Key, definition.SourceProtocol, definition.OID, definition.Instance, definition.Unit, definition.SemanticType, definition.Scope, boolInt(definition.Verified))
+	if definition.Mode == "" {
+		definition.Mode = "get"
+	}
+	if definition.Mode != "get" && definition.Mode != "walk" {
+		return fmt.Errorf("unsupported counter definition mode %q", definition.Mode)
+	}
+	_, err := r.db.ExecContext(ctx, `INSERT INTO counter_definitions(id, device_id, key, source_protocol, oid, instance, unit, semantic_type, scope, verified, mode, unit_oid, selection, aggregation, require_unit_validation) VALUES (?, ?, ?, ?, ?, NULLIF(?, ''), ?, ?, ?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?)`, definition.ID, definition.DeviceID, definition.Key, definition.SourceProtocol, definition.OID, definition.Instance, definition.Unit, definition.SemanticType, definition.Scope, boolInt(definition.Verified), definition.Mode, definition.UnitOID, definition.Selection, definition.Aggregation, boolInt(definition.RequireUnitValidation))
 	if err != nil {
 		return fmt.Errorf("create counter definition: %w", err)
 	}
@@ -689,7 +786,7 @@ func (r *SQLiteRepository) CreateCounterDefinition(ctx context.Context, definiti
 }
 
 func (r *SQLiteRepository) ListCounterDefinitions(ctx context.Context, deviceID string) ([]CounterDefinition, error) {
-	rows, err := r.db.QueryContext(ctx, `SELECT id, device_id, key, source_protocol, oid, instance, unit, semantic_type, scope, verified FROM counter_definitions WHERE device_id = ? ORDER BY key, id`, deviceID)
+	rows, err := r.db.QueryContext(ctx, `SELECT id, device_id, key, source_protocol, oid, instance, unit, semantic_type, scope, verified, mode, unit_oid, selection, aggregation, require_unit_validation FROM counter_definitions WHERE device_id = ? ORDER BY key, id`, deviceID)
 	if err != nil {
 		return nil, fmt.Errorf("list counter definitions: %w", err)
 	}
@@ -697,12 +794,16 @@ func (r *SQLiteRepository) ListCounterDefinitions(ctx context.Context, deviceID 
 	result := make([]CounterDefinition, 0)
 	for rows.Next() {
 		var definition CounterDefinition
-		var instance sql.NullString
-		var verified int
-		if err := rows.Scan(&definition.ID, &definition.DeviceID, &definition.Key, &definition.SourceProtocol, &definition.OID, &instance, &definition.Unit, &definition.SemanticType, &definition.Scope, &verified); err != nil {
+		var instance, unitOID, selection, aggregation sql.NullString
+		var verified, requireUnitValidation int
+		if err := rows.Scan(&definition.ID, &definition.DeviceID, &definition.Key, &definition.SourceProtocol, &definition.OID, &instance, &definition.Unit, &definition.SemanticType, &definition.Scope, &verified, &definition.Mode, &unitOID, &selection, &aggregation, &requireUnitValidation); err != nil {
 			return nil, fmt.Errorf("scan counter definition: %w", err)
 		}
-		definition.Instance, definition.Verified = nullString(instance), verified == 1
+		definition.Instance, definition.UnitOID, definition.Selection, definition.Aggregation = nullString(instance), nullString(unitOID), nullString(selection), nullString(aggregation)
+		definition.Verified, definition.RequireUnitValidation = verified == 1, requireUnitValidation == 1
+		if definition.Mode == "" {
+			definition.Mode = "get"
+		}
 		result = append(result, definition)
 	}
 	if err := rows.Err(); err != nil {

@@ -3,11 +3,14 @@ package api
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"net"
 	"net/http"
 	"path"
@@ -17,6 +20,8 @@ import (
 	"strings"
 	"time"
 	_ "time/tzdata"
+
+	"gopkg.in/yaml.v3"
 
 	"npms/backend/internal/discovery"
 	"npms/backend/internal/profile"
@@ -41,6 +46,8 @@ type DeviceStore interface {
 	GetJob(context.Context, string) (repository.JobRecord, error)
 	StartJob(context.Context, string, time.Time) error
 	FinishJob(context.Context, string, string, string, time.Time) error
+	AcquirePollLease(context.Context, string, string, string, time.Time, time.Time) (bool, error)
+	ReleasePollLease(context.Context, string, string, string) error
 }
 
 type StatusPoller interface {
@@ -80,6 +87,7 @@ type Server struct {
 	profiles      []profile.Profile
 	secretBox     *security.SecretBox
 	discovery     DiscoveryProbe
+	pollTimeout   time.Duration
 }
 
 func NewServer(store DeviceStore, apiToken, allowedOrigin string) (*Server, error) {
@@ -89,7 +97,7 @@ func NewServer(store DeviceStore, apiToken, allowedOrigin string) (*Server, erro
 	if allowedOrigin == "" {
 		allowedOrigin = "http://localhost:5173"
 	}
-	return &Server{store: store, apiToken: apiToken, allowedOrigin: allowedOrigin}, nil
+	return &Server{store: store, apiToken: apiToken, allowedOrigin: allowedOrigin, pollTimeout: 30 * time.Second}, nil
 }
 
 func (s *Server) SetStatusPoller(poller StatusPoller) { s.poller = poller }
@@ -103,6 +111,12 @@ func (s *Server) SetProfiles(profiles []profile.Profile) {
 func (s *Server) SetSecretBox(box *security.SecretBox) { s.secretBox = box }
 
 func (s *Server) SetDiscoveryProbe(probe DiscoveryProbe) { s.discovery = probe }
+
+func (s *Server) SetPollTimeout(timeout time.Duration) {
+	if timeout > 0 {
+		s.pollTimeout = timeout
+	}
+}
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
@@ -161,7 +175,6 @@ func (s *Server) Handler() http.Handler {
 		static.ServeHTTP(w, r)
 	})
 }
-
 
 func (s *Server) listProfiles(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -443,6 +456,7 @@ type registerPrinterRequest struct {
 	Serial         string `json:"serial"`
 	SysObjectID    string `json:"sys_object_id"`
 	Department     string `json:"department"`
+	ProfileID      string `json:"profile_id"`
 	Address        string `json:"address"`
 	Port           int    `json:"port"`
 	Version        string `json:"version"`
@@ -504,6 +518,26 @@ func (s *Server) registerPrinter(w http.ResponseWriter, r *http.Request) {
 		Credential: repository.SNMPCredential{ID: credentialID, Version: secret.Version, EncryptedSecretMaterial: ciphertext, SecurityMetadata: fmt.Sprintf(`{"version":%q}`, secret.Version)},
 		Endpoint:   repository.DeviceEndpoint{ID: endpointID, DeviceID: deviceID, Address: strings.TrimSpace(input.Address), Protocol: "snmp", Port: uint16(port), CredentialID: credentialID, IsPrimary: true},
 	}
+	if len(s.profiles) > 0 {
+		selected, resolveErr := (profile.Resolver{Profiles: s.profiles}).Resolve(profile.DeviceIdentity{SysObjectID: registration.Device.SysObjectID, Manufacturer: registration.Device.Manufacturer, Model: registration.Device.Model}, strings.TrimSpace(input.ProfileID))
+		if resolveErr != nil {
+			writeError(w, http.StatusBadRequest, "profile_resolution_failed", resolveErr.Error())
+			return
+		}
+		content, marshalErr := yaml.Marshal(selected)
+		if marshalErr != nil {
+			writeError(w, http.StatusInternalServerError, "profile_serialization_failed", "could not serialize selected profile")
+			return
+		}
+		digest := sha256.Sum256(content)
+		profileID := selected.ID + "@" + strconv.Itoa(selected.Version)
+		registration.Profile = &repository.SNMPProfile{ID: profileID, ProfileKey: selected.ID, Version: selected.Version, SchemaVersion: selected.SchemaVersion, Content: string(content), Checksum: hex.EncodeToString(digest[:]), VerificationStatus: string(selected.VerificationStatus)}
+		registration.ProfileExplicit = strings.TrimSpace(input.ProfileID) != ""
+		registration.CounterDefinitions = make([]repository.CounterDefinition, 0, len(selected.Counters))
+		for key, definition := range selected.Counters {
+			registration.CounterDefinitions = append(registration.CounterDefinitions, repository.CounterDefinition{ID: deviceID + ":" + key, DeviceID: deviceID, Key: key, SourceProtocol: "snmp", OID: definition.ValueColumn, Unit: definition.Unit, SemanticType: definition.SemanticType, Scope: definition.Scope, Mode: definition.Mode, UnitOID: definition.UnitColumn, Selection: definition.Selection, Aggregation: definition.Aggregation, RequireUnitValidation: definition.RequireUnitValidation, Verified: selected.VerificationStatus == profile.VerificationVerified})
+		}
+	}
 	if err := store.RegisterPrinter(r.Context(), registration); err != nil {
 		writeError(w, http.StatusConflict, "registration_failed", "could not register printer and endpoint")
 		return
@@ -517,7 +551,11 @@ func (s *Server) registerPrinter(w http.ResponseWriter, r *http.Request) {
 			pollJobID = ""
 		}
 	}
-	writeJSON(w, http.StatusCreated, map[string]any{"printer": toPrinterResponse(registration.Device), "credential_id": credentialID, "endpoint_id": endpointID, "poll_job_id": nullable(pollJobID), "poll_status": pollStatus})
+	profileID := ""
+	if registration.Profile != nil {
+		profileID = registration.Profile.ID
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"printer": toPrinterResponse(registration.Device), "credential_id": credentialID, "endpoint_id": endpointID, "profile_id": nullable(profileID), "counter_definition_count": len(registration.CounterDefinitions), "poll_job_id": nullable(pollJobID), "poll_status": pollStatus})
 }
 
 type createEndpointRequest struct {
@@ -603,6 +641,10 @@ func (s *Server) startPoll(w http.ResponseWriter, r *http.Request, deviceID stri
 	}
 	jobID, err := s.queuePoll(r.Context(), deviceID)
 	if err != nil {
+		if errors.Is(err, repository.ErrPollLeaseHeld) {
+			writeError(w, http.StatusConflict, "poll_already_running", "a poll for this printer is already running")
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "poll_start_failed", "could not start polling")
 		return
 	}
@@ -614,29 +656,60 @@ func (s *Server) queuePoll(ctx context.Context, deviceID string) (string, error)
 		return "", errors.New("poller is not configured")
 	}
 	jobID := newJobID()
+	acquiredAt := time.Now().UTC()
+	acquired, err := s.store.AcquirePollLease(ctx, deviceID, "status", jobID, acquiredAt, acquiredAt.Add(45*time.Second))
+	if err != nil {
+		return "", fmt.Errorf("acquire status poll lease: %w", err)
+	}
+	if !acquired {
+		return "", repository.ErrPollLeaseHeld
+	}
 	job := repository.JobRecord{ID: jobID, DeviceID: deviceID, Kind: "status_poll", Status: "queued", CreatedAt: time.Now().UTC()}
 	if err := s.store.CreateJob(ctx, job); err != nil {
+		_ = s.store.ReleasePollLease(context.Background(), deviceID, "status", jobID)
 		return "", fmt.Errorf("create polling job: %w", err)
 	}
 	if err := s.store.CreatePollingRun(ctx, repository.PollingRun{ID: jobID, DeviceID: deviceID, JobKind: "status", Result: "running", AttemptCount: 1}); err != nil {
 		_ = s.store.FinishJob(ctx, jobID, "failed", "polling_run_create_failed", time.Now().UTC())
+		_ = s.store.ReleasePollLease(context.Background(), deviceID, "status", jobID)
 		return "", fmt.Errorf("create polling run: %w", err)
 	}
 	if err := s.store.StartJob(ctx, jobID, time.Now().UTC()); err != nil {
 		_ = s.store.FinishPollingRun(ctx, jobID, "failed", "job_start_failed", time.Now().UTC())
+		_ = s.store.ReleasePollLease(context.Background(), deviceID, "status", jobID)
 		return "", fmt.Errorf("start polling job: %w", err)
 	}
 	go func() {
-		err := s.poller.PollDevice(context.Background(), deviceID)
-		if err != nil {
-			_ = s.store.FinishJob(context.Background(), jobID, "failed", "poll_failed", time.Now().UTC())
-			_ = s.store.FinishPollingRun(context.Background(), jobID, "failed", "poll_failed", time.Now().UTC())
-			return
-		}
-		_ = s.store.FinishJob(context.Background(), jobID, "success", "", time.Now().UTC())
-		_ = s.store.FinishPollingRun(context.Background(), jobID, "success", "", time.Now().UTC())
+		s.executePollJob(jobID, deviceID, jobID)
 	}()
 	return jobID, nil
+}
+
+func (s *Server) executePollJob(jobID, deviceID, leaseOwnerID string) {
+	pollCtx, cancel := context.WithTimeout(context.Background(), s.pollTimeout)
+	err := s.poller.PollDevice(pollCtx, deviceID)
+	cancel()
+
+	status, errorCode := "success", ""
+	if err != nil {
+		status, errorCode = "failed", "poll_failed"
+		if errors.Is(err, context.DeadlineExceeded) {
+			errorCode = "poll_timeout"
+		}
+		slog.Error("manual status poll failed", "job_id", jobID, "device_id", deviceID, "error_code", errorCode, "error", err)
+	}
+
+	finishCtx, finishCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer finishCancel()
+	if err := s.store.FinishJob(finishCtx, jobID, status, errorCode, time.Now().UTC()); err != nil {
+		slog.Error("finish manual poll job failed", "job_id", jobID, "device_id", deviceID, "error", err)
+	}
+	if err := s.store.FinishPollingRun(finishCtx, jobID, status, errorCode, time.Now().UTC()); err != nil {
+		slog.Error("finish manual polling run failed", "job_id", jobID, "device_id", deviceID, "error", err)
+	}
+	if err := s.store.ReleasePollLease(finishCtx, deviceID, "status", leaseOwnerID); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		slog.Error("release manual poll lease failed", "job_id", jobID, "device_id", deviceID, "error", err)
+	}
 }
 
 func (s *Server) getJob(w http.ResponseWriter, r *http.Request) {
@@ -840,7 +913,7 @@ func toPrinterResponse(device repository.Device) printerResponse {
 		ID: device.ID, AssetCode: nullable(device.AssetCode), DisplayName: device.DisplayName,
 		Manufacturer: nullable(device.Manufacturer), Model: nullable(device.Model), Serial: nullable(device.Serial),
 		Department: nullable(device.Department),
-		Status: device.Status, LastSeenAt: nullableTime(device.LastSeenAt),
+		Status:     device.Status, LastSeenAt: nullableTime(device.LastSeenAt),
 	}
 }
 

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/hex"
 	"errors"
 	"flag"
@@ -36,6 +37,10 @@ type registryRunner struct {
 }
 
 func (r registryRunner) RunStatus(ctx context.Context) error {
+	cycleID, err := newID()
+	if err != nil {
+		return err
+	}
 	devices, err := r.repository.ListDevices(ctx, 1000, 0)
 	if err != nil {
 		return err
@@ -45,6 +50,22 @@ func (r registryRunner) RunStatus(ctx context.Context) error {
 		targets[i] = polling.Target{ID: device.ID}
 	}
 	results, err := r.scheduler.Run(ctx, targets, func(pollCtx context.Context, target polling.Target) error {
+		acquiredAt := time.Now().UTC()
+		ownerID := "status:" + cycleID + ":" + target.ID
+		acquired, err := r.repository.AcquirePollLease(pollCtx, target.ID, "status", ownerID, acquiredAt, acquiredAt.Add(45*time.Second))
+		if err != nil {
+			return err
+		}
+		if !acquired {
+			return repository.ErrPollLeaseHeld
+		}
+		defer func() {
+			releaseCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if releaseErr := r.repository.ReleasePollLease(releaseCtx, target.ID, "status", ownerID); releaseErr != nil && !errors.Is(releaseErr, sql.ErrNoRows) {
+				slog.Error("release status poll lease failed", "device_id", target.ID, "error", releaseErr)
+			}
+		}()
 		return r.poller.PollDevice(pollCtx, target.ID)
 	})
 	if err != nil {
@@ -62,11 +83,25 @@ func (r registryRunner) RunStatus(ctx context.Context) error {
 }
 
 func (r registryRunner) RunCounters(ctx context.Context) error {
+	cycleID, err := newID()
+	if err != nil {
+		return err
+	}
 	devices, err := r.repository.ListDevices(ctx, 1000, 0)
 	if err != nil {
 		return err
 	}
 	targets := make([]polling.RunTarget, 0)
+	leases := make([]struct{ deviceID, ownerID string }, 0)
+	defer func() {
+		releaseCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		for _, lease := range leases {
+			if releaseErr := r.repository.ReleasePollLease(releaseCtx, lease.deviceID, "counter", lease.ownerID); releaseErr != nil && !errors.Is(releaseErr, sql.ErrNoRows) {
+				slog.Error("release counter poll lease failed", "device_id", lease.deviceID, "error", releaseErr)
+			}
+		}
+	}()
 	for _, device := range devices {
 		endpoints, err := r.repository.ListDeviceEndpoints(ctx, device.ID)
 		if err != nil {
@@ -80,6 +115,21 @@ func (r registryRunner) RunCounters(ctx context.Context) error {
 			slog.Warn("counter poll skipped", "device_id", device.ID, "reason", "no endpoint")
 			continue
 		}
+		if len(definitions) == 0 {
+			slog.Warn("counter poll skipped", "device_id", device.ID, "reason", "no counter definitions")
+			continue
+		}
+		ownerID := "counter:" + cycleID + ":" + device.ID
+		acquiredAt := time.Now().UTC()
+		acquired, err := r.repository.AcquirePollLease(ctx, device.ID, "counter", ownerID, acquiredAt, acquiredAt.Add(5*time.Minute))
+		if err != nil {
+			return err
+		}
+		if !acquired {
+			slog.Warn("counter poll skipped", "device_id", device.ID, "reason", "poll lease held")
+			continue
+		}
+		leases = append(leases, struct{ deviceID, ownerID string }{device.ID, ownerID})
 		endpoint := endpoints[0]
 		for _, candidate := range endpoints {
 			if candidate.IsPrimary {

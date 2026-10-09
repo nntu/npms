@@ -27,5 +27,12 @@ before insertion into `snmp_credentials`; the key is never stored in SQLite.
 Migrations are embedded in the Go binary and tracked in `schema_migrations`.
 The `jobs` table persists asynchronous manual-poll status so job lookup remains
 available after an API restart.
+The `poll_leases` table prevents API and worker processes from polling the same
+device and job kind concurrently. Expired leases may be taken over safely;
+owners must release only their own lease.
 The initial schema stores UTC timestamps as ISO-8601 text and uses SQLite
 `TEXT` IDs so the domain remains transport/database neutral.
+When a printer is registered with a loaded profile, the profile snapshot,
+checksum, device assignment and counter definitions are committed in the same
+transaction as the device, credential and endpoint. A profile with the same
+key/version but a different checksum is rejected until its version is bumped.

@@ -83,6 +83,85 @@ func TestRegisterPrinterIsAtomic(t *testing.T) {
 	}
 }
 
+func TestRegisterPrinterPersistsProfileAssignmentAndCounterMetadata(t *testing.T) {
+	db, err := database.OpenSQLite(filepath.Join(t.TempDir(), "npms.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ctx := context.Background()
+	if err := db.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	repo, err := NewSQLiteRepository(db.DB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	registration := PrinterRegistration{
+		Device:     Device{ID: "device-profile", DisplayName: "Profile printer", Status: "unknown"},
+		Credential: SNMPCredential{ID: "credential-profile", Version: "2c", EncryptedSecretMaterial: []byte("ciphertext")},
+		Endpoint:   DeviceEndpoint{ID: "endpoint-profile", DeviceID: "device-profile", Address: "192.0.2.10", Protocol: "snmp", Port: 161, CredentialID: "credential-profile", IsPrimary: true},
+		Profile:    &SNMPProfile{ID: "generic-printer-mib@1", ProfileKey: "generic-printer-mib", Version: 1, SchemaVersion: 1, Content: "profile", Checksum: "checksum", VerificationStatus: "unverified"},
+		CounterDefinitions: []CounterDefinition{{
+			ID: "device-profile:marker_life", DeviceID: "device-profile", Key: "marker_life", SourceProtocol: "snmp", OID: "1.2.3.4", Unit: "impressions", SemanticType: "marker_life", Scope: "engine", Mode: "walk", UnitOID: "1.2.3.5", Selection: "validated_marker_rows", Aggregation: "none", RequireUnitValidation: true,
+		}},
+	}
+	if err := repo.RegisterPrinter(ctx, registration); err != nil {
+		t.Fatal(err)
+	}
+	var assignedProfile, mode, unitOID string
+	if err := db.DB.QueryRowContext(ctx, `SELECT profile_id FROM device_profile_assignments WHERE device_id = 'device-profile'`).Scan(&assignedProfile); err != nil {
+		t.Fatal(err)
+	}
+	if assignedProfile != "generic-printer-mib@1" {
+		t.Fatalf("assigned profile = %q", assignedProfile)
+	}
+	if err := db.DB.QueryRowContext(ctx, `SELECT mode, unit_oid FROM counter_definitions WHERE id = 'device-profile:marker_life'`).Scan(&mode, &unitOID); err != nil {
+		t.Fatal(err)
+	}
+	if mode != "walk" || unitOID != "1.2.3.5" {
+		t.Fatalf("counter metadata = mode=%q unit_oid=%q", mode, unitOID)
+	}
+}
+
+func TestPollLeasePreventsConcurrentOwnersAndAllowsExpiry(t *testing.T) {
+	db, err := database.OpenSQLite(filepath.Join(t.TempDir(), "npms.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ctx := context.Background()
+	if err := db.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	repo, err := NewSQLiteRepository(db.DB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.DB.ExecContext(ctx, `INSERT INTO devices(id, display_name, status, created_at, updated_at) VALUES ('device-lease', 'Lease printer', 'unknown', ?, ?)`, time.Now().UTC().Format(time.RFC3339Nano), time.Now().UTC().Format(time.RFC3339Nano)); err != nil {
+		t.Fatal(err)
+	}
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	first, err := repo.AcquirePollLease(ctx, "device-lease", "status", "owner-1", start, start.Add(time.Minute))
+	if err != nil || !first {
+		t.Fatalf("first lease = %v, %v", first, err)
+	}
+	second, err := repo.AcquirePollLease(ctx, "device-lease", "status", "owner-2", start.Add(10*time.Second), start.Add(2*time.Minute))
+	if err != nil || second {
+		t.Fatalf("concurrent lease = %v, %v", second, err)
+	}
+	expired, err := repo.AcquirePollLease(ctx, "device-lease", "status", "owner-2", start.Add(2*time.Minute), start.Add(3*time.Minute))
+	if err != nil || !expired {
+		t.Fatalf("expired lease takeover = %v, %v", expired, err)
+	}
+	if err := repo.ReleasePollLease(ctx, "device-lease", "status", "owner-1"); err == nil {
+		t.Fatal("old owner should not release the new lease")
+	}
+	if err := repo.ReleasePollLease(ctx, "device-lease", "status", "owner-2"); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestRecalculateDailyUsageIsIdempotentAndTimezoneAware(t *testing.T) {
 	db, err := database.OpenSQLite(filepath.Join(t.TempDir(), "npms.db"))
 	if err != nil {

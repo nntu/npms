@@ -21,17 +21,19 @@ intervals are marked `unverified` because their exact boundary allocation is
 estimated. Those daily deltas are also grouped by counter and calendar month,
 without mixing incompatible counter definitions.
 
-Use Node.js 20.19+ LTS on Linux or Windows. Dependencies are pinned in the
-lockfile; use `npm ci` for a clean reproducible install.
+Use Node.js 20.19+ LTS on Linux or Windows. Dependencies are pinned in
+`pnpm-lock.yaml`; use pnpm 12.8.1 with a frozen lockfile for a clean
+reproducible install.
 
 Linux/macOS:
 
 ```bash
 cd frontend
-npm ci
-npm run typecheck
-npm run lint
-npm run build
+pnpm install --frozen-lockfile
+pnpm run typecheck
+pnpm run format:check
+pnpm run lint
+pnpm run build
 ```
 
 Windows PowerShell uses the same commands after `Set-Location frontend`.

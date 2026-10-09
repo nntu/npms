@@ -32,6 +32,37 @@ func TestRepositoryProfilesLoad(t *testing.T) {
 	}
 }
 
+func TestRepositoryModelProfilesResolveTheirDeclaredIdentities(t *testing.T) {
+	profiles, err := LoadDir("../../profiles")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolver := Resolver{Profiles: profiles}
+	cases := []struct {
+		name         string
+		manufacturer string
+		model        string
+		wantID       string
+	}{
+		{name: "HP M402dn", manufacturer: "HP", model: "HP LaserJet Pro M402dn", wantID: "hp-laserjet-pro-m402dn"},
+		{name: "HP M501dn", manufacturer: "HP", model: "HP LaserJet Enterprise M501dn", wantID: "hp-laserjet-enterprise-m501dn"},
+		{name: "Brother L5100DN", manufacturer: "Brother", model: "Brother HL-L5100DN", wantID: "brother-hl-l5100dn"},
+		{name: "Brother L5100DNT", manufacturer: "Brother", model: "Brother HL-L5100DNT", wantID: "brother-hl-l5100dn"},
+		{name: "Brother L6210DW", manufacturer: "Brother", model: "Brother HL-L6210DW", wantID: "brother-hl-l6210"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := resolver.Resolve(DeviceIdentity{Manufacturer: tc.manufacturer, Model: tc.model}, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.ID != tc.wantID {
+				t.Fatalf("resolved profile %q, want %q", got.ID, tc.wantID)
+			}
+		})
+	}
+}
+
 const validYAML = `schema_version: 1
 id: generic-printer-mib
 version: 1

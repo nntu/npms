@@ -85,10 +85,18 @@ scripts/                  Build standalone Linux/Windows
 
 - Go phiên bản được dự án hỗ trợ.
 - Node.js 20.19+ LTS để build frontend.
+- pnpm 12.8.1 (quản lý qua `packageManager` trong `frontend/package.json`).
 - Mạng LAN cho phép UDP/161 tới máy in.
 
 SQLite dùng driver pure-Go nên binary Linux/Windows không cần PostgreSQL,
 Docker hoặc CGO runtime.
+
+Nếu máy chưa có pnpm, bật Corepack và dùng đúng phiên bản dự án:
+
+```bash
+corepack enable
+corepack prepare pnpm@12.8.1 --activate
+```
 
 ## Cấu hình
 
@@ -226,8 +234,8 @@ go build -trimpath -ldflags="-s -w" -o ../bin/npms-api ./cmd/api
 go build -trimpath -ldflags="-s -w" -o ../bin/npms-worker ./cmd/worker
 go build -trimpath -ldflags="-s -w" -o ../bin/npms-db-migrate ./cmd/db-migrate
 cd ../frontend
-npm ci
-npm run build
+pnpm install --frozen-lockfile
+pnpm run build
 cd ..
 ./bin/npms-db-migrate --config ./config.yaml
 ./bin/npms-api --config ./config.yaml
@@ -260,8 +268,8 @@ go build -trimpath -ldflags="-s -w" -o ../bin/npms-api.exe ./cmd/api
 go build -trimpath -ldflags="-s -w" -o ../bin/npms-worker.exe ./cmd/worker
 go build -trimpath -ldflags="-s -w" -o ../bin/npms-db-migrate.exe ./cmd/db-migrate
 Set-Location ..
-npm --prefix frontend ci
-npm --prefix frontend run build
+pnpm --dir frontend install --frozen-lockfile
+pnpm --dir frontend run build
 ./bin/npms-db-migrate.exe --config ./config.yaml
 ./bin/npms-api.exe --config ./config.yaml
 ```
@@ -290,10 +298,11 @@ Frontend:
 
 ```bash
 cd frontend
-npm ci
-npm run typecheck
-npm run lint
-npm run build
+pnpm install --frozen-lockfile
+pnpm run typecheck
+pnpm run format:check
+pnpm run lint
+pnpm run build
 ```
 
 Test mặc định không cần máy in thật. Kiểm thử phần cứng phải dùng mạng được
@@ -305,6 +314,7 @@ Test mặc định không cần máy in thật. Kiểm thử phần cứng phả
 - [docs/platforms.md](docs/platforms.md) — Linux/Windows.
 - [docs/snmp-debug.md](docs/snmp-debug.md) — CLI SNMP.
 - [docs/snmp-profiles.md](docs/snmp-profiles.md) — profile và schema.
+- [docs/printer-verification.md](docs/printer-verification.md) — ma trận fixture và xác minh thiết bị thật.
 - [docs/database.md](docs/database.md) — SQLite, migration và backup.
 - [docs/openapi.yaml](docs/openapi.yaml) — hợp đồng API.
 - [docs/frontend.md](docs/frontend.md) — frontend.

@@ -9,13 +9,8 @@ foreach ($name in $processNames) {
 
 # 1. Build frontend assets
 Set-Location (Join-Path $root "frontend")
-if (Get-Command pnpm -ErrorAction SilentlyContinue) {
-    pnpm install
-    pnpm run build
-} else {
-    npm install
-    npm run build
-}
+pnpm install --frozen-lockfile
+pnpm run build
 
 $assets = Join-Path $root "backend\web\dist\assets"
 if (Test-Path $assets) { Remove-Item $assets -Recurse -Force }

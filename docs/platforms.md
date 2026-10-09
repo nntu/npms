@@ -32,7 +32,7 @@ API directly to an untrusted network.
 
 Build `cmd/api`, `cmd/worker` and `cmd/db-migrate` as native binaries with
 `go build -trimpath -ldflags="-s -w"`. Build the React application with
-`npm ci && npm run build`; deploy only `frontend/dist` to the local web server.
+`pnpm install --frozen-lockfile && pnpm run build`; deploy only `frontend/dist` to the local web server.
 The API and worker run as separate processes using the same `database.path` from
 `config.yaml`.
 Run the migration binary before first start and keep SQLite on local disk.

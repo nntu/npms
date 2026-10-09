@@ -2,13 +2,21 @@ BACKEND_DIR := backend
 DB_PATH ?= ./data/npms.db
 CONFIG_PATH ?= ./config.yaml
 
-.PHONY: test lint build build-standalone dev-up dev-down migrate-up init-config
+.PHONY: test lint build frontend-install frontend-check ci build-standalone dev-up dev-down migrate-up init-config
 
 test:
 	cd $(BACKEND_DIR) && go test ./...
 
 lint:
 	cd $(BACKEND_DIR) && go fmt ./... && go vet ./...
+
+frontend-install:
+	cd frontend && pnpm install --frozen-lockfile
+
+frontend-check:
+	cd frontend && pnpm run check
+
+ci: test lint frontend-check
 
 build:
 	cd $(BACKEND_DIR) && go build ./cmd/...

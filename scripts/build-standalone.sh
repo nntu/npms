@@ -18,13 +18,8 @@ taskkill //F //IM npms-init.exe 2>/dev/null || true
 # 1. Build frontend assets
 
 cd "$ROOT_DIR/frontend"
-if command -v pnpm &> /dev/null; then
-    pnpm install
-    pnpm run build
-else
-    npm install
-    npm run build
-fi
+pnpm install --frozen-lockfile
+pnpm run build
 
 rm -rf "$ROOT_DIR/backend/web/dist/assets"
 cp -R dist/. "$ROOT_DIR/backend/web/dist/"

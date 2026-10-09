@@ -29,3 +29,10 @@ HL-L6210DW/T. They currently use the generic Printer-MIB marker-life walk and
 are marked `experimental`; they do not claim verified vendor counter semantics.
 Promote a profile only after collecting an anonymized SNMP walk and comparing
 unit/index and counter values with the printer panel or configuration page.
+
+During printer registration, `profile_id` may explicitly select a profile;
+otherwise the server applies the precedence above from the supplied identity.
+The selected profile is snapshotted in SQLite with a checksum and its counter
+definitions are created atomically. A WALK counter is accepted only when its
+value/unit columns produce exactly one validated marker row; multiple rows are
+reported as ambiguous rather than guessed.

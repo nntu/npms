@@ -1,8 +1,10 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -17,13 +19,23 @@ import (
 )
 
 type fakeStore struct {
-	devices []repository.Device
-	total   int
+	devices        []repository.Device
+	total          int
+	registrationCh chan repository.PrinterRegistration
+	finishCh       chan string
+	leaseHeld      bool
 }
 
-type fakePoller struct{}
+type fakePoller struct {
+	poll func(context.Context, string) error
+}
 
-func (fakePoller) PollDevice(context.Context, string) error { return nil }
+func (f fakePoller) PollDevice(ctx context.Context, deviceID string) error {
+	if f.poll != nil {
+		return f.poll(ctx, deviceID)
+	}
+	return nil
+}
 
 func (f fakeStore) ListDevices(context.Context, int, int) ([]repository.Device, error) {
 	return f.devices, nil
@@ -36,7 +48,15 @@ func (fakeStore) CreateSNMPCredential(context.Context, repository.SNMPCredential
 func (fakeStore) CreateDeviceEndpoint(context.Context, repository.DeviceEndpoint) error {
 	return nil
 }
-func (fakeStore) RegisterPrinter(context.Context, repository.PrinterRegistration) error {
+
+func (f fakeStore) RegisterPrinter(ctx context.Context, registration repository.PrinterRegistration) error {
+	if f.registrationCh != nil {
+		select {
+		case f.registrationCh <- registration:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
 	return nil
 }
 func (f fakeStore) GetDevice(_ context.Context, id string) (repository.Device, error) {
@@ -59,16 +79,28 @@ func (fakeStore) ListPollingRuns(context.Context, string, int, int) ([]repositor
 }
 func (fakeStore) CountPollingRuns(context.Context, string) (int, error)         { return 0, nil }
 func (fakeStore) CreatePollingRun(context.Context, repository.PollingRun) error { return nil }
-func (fakeStore) FinishPollingRun(context.Context, string, string, string, time.Time) error {
+func (f fakeStore) FinishPollingRun(_ context.Context, _, status, errorCode string, _ time.Time) error {
+	if f.finishCh != nil {
+		f.finishCh <- status + ":" + errorCode
+	}
 	return nil
 }
 func (fakeStore) CreateJob(context.Context, repository.JobRecord) error { return nil }
 func (fakeStore) GetJob(context.Context, string) (repository.JobRecord, error) {
 	return repository.JobRecord{}, sql.ErrNoRows
 }
-func (fakeStore) StartJob(context.Context, string, time.Time) error                  { return nil }
-func (fakeStore) FinishJob(context.Context, string, string, string, time.Time) error { return nil }
-func (fakeStore) CreateCartridge(context.Context, repository.Cartridge) error         { return nil }
+func (fakeStore) StartJob(context.Context, string, time.Time) error { return nil }
+func (f fakeStore) FinishJob(_ context.Context, _, status, errorCode string, _ time.Time) error {
+	if f.finishCh != nil {
+		f.finishCh <- status + ":" + errorCode
+	}
+	return nil
+}
+func (f fakeStore) AcquirePollLease(context.Context, string, string, string, time.Time, time.Time) (bool, error) {
+	return !f.leaseHeld, nil
+}
+func (fakeStore) ReleasePollLease(context.Context, string, string, string) error { return nil }
+func (fakeStore) CreateCartridge(context.Context, repository.Cartridge) error    { return nil }
 func (fakeStore) ListCartridges(context.Context) ([]repository.Cartridge, error) {
 	return []repository.Cartridge{{ID: "c1", SKUCode: "HP-26A", Name: "HP Toner", StockNew: 5, StockRefilled: 2, StockEmpty: 1}}, nil
 }
@@ -136,6 +168,52 @@ func TestListProfilesReturnsCatalogAndRequiresToken(t *testing.T) {
 	}
 	if !containsAll(recorder.Body.String(), `"id":"hp-test"`, `"verification_status":"experimental"`, `"counter_keys":["marker_life"]`) {
 		t.Fatalf("unexpected response: %s", recorder.Body.String())
+	}
+}
+
+func TestRegisterPrinterResolvesProfileAndBuildsCounterDefinitions(t *testing.T) {
+	registrationCh := make(chan repository.PrinterRegistration, 1)
+	server, err := NewServer(fakeStore{registrationCh: registrationCh}, "token", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	box, err := security.NewSecretBox(make([]byte, 32))
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.SetSecretBox(box)
+	server.SetProfiles([]profile.Profile{{
+		SchemaVersion:      profile.CurrentSchemaVersion,
+		ID:                 "test-profile",
+		Version:            1,
+		Manufacturer:       "Test",
+		VerificationStatus: profile.VerificationUnverified,
+		Counters: map[string]profile.Counter{
+			"marker_life": {ValueColumn: "1.2.3.4", UnitColumn: "1.2.3.5", Mode: "walk", Selection: "validated_marker_rows", SemanticType: "marker_life", Scope: "engine", Unit: "impressions", RequireUnitValidation: true},
+		},
+	}})
+	body, err := json.Marshal(map[string]any{"display_name": "Test printer", "address": "192.0.2.10", "version": "2c", "community": "public", "profile_id": "test-profile"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/printers/register", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer token")
+	recorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+	var registration repository.PrinterRegistration
+	select {
+	case registration = <-registrationCh:
+	case <-time.After(time.Second):
+		t.Fatal("registration was not submitted")
+	}
+	if registration.Profile == nil || registration.Profile.ProfileKey != "test-profile" || !registration.ProfileExplicit {
+		t.Fatalf("unexpected profile: %#v", registration.Profile)
+	}
+	if len(registration.CounterDefinitions) != 1 || registration.CounterDefinitions[0].Mode != "walk" || registration.CounterDefinitions[0].UnitOID != "1.2.3.5" {
+		t.Fatalf("unexpected counter definitions: %#v", registration.CounterDefinitions)
 	}
 }
 
@@ -300,6 +378,44 @@ func TestStartPollReturnsAcceptedAndJobStatus(t *testing.T) {
 	}
 	if !strings.Contains(recorder.Body.String(), `"job_id"`) {
 		t.Fatalf("missing job id: %s", recorder.Body.String())
+	}
+}
+
+func TestExecutePollJobUsesTimeoutAndPersistsTimeoutStatus(t *testing.T) {
+	finishCh := make(chan string, 2)
+	server, err := NewServer(fakeStore{finishCh: finishCh}, "token", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.SetPollTimeout(5 * time.Millisecond)
+	server.SetStatusPoller(fakePoller{poll: func(ctx context.Context, _ string) error {
+		<-ctx.Done()
+		return ctx.Err()
+	}})
+
+	started := time.Now()
+	server.executePollJob("job-timeout", "device-timeout", "job-timeout")
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("timed out poll took too long: %s", elapsed)
+	}
+	statuses := []string{<-finishCh, <-finishCh}
+	if !containsAll(strings.Join(statuses, ","), "failed:poll_timeout") {
+		t.Fatalf("unexpected persisted statuses: %v", statuses)
+	}
+}
+
+func TestStartPollRejectsConcurrentPollLease(t *testing.T) {
+	server, err := NewServer(fakeStore{leaseHeld: true}, "token", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.SetStatusPoller(fakePoller{})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/printers/device-lease/poll", nil)
+	req.Header.Set("Authorization", "Bearer token")
+	recorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusConflict || !strings.Contains(recorder.Body.String(), "poll_already_running") {
+		t.Fatalf("unexpected response: status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
 }
 
