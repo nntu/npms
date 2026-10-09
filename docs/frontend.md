@@ -30,6 +30,7 @@ Linux/macOS:
 ```bash
 cd frontend
 pnpm install --frozen-lockfile
+pnpm run api:check
 pnpm run typecheck
 pnpm run format:check
 pnpm run lint
@@ -37,6 +38,8 @@ pnpm run build
 ```
 
 Windows PowerShell uses the same commands after `Set-Location frontend`.
+`api:check` regenerates `src/api/generated.ts` from the Huma OpenAPI document
+and fails if the generated file is not committed.
 For the normal standalone deployment, the frontend is served by the Go
 binary. Set `server.listen`, `server.allowed_origin` and a generated
 `server.api_token` in the root `config.yaml`. When the browser receives its

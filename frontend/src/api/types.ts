@@ -1,16 +1,8 @@
+import type { components } from './generated'
+
 export type PrinterStatus = 'online' | 'offline' | 'unknown' | 'unavailable'
 
-export interface Printer {
-  id: string
-  asset_code?: string | null
-  display_name: string
-  manufacturer?: string | null
-  model?: string | null
-  serial?: string | null
-  department?: string | null
-  status: PrinterStatus
-  last_seen_at?: string | null
-}
+export type Printer = components['schemas']['Printer']
 
 export interface CreatePrinterInput {
   display_name: string
@@ -72,50 +64,15 @@ export interface Paginated<T> {
 
 export type CounterQuality = 'valid' | 'unverified' | 'unsupported' | 'unavailable' | 'suspicious'
 
-export interface CounterReading {
-  id: number
-  definition_key: string
-  unit: string
-  scope: string
-  raw_value: number
-  collected_at: string
-  quality: CounterQuality
-}
+export type CounterReading = components['schemas']['Counter']
 
-export interface DailyUsage {
-  definition_key: string
-  unit: string
-  scope: string
-  local_date: string
-  delta: number
-  quality: 'valid' | 'unverified' | string
-}
+export type DailyUsage = components['schemas']['DailyUsage']
 
-export interface PollingRun {
-  id: string
-  job_kind: string
-  started_at: string
-  ended_at?: string | null
-  result: 'running' | 'success' | 'failed' | string
-  error_code?: string | null
-  profile_version?: number
-  attempt_count: number
-}
+export type PollingRun = components['schemas']['PollingRun']
 
-export interface PollJob {
-  id: string
-  device_id: string
-  status: 'queued' | 'success' | 'failed'
-  error_code?: string | null
-}
+export type PollJob = components['schemas']['JobOutputBody']
 
-export interface PrinterProfile {
-  id: string
-  version: number
-  manufacturer: string
-  verification_status: 'verified' | 'unverified' | 'experimental' | string
-  counter_keys: string[]
-}
+export type PrinterProfile = components['schemas']['Profile']
 
 export interface DiscoveryProbeInput {
   address: string
@@ -125,26 +82,9 @@ export interface DiscoveryProbeInput {
   timeout?: number
 }
 
-export interface DiscoveryResult {
-  address: string
-  name: string
-  description: string
-  sys_object_id: string
-  serial: string
-}
+export type DiscoveryResult = components['schemas']['DiscoveryOutputBody']
 
-export interface Cartridge {
-  id: string
-  sku_code: string
-  name: string
-  compatible_models?: string | null
-  stock_new: number
-  stock_refilled: number
-  stock_empty: number
-  stock_refill_bottles: number
-  created_at: string
-  updated_at: string
-}
+export type Cartridge = components['schemas']['Cartridge']
 
 export interface CreateCartridgeInput {
   sku_code: string
@@ -192,17 +132,4 @@ export interface RefillPrinterCartridgeInput {
   notes?: string
 }
 
-export interface CartridgeLog {
-  id: string
-  cartridge_id: string
-  device_id?: string | null
-  action_type: 'import' | 'replace' | 'refill' | 'discard'
-  source_type?: 'new' | 'refilled' | null
-  quantity: number
-  page_count?: number
-  printed_pages?: number
-  counter_quality?: 'valid' | 'unverified' | 'unsupported' | 'unavailable' | 'suspicious'
-  counter_collected_at?: string | null
-  notes?: string | null
-  performed_at: string
-}
+export type CartridgeLog = components['schemas']['CartridgeLog']

@@ -299,6 +299,7 @@ Frontend:
 ```bash
 cd frontend
 pnpm install --frozen-lockfile
+pnpm run api:check
 pnpm run typecheck
 pnpm run format:check
 pnpm run lint
