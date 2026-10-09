@@ -8,6 +8,9 @@ import (
 func TestCartridgeContractRegistersAllOperations(t *testing.T) {
 	_, spec := NewCartridgeAPI()
 	want := map[string]string{
+		"/api/v1/health":                          "get",
+		"/api/v1/snmp/profiles":                   "get",
+		"/api/v1/discovery/probe":                 "post",
 		"/api/v1/cartridges":                      "get",
 		"/api/v1/cartridges/stock":                "post",
 		"/api/v1/cartridges/stock/refill-bottles": "post",

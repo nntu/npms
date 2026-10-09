@@ -130,10 +130,58 @@ type LogsOutput struct {
 	}
 }
 
+type HealthOutput struct {
+	Body struct {
+		Status string `json:"status" const:"ok"`
+		Time   string `json:"time" format:"date-time"`
+	}
+}
+
+type Profile struct {
+	ID                 string   `json:"id"`
+	Version            int      `json:"version" minimum:"1"`
+	Manufacturer       string   `json:"manufacturer"`
+	VerificationStatus string   `json:"verification_status" enum:"verified,unverified,experimental"`
+	CounterKeys        []string `json:"counter_keys"`
+}
+type ProfileListOutput struct {
+	Body struct {
+		Data  []Profile `json:"data"`
+		Total int       `json:"total"`
+	}
+}
+
+type DiscoveryInput struct {
+	Body struct {
+		Address        string `json:"address" format:"ipv4" minLength:"1"`
+		Port           int    `json:"port,omitempty" minimum:"1" maximum:"65535" default:"161"`
+		Version        string `json:"version" enum:"2c,3"`
+		Community      string `json:"community,omitempty" writeOnly:"true"`
+		Username       string `json:"username,omitempty" writeOnly:"true"`
+		AuthProtocol   string `json:"auth_protocol,omitempty" enum:"MD5,SHA"`
+		AuthPassphrase string `json:"auth_passphrase,omitempty" writeOnly:"true"`
+		PrivProtocol   string `json:"priv_protocol,omitempty" enum:"DES,AES,AES128"`
+		PrivPassphrase string `json:"priv_passphrase,omitempty" writeOnly:"true"`
+		Timeout        int    `json:"timeout,omitempty" minimum:"1" maximum:"30" default:"3"`
+	}
+}
+type DiscoveryOutput struct {
+	Body struct {
+		Address     string `json:"address" format:"ipv4"`
+		Name        string `json:"name"`
+		Description string `json:"description"`
+		SysObjectID string `json:"sys_object_id"`
+		Serial      string `json:"serial"`
+	}
+}
+
 func NewCartridgeAPI() (http.Handler, *huma.OpenAPI) {
 	mux := http.NewServeMux()
 	api := humago.New(mux, huma.DefaultConfig("NPMS API", "1.0.0"))
 	noop := func(context.Context) (*StatusOutput, error) { return &StatusOutput{}, nil }
+	huma.Get(api, "/api/v1/health", func(context.Context, *struct{}) (*HealthOutput, error) { return &HealthOutput{}, nil })
+	huma.Get(api, "/api/v1/snmp/profiles", func(context.Context, *struct{}) (*ProfileListOutput, error) { return &ProfileListOutput{}, nil })
+	huma.Post(api, "/api/v1/discovery/probe", func(context.Context, *DiscoveryInput) (*DiscoveryOutput, error) { return &DiscoveryOutput{}, nil })
 
 	huma.Get(api, "/api/v1/cartridges", func(context.Context, *CartridgeListInput) (*CartridgeListOutput, error) {
 		return &CartridgeListOutput{}, nil
