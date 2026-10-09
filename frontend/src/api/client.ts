@@ -18,6 +18,7 @@ import type {
 const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '/api/v1'
 const configuredApiToken = import.meta.env.VITE_API_TOKEN as string | undefined
 const sessionApiTokenKey = 'npms_api_token'
+let apiTokenPrompt: Promise<string | undefined> | undefined
 
 export class ApiError extends Error {
   readonly status: number
@@ -27,6 +28,22 @@ export class ApiError extends Error {
     this.name = 'ApiError'
     this.status = status
   }
+}
+
+function requestSessionApiToken(): Promise<string | undefined> {
+  if (apiTokenPrompt) return apiTokenPrompt
+  apiTokenPrompt = Promise.resolve(
+    typeof window === 'undefined' ? undefined : window.prompt('Nhập API token NPMS để tiếp tục:')?.trim(),
+  ).then((enteredToken) => {
+    if (enteredToken && typeof window !== 'undefined') {
+      window.sessionStorage.setItem(sessionApiTokenKey, enteredToken)
+    }
+    return enteredToken || undefined
+  })
+  apiTokenPrompt.finally(() => {
+    apiTokenPrompt = undefined
+  })
+  return apiTokenPrompt
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -44,18 +61,24 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     typeof window === 'undefined' ? undefined : (window.sessionStorage.getItem(sessionApiTokenKey) ?? undefined)
   let response = await requestWithToken(configuredApiToken || sessionApiToken)
   if (response.status === 401 && !configuredApiToken && typeof window !== 'undefined') {
-    const enteredToken = window.prompt('Nhập API token NPMS để tiếp tục:')?.trim()
+    const enteredToken = await requestSessionApiToken()
     if (enteredToken) {
-      window.sessionStorage.setItem(sessionApiTokenKey, enteredToken)
       response = await requestWithToken(enteredToken)
     }
   }
   if (!response.ok) {
     let message = `API request failed (${response.status})`
     try {
-      const body = (await response.json()) as { message?: string; error?: { message?: string } }
+      const body = (await response.json()) as {
+        detail?: string
+        title?: string
+        message?: string
+        error?: { message?: string }
+      }
       if (body.error?.message) message = body.error.message
       else if (body.message) message = body.message
+      else if (body.detail) message = body.detail
+      else if (body.title) message = body.title
     } catch {
       // Keep the status-based message when the server has no JSON error body.
     }
