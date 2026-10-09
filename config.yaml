@@ -6,6 +6,9 @@ server:
   allowed_origin: http://localhost:8080
   # Leave empty for localhost-only single-machine mode.
   api_token: ""
+  # Automatically open default web browser when server starts.
+  open_browser: true
+
 
 security:
   # 32-byte base64 or 64-character hex key. Use a file permission-protected config.
@@ -35,4 +38,5 @@ logging:
 
 profiles:
   # External directory; profiles are not embedded in the executable.
-  path: ./backend/profiles
+  path: ./profiles
+

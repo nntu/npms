@@ -3,7 +3,20 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# 0. Terminate running NPMS processes to prevent file lock during compilation & copy
+pkill -f npms-api 2>/dev/null || true
+pkill -f npms-worker 2>/dev/null || true
+pkill -f npms-db-migrate 2>/dev/null || true
+pkill -f npms-snmp-debug 2>/dev/null || true
+pkill -f npms-init 2>/dev/null || true
+pkill -x npms 2>/dev/null || true
+taskkill //F //IM npms.exe 2>/dev/null || true
+taskkill //F //IM npms-api.exe 2>/dev/null || true
+taskkill //F //IM npms-worker.exe 2>/dev/null || true
+taskkill //F //IM npms-init.exe 2>/dev/null || true
+
 # 1. Build frontend assets
+
 cd "$ROOT_DIR/frontend"
 if command -v pnpm &> /dev/null; then
     pnpm install

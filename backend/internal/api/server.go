@@ -10,7 +10,9 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
+	"path"
 	"sort"
+
 	"strconv"
 	"strings"
 	"time"
@@ -103,9 +105,29 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/v1/printers", s.listPrinters)
 	mux.HandleFunc("/api/v1/printers/", s.getPrinter)
 	mux.HandleFunc("/api/v1/jobs/", s.getJob)
-	static := http.Handler(nil)
+	var static http.Handler
 	if s.frontendFS != nil {
-		static = http.FileServer(http.FS(s.frontendFS))
+		fileServer := http.FileServer(http.FS(s.frontendFS))
+		static = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			cleanPath := strings.TrimPrefix(path.Clean(r.URL.Path), "/")
+			if cleanPath == "" || cleanPath == "." {
+				r.URL.Path = "/"
+				fileServer.ServeHTTP(w, r)
+				return
+			}
+			f, err := s.frontendFS.Open(cleanPath)
+			if err == nil {
+				_ = f.Close()
+				fileServer.ServeHTTP(w, r)
+				return
+			}
+			if path.Ext(cleanPath) == "" {
+				r.URL.Path = "/"
+				fileServer.ServeHTTP(w, r)
+				return
+			}
+			fileServer.ServeHTTP(w, r)
+		})
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", s.allowedOrigin)
@@ -124,6 +146,7 @@ func (s *Server) Handler() http.Handler {
 		static.ServeHTTP(w, r)
 	})
 }
+
 
 func (s *Server) listProfiles(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {

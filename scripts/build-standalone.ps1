@@ -1,6 +1,12 @@
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 
+# 0. Terminate running NPMS processes to prevent file lock during compilation & copy
+$processNames = @("npms", "npms-api", "npms-worker", "npms-db-migrate", "npms-snmp-debug", "npms-init")
+foreach ($name in $processNames) {
+    Get-Process -Name $name -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+}
+
 # 1. Build frontend assets
 Set-Location (Join-Path $root "frontend")
 if (Get-Command pnpm -ErrorAction SilentlyContinue) {
@@ -36,6 +42,8 @@ go build -trimpath -ldflags="-s -w" -o (Join-Path $distBinDir "npms-api.exe") .\
 go build -trimpath -ldflags="-s -w" -o (Join-Path $distBinDir "npms-worker.exe") .\cmd\worker
 go build -trimpath -ldflags="-s -w" -o (Join-Path $distBinDir "npms-db-migrate.exe") .\cmd\db-migrate
 go build -trimpath -ldflags="-s -w" -o (Join-Path $distBinDir "npms-snmp-debug.exe") .\cmd\snmp-debug
+go build -trimpath -ldflags="-s -w" -o (Join-Path $distBinDir "npms-init.exe") .\cmd\init
+
 
 Copy-Item (Join-Path $distBinDir "*") $rootBinDir -Force
 Copy-Item (Join-Path $distBinDir "npms-api.exe") (Join-Path $distDir "npms.exe") -Force

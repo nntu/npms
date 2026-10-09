@@ -20,9 +20,12 @@ import (
 	"npms/backend/internal/logging"
 	"npms/backend/internal/profile"
 	"npms/backend/internal/repository"
+	"npms/backend/internal/runtime"
 	"npms/backend/internal/security"
 	"npms/backend/internal/snmp"
+	"npms/backend/web"
 )
+
 
 func main() {
 	if len(os.Args) > 1 && (os.Args[1] == "init" || os.Args[1] == "-init" || os.Args[1] == "--init") {
@@ -52,6 +55,9 @@ func main() {
 	}
 
 	configPath := flag.String("config", "./config.yaml", "YAML configuration path")
+	openBrowserFlag := flag.Bool("open-browser", false, "Force open web browser on startup")
+	flag.BoolVar(openBrowserFlag, "b", false, "Force open web browser on startup (shorthand)")
+	noBrowserFlag := flag.Bool("no-browser", false, "Disable automatic browser opening")
 	flag.Parse()
 	cfg, err := config.Load(*configPath)
 	if err != nil {
@@ -85,7 +91,9 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
+	server.SetFrontendFS(web.Assets())
 	server.SetProfiles(profiles)
+
 	key, err := security.ParseKey(cfg.Security.EncryptionKey)
 	if err != nil {
 		fail(err)
@@ -104,6 +112,18 @@ func main() {
 	}
 	server.SetStatusPoller(poller)
 
+	shouldOpenBrowser := (*openBrowserFlag || cfg.Server.OpenBrowser) && !*noBrowserFlag
+	if shouldOpenBrowser {
+		go func() {
+			time.Sleep(200 * time.Millisecond)
+			webURL := runtime.FormatServerURL(cfg.Server.Listen)
+			slog.Info("opening web browser", "url", webURL)
+			if err := runtime.OpenBrowser(webURL); err != nil {
+				slog.Warn("failed to open browser", "error", err, "url", webURL)
+			}
+		}()
+	}
+
 	httpServer := &http.Server{Addr: cfg.Server.Listen, Handler: server.Handler(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 60 * time.Second}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -117,6 +137,7 @@ func main() {
 	if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		fail(err)
 	}
+
 }
 
 func fail(err error) {

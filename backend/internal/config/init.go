@@ -112,9 +112,13 @@ func InitConfig(opts InitOptions) (*InitResult, error) {
 	if dbDir := filepath.Dir(cfg.Database.Path); dbDir != "" && dbDir != "." {
 		_ = os.MkdirAll(dbDir, 0755)
 	}
+	if profDir := cfg.Profiles.Path; profDir != "" {
+		_ = os.MkdirAll(profDir, 0755)
+	}
 	if logDir := filepath.Dir(cfg.Logging.ErrorFile); logDir != "" && logDir != "." {
 		_ = os.MkdirAll(logDir, 0755)
 	}
+
 
 	return &InitResult{
 		ConfigPath:    targetPath,

@@ -60,8 +60,19 @@ type DeviceIdentity struct {
 type Resolver struct{ Profiles []Profile }
 
 func LoadDir(path string) ([]Profile, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("profile directory %q does not exist (please verify profiles.path in config.yaml or create the directory)", path)
+		}
+		return nil, fmt.Errorf("stat profile directory %q: %w", path, err)
+	}
+	if !info.IsDir() {
+		return nil, fmt.Errorf("profile path %q is not a directory", path)
+	}
 	profiles := make([]Profile, 0)
-	err := filepath.WalkDir(path, func(filePath string, entry os.DirEntry, walkErr error) error {
+	err = filepath.WalkDir(path, func(filePath string, entry os.DirEntry, walkErr error) error {
+
 		if walkErr != nil {
 			return walkErr
 		}
