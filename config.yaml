@@ -4,7 +4,7 @@ database:
 server:
   listen: 127.0.0.1:8080
   allowed_origin: http://localhost:8080
-  # Leave empty for localhost-only single-machine mode.
+  # Optional API token (leave empty to disable token prompt on web UI).
   api_token: ""
   # Automatically open default web browser when server starts.
   open_browser: true
@@ -12,12 +12,15 @@ server:
 
 security:
   # 32-byte base64 or 64-character hex key. Use a file permission-protected config.
-  encryption_key: replace-with-a-32-byte-base64-or-64-character-hex-key
+  encryption_key: jgVF1l7+K5Ko/JyI0i2bPkM7/ocBQZbaabBNBIEqOEM
 
 polling:
   concurrency: 5
-  status_interval: 5m
-  counter_interval: 15m
+  # Chu kỳ kiểm tra trạng thái máy in (bật/tắt, mức mực). Khuyên dùng: 15m - 30m
+  status_interval: 15m
+  # Chu kỳ đọc chỉ số trang in (counter). Vì mục đích là đánh giá mức độ sử dụng theo ngày/tháng,
+  # không cần quét liên tục. Khuyên dùng: 4h, 6h, 12h hoặc 24h (hỗ trợ m=phút, h=giờ).
+  counter_interval: 6h
 
 report:
   # IANA timezone used when materializing daily and monthly printer usage.

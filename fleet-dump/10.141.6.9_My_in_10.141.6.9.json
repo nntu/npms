@@ -1,0 +1,123 @@
+{
+  "address": "10.141.6.9",
+  "candidate_counters": [
+    {
+      "key": "marker_life.1.1",
+      "oid": "1.3.6.1.2.1.43.10.2.1.4.1.1",
+      "source": "Printer-MIB (prtMarkerLifeCount)",
+      "unit": "impressions",
+      "value": 402974
+    },
+    {
+      "key": "vendor_walk.1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.5.0",
+      "oid": "1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.5.0",
+      "source": "Vendor Subtree (11)",
+      "unit": "pages",
+      "value": 402974
+    },
+    {
+      "key": "vendor_walk.1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.6.0",
+      "oid": "1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.6.0",
+      "source": "Vendor Subtree (11)",
+      "unit": "pages",
+      "value": 402974
+    },
+    {
+      "key": "vendor_walk.1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.22.0",
+      "oid": "1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.22.0",
+      "source": "Vendor Subtree (11)",
+      "unit": "pages",
+      "value": 142868
+    },
+    {
+      "key": "vendor_walk.1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.34.0",
+      "oid": "1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.34.0",
+      "source": "Vendor Subtree (11)",
+      "unit": "pages",
+      "value": 186
+    },
+    {
+      "key": "vendor_walk.1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.35.0",
+      "oid": "1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.35.0",
+      "source": "Vendor Subtree (11)",
+      "unit": "pages",
+      "value": 3
+    },
+    {
+      "key": "vendor_walk.1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.49.0",
+      "oid": "1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.49.0",
+      "source": "Vendor Subtree (11)",
+      "unit": "pages",
+      "value": 3
+    }
+  ],
+  "current_profile_id": "hp-laserjet-enterprise-m501dn",
+  "display_name": "HP LaserJet Pro M501dn (QTTD)",
+  "id": "7beca6ce-385c-4961-9a17-1975f18e05f9",
+  "manufacturer": "HP",
+  "markers": [
+    {
+      "counter_unit": 7,
+      "instance": "1.1",
+      "life_count": 402974,
+      "unit_name": "impressions"
+    }
+  ],
+  "model": "HP LaserJet Pro M501dn",
+  "port": 161,
+  "raw_marker_binds": [
+    {
+      "oid": ".1.3.6.1.2.1.43.10.2.1.4.1.1",
+      "type": "Counter32",
+      "value": 402974
+    },
+    {
+      "oid": ".1.3.6.1.2.1.43.10.2.1.3.1.1",
+      "type": "Integer",
+      "value": 7
+    }
+  ],
+  "raw_vendor_binds": [
+    {
+      "oid": ".1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.5.0",
+      "type": "Integer",
+      "value": 402974
+    },
+    {
+      "oid": ".1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.6.0",
+      "type": "Integer",
+      "value": 402974
+    },
+    {
+      "oid": ".1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.22.0",
+      "type": "Integer",
+      "value": 142868
+    },
+    {
+      "oid": ".1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.26.0",
+      "type": "OctetString",
+      "value": "0x01153330443468"
+    },
+    {
+      "oid": ".1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.34.0",
+      "type": "Integer",
+      "value": 186
+    },
+    {
+      "oid": ".1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.35.0",
+      "type": "Integer",
+      "value": 3
+    },
+    {
+      "oid": ".1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.49.0",
+      "type": "Integer",
+      "value": 3
+    }
+  ],
+  "serial": "PHCVR52749",
+  "status": "online",
+  "sys_descr": "HP ETHERNET MULTI-ENVIRONMENT,SN:PHCVR52749,FN:3E272VK,SVCID:31337,PID:HP LaserJet Pro M501dn",
+  "sys_location": "QTTD",
+  "sys_name": "NPICBC190",
+  "sys_object_id": "1.3.6.1.4.1.11.2.3.9.1"
+}

@@ -1,0 +1,38 @@
+schema_version: 1
+id: brother-ads
+version: 1
+manufacturer: Brother
+verification_status: verified
+match:
+  model_patterns:
+    - '(?i)^Brother\s+ADS-(2400N|4300N).*$'
+    - '(?i)^ADS-(2400N|4300N).*$'
+    - '(?i)^Brother\s+NC-(04|10)h.*$'
+counters:
+  page_count:
+    value_column: "1.3.6.1.4.1.2435.2.3.9.4.2.1.5.5.54.2.2.1.3.3"
+    mode: get
+    selection: ""
+    aggregation: none
+    semantic_type: marker_life
+    scope: engine
+    unit: pages
+    require_unit_validation: false
+  simplex_scanned:
+    value_column: "1.3.6.1.4.1.2435.2.3.9.4.2.1.5.5.54.2.2.1.3.2"
+    mode: get
+    selection: ""
+    aggregation: none
+    semantic_type: simplex_pages
+    scope: engine
+    unit: pages
+    require_unit_validation: false
+  duplex_scanned:
+    value_column: "1.3.6.1.4.1.2435.2.3.9.4.2.1.5.5.54.2.2.1.3.1"
+    mode: get
+    selection: ""
+    aggregation: none
+    semantic_type: duplex_pages
+    scope: engine
+    unit: pages
+    require_unit_validation: false

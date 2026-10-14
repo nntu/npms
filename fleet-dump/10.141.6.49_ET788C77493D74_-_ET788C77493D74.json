@@ -1,0 +1,43 @@
+{
+  "address": "10.141.6.49",
+  "candidate_counters": [
+    {
+      "key": "marker_life.1.1",
+      "oid": "1.3.6.1.2.1.43.10.2.1.4.1.1",
+      "source": "Printer-MIB (prtMarkerLifeCount)",
+      "unit": "impressions",
+      "value": 2201
+    }
+  ],
+  "current_profile_id": "generic-printer-mib",
+  "display_name": "Lexmark MS510dn",
+  "id": "6160bf57-3634-4510-92a9-6208efa4b2cd",
+  "manufacturer": "Lexmark",
+  "markers": [
+    {
+      "counter_unit": 7,
+      "instance": "1.1",
+      "life_count": 2201,
+      "unit_name": "impressions"
+    }
+  ],
+  "model": "Lexmark MS510dn",
+  "port": 161,
+  "raw_marker_binds": [
+    {
+      "oid": ".1.3.6.1.2.1.43.10.2.1.4.1.1",
+      "type": "Counter32",
+      "value": 2201
+    },
+    {
+      "oid": ".1.3.6.1.2.1.43.10.2.1.3.1.1",
+      "type": "Integer",
+      "value": 7
+    }
+  ],
+  "serial": "460142940X2V1",
+  "status": "online",
+  "sys_descr": "Lexmark MS431dn version MSLBD.230.045 kernel 5.4.254-yocto-standard All-N-1",
+  "sys_name": "ET788C77493D74",
+  "sys_object_id": "1.3.6.1.4.1.641.51.71107404"
+}

@@ -46,12 +46,20 @@ func TestRepositoryModelProfilesResolveTheirDeclaredIdentities(t *testing.T) {
 	}{
 		{name: "HP M402dn", manufacturer: "HP", model: "HP LaserJet Pro M402dn", wantID: "hp-laserjet-pro-m402dn"},
 		{name: "HP M404dn", manufacturer: "HP", model: "HP LaserJet Pro M404dn", wantID: "hp-laserjet-pro-m404dn"},
-		{name: "HP M501dn", manufacturer: "HP", model: "HP LaserJet Enterprise M501dn", wantID: "hp-laserjet-enterprise-m501dn"},
+		{name: "HP M501dn Enterprise", manufacturer: "HP", model: "HP LaserJet Enterprise M501dn", wantID: "hp-laserjet-enterprise-m501dn"},
+		{name: "HP M501dn Pro", manufacturer: "HP", model: "HP LaserJet Pro M501dn", wantID: "hp-laserjet-enterprise-m501dn"},
 		{name: "Brother L5100DN", manufacturer: "Brother", model: "Brother HL-L5100DN", wantID: "brother-hl-l5100dn"},
 		{name: "Brother L5100DN series", manufacturer: "Brother", model: "Brother HL-L5100DN series", wantID: "brother-hl-l5100dn"},
 		{name: "Brother L5100DNT", manufacturer: "Brother", model: "Brother HL-L5100DNT", wantID: "brother-hl-l5100dn"},
 		{name: "Brother L6210DW", manufacturer: "Brother", model: "Brother HL-L6210DW", wantID: "brother-hl-l6210"},
+		{name: "Brother L6210DW series", manufacturer: "Brother", model: "Brother HL-L6210DW series", wantID: "brother-hl-l6210"},
+		{name: "Brother L8260CDN series", manufacturer: "Brother", model: "Brother HL-L8260CDN series", wantID: "brother-hl-l8260cdn"},
+		{name: "Brother MFC-L5900DW series", manufacturer: "Brother", model: "Brother MFC-L5900DW series", wantID: "brother-mfc-l5900dw"},
+		{name: "Brother ADS-2400N", manufacturer: "Brother", model: "Brother ADS-2400N", wantID: "brother-ads"},
+		{name: "Brother ADS-4300N", manufacturer: "Brother", model: "Brother ADS-4300N", wantID: "brother-ads"},
+		{name: "Ricoh IM 2500", manufacturer: "Ricoh", model: "RICOH IM 2500", wantID: "ricoh-im-2xxx"},
 		{name: "Ricoh IM 2702", manufacturer: "Ricoh", model: "RICOH IM 2702", wantID: "ricoh-im-2xxx"},
+		{name: "Lexmark MS510dn", manufacturer: "Lexmark", model: "Lexmark MS510dn", wantID: "lexmark-ms510dn"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

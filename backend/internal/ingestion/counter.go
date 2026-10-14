@@ -185,19 +185,47 @@ func tryFallbackTotalCounters(ctx context.Context, client snmp.Client) (int64, s
 		oid   string
 		epoch string
 	}{
-		// Standard Printer-MIB Marker Life instance 1.1 direct GET
+		// Standard Printer-MIB Marker Life direct GET (1.1, 1, 2.1)
 		{oid: "1.3.6.1.2.1.43.10.2.1.4.1.1", epoch: "1.1"},
-		// HP LaserJet Total Engine Page Count
+		{oid: "1.3.6.1.2.1.43.10.2.1.4.1", epoch: "1"},
+		{oid: "1.3.6.1.2.1.43.10.2.1.4.2.1", epoch: "2.1"},
+
+		// HP LaserJet Total Page Count & Engine Page Count
+		{oid: "1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.6.0", epoch: "hp_total_pages"},
 		{oid: "1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.5.0", epoch: "hp_engine_total"},
-		// Brother Total Page Count
+		{oid: "1.3.6.1.4.1.11.2.3.9.4.2.1.1.1.2.1.0", epoch: "hp_page_count_alt"},
+		{oid: "1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.7.0", epoch: "hp_duplex_pages"},
+
+		// Brother Total Page Count (NC-04h, NC-10h and modern models)
+		{oid: "1.3.6.1.4.1.2435.2.3.9.4.2.1.5.5.54.2.2.1.3.3", epoch: "brother_nc_total"},
+		{oid: "1.3.6.1.4.1.2435.2.3.9.4.2.1.5.5.54.2.2.1.3.2", epoch: "brother_nc_sheets"},
+		{oid: "1.3.6.1.4.1.2435.2.3.9.4.2.1.5.5.52.31.1.3.1", epoch: "brother_page_count"},
+		{oid: "1.3.6.1.4.1.2435.2.3.9.4.2.1.5.5.52.1.1.3.1", epoch: "brother_print_count"},
 		{oid: "1.3.6.1.4.1.2435.2.3.9.4.2.1.5.5.8.0", epoch: "brother_total"},
-		{oid: "1.3.6.1.4.1.2435.2.3.9.1.1.7.0", epoch: "brother_total_alt"},
-		// Ricoh System Total Counter
+		{oid: "1.3.6.1.4.1.2435.2.3.9.4.2.1.5.5.1.0", epoch: "brother_total_alt1"},
+		{oid: "1.3.6.1.4.1.2435.2.3.9.4.2.1.5.5.10.0", epoch: "brother_total_alt2"},
+		{oid: "1.3.6.1.4.1.2435.2.3.9.1.1.7.0", epoch: "brother_total_alt3"},
+
+		// Ricoh System Total Counter & Print Counter
+		{oid: "1.3.6.1.4.1.367.3.2.1.2.19.5.1.9.104", epoch: "ricoh_total_engine"},
+		{oid: "1.3.6.1.4.1.367.3.2.1.2.19.5.1.9.92", epoch: "ricoh_total_alt"},
 		{oid: "1.3.6.1.4.1.367.3.2.1.2.19.1.0", epoch: "ricoh_total"},
+		{oid: "1.3.6.1.4.1.367.3.2.1.2.19.5.1.9.1", epoch: "ricoh_print"},
+		{oid: "1.3.6.1.4.1.367.3.2.1.2.19.5.1.9.2", epoch: "ricoh_copy"},
+
+		// Canon Total Counter & Impressions
+		{oid: "1.3.6.1.4.1.1602.1.11.1.3.1.4.101", epoch: "canon_impressions"},
+		{oid: "1.3.6.1.4.1.1602.1.11.1.3.1.4.1", epoch: "canon_total"},
+		{oid: "1.3.6.1.4.1.1602.1.11.1.3.1.4.102", epoch: "canon_copy"},
+
 		// Xerox Total Impressions
 		{oid: "1.3.6.1.4.1.253.8.53.13.2.1.6.1.20.1", epoch: "xerox_total"},
-		// Canon Total Counter
-		{oid: "1.3.6.1.4.1.1602.1.11.1.3.1.4.1", epoch: "canon_total"},
+
+		// Kyocera Total Pages
+		{oid: "1.3.6.1.4.1.1347.42.2.1.1.1.6.1.1", epoch: "kyocera_total"},
+
+		// Konica Minolta Total Counter
+		{oid: "1.3.6.1.4.1.18334.1.1.1.5.7.2.2.1.5.1.1", epoch: "konica_total"},
 	}
 
 	for _, c := range candidates {

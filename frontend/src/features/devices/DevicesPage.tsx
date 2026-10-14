@@ -290,34 +290,6 @@ export function DevicesPage() {
     }
   }, [registrationJob.data?.status, queryClient])
 
-  if (query.isLoading) {
-    return (
-      <div className="glass-panel p-12 text-center my-8">
-        <div className="w-10 h-10 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-        <p className="text-slate-400 text-sm">Đang nạp danh sách máy in trong mạng...</p>
-      </div>
-    )
-  }
-
-  if (query.isError) {
-    return (
-      <div className="glass-panel p-10 text-center my-8 border-rose-900/50">
-        <Warning size={48} className="text-rose-400 mx-auto mb-3" />
-        <h3 className="text-xl font-bold text-slate-100 mb-2">Không thể kết nối dịch vụ API</h3>
-        <p className="text-slate-400 text-sm max-w-md mx-auto mb-6">
-          {query.error instanceof Error ? query.error.message : 'Hệ thống API backend không phản hồi.'}
-        </p>
-        <button
-          type="button"
-          onClick={() => void query.refetch()}
-          className="bg-cyan-600 hover:bg-cyan-500 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-all"
-        >
-          Thử lại
-        </button>
-      </div>
-    )
-  }
-
   const printers = query.data?.data ?? []
   const availableProfiles = profiles.data?.data ?? []
   const verifiedProfilesCount = availableProfiles.filter((p) => p.verification_status === 'verified').length
@@ -455,6 +427,34 @@ export function DevicesPage() {
     ],
     [],
   )
+
+  if (query.isLoading) {
+    return (
+      <div className="glass-panel p-12 text-center my-8">
+        <div className="w-10 h-10 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+        <p className="text-slate-400 text-sm">Đang nạp danh sách máy in trong mạng...</p>
+      </div>
+    )
+  }
+
+  if (query.isError) {
+    return (
+      <div className="glass-panel p-10 text-center my-8 border-rose-900/50">
+        <Warning size={48} className="text-rose-400 mx-auto mb-3" />
+        <h3 className="text-xl font-bold text-slate-100 mb-2">Không thể kết nối dịch vụ API</h3>
+        <p className="text-slate-400 text-sm max-w-md mx-auto mb-6">
+          {query.error instanceof Error ? query.error.message : 'Hệ thống API backend không phản hồi.'}
+        </p>
+        <button
+          type="button"
+          onClick={() => void query.refetch()}
+          className="bg-cyan-600 hover:bg-cyan-500 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-all"
+        >
+          Thử lại
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">

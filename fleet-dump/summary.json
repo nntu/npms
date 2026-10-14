@@ -1,0 +1,207 @@
+{
+  "exported_at": "2026-10-14T09:33:48.6727075Z",
+  "printer_count": 20,
+  "online_count": 20,
+  "printers": [
+    {
+      "file": "10.141.6.10_IM_2500_-_IM_2500.json",
+      "address": "10.141.6.10",
+      "name": "RICOH IM 2500 (Sanh Giao Dich)",
+      "manufacturer": "Ricoh",
+      "model": "RICOH IM 2500",
+      "sys_object_id": "1.3.6.1.4.1.367.1.1",
+      "status": "online",
+      "candidate_counters_count": 112
+    },
+    {
+      "file": "10.141.6.12_IM_2500_-_IM_2500.json",
+      "address": "10.141.6.12",
+      "name": "RICOH IM 2500 (Lau 1)",
+      "manufacturer": "Ricoh",
+      "model": "RICOH IM 2500",
+      "sys_object_id": "1.3.6.1.4.1.367.1.1",
+      "status": "online",
+      "candidate_counters_count": 111
+    },
+    {
+      "file": "10.141.6.13_BRNB42200B39DB8_-_BRNB42200B39DB8.json",
+      "address": "10.141.6.13",
+      "name": "Brother HL-L5100DN series - BRNB42200B39DB8",
+      "manufacturer": "Brother",
+      "model": "Brother HL-L5100DN series",
+      "sys_object_id": "1.3.6.1.4.1.2435.2.3.9.1",
+      "status": "online",
+      "candidate_counters_count": 255
+    },
+    {
+      "file": "10.141.6.14_BRNB42200B39DCE_-_BRNB42200B39DCE.json",
+      "address": "10.141.6.14",
+      "name": "Brother HL-L5100DN series (GDKH)",
+      "manufacturer": "Brother",
+      "model": "Brother HL-L5100DN series",
+      "sys_object_id": "1.3.6.1.4.1.2435.2.3.9.1",
+      "status": "online",
+      "candidate_counters_count": 258
+    },
+    {
+      "file": "10.141.6.16_BRNB42200B3C509_-_BRNB42200B3C509.json",
+      "address": "10.141.6.16",
+      "name": "Brother HL-L5100DN series (GDKH)",
+      "manufacturer": "Brother",
+      "model": "Brother HL-L5100DN series",
+      "sys_object_id": "1.3.6.1.4.1.2435.2.3.9.1",
+      "status": "online",
+      "candidate_counters_count": 257
+    },
+    {
+      "file": "10.141.6.19_My_in_10.141.6.19.json",
+      "address": "10.141.6.19",
+      "name": "HP LaserJet M402dn",
+      "manufacturer": "HP",
+      "model": "HP LaserJet M402dn",
+      "sys_object_id": "1.3.6.1.4.1.11.2.3.9.1",
+      "status": "online",
+      "candidate_counters_count": 6
+    },
+    {
+      "file": "10.141.6.31_BRN94DDF8E43CFA_-_BRN94DDF8E43CFA.json",
+      "address": "10.141.6.31",
+      "name": "Brother HL-L6210DW series (KHCN2)",
+      "manufacturer": "Brother",
+      "model": "Brother HL-L6210DW series",
+      "sys_object_id": "1.3.6.1.4.1.2435.2.3.9.1",
+      "status": "online",
+      "candidate_counters_count": 504
+    },
+    {
+      "file": "10.141.6.37_BRN3C2AF4AE0B1A.json",
+      "address": "10.141.6.37",
+      "name": "Brother HL-L8260CDN series - BRN3C2AF4AE0B1A",
+      "manufacturer": "Brother",
+      "model": "Brother HL-L8260CDN series",
+      "sys_object_id": "1.3.6.1.4.1.2435.2.3.9.1",
+      "status": "online",
+      "candidate_counters_count": 390
+    },
+    {
+      "file": "10.141.6.3_My_in_10.141.6.3.json",
+      "address": "10.141.6.3",
+      "name": "HP LaserJet M402dn (QTTD)",
+      "manufacturer": "HP",
+      "model": "HP LaserJet M402dn",
+      "sys_object_id": "1.3.6.1.4.1.11.2.3.9.1",
+      "status": "online",
+      "candidate_counters_count": 6
+    },
+    {
+      "file": "10.141.6.40_BRNB4220015AE63.json",
+      "address": "10.141.6.40",
+      "name": "Brother ADS-2400N (KHDN)",
+      "manufacturer": "Brother",
+      "model": "Brother ADS-2400N",
+      "sys_object_id": "1.3.6.1.4.1.2435.2.3.9.1",
+      "status": "online",
+      "candidate_counters_count": 44
+    },
+    {
+      "file": "10.141.6.41_BRNB42200441557.json",
+      "address": "10.141.6.41",
+      "name": "Brother ADS-2400N (KHCN2)",
+      "manufacturer": "Brother",
+      "model": "Brother ADS-2400N",
+      "sys_object_id": "1.3.6.1.4.1.2435.2.3.9.1",
+      "status": "online",
+      "candidate_counters_count": 41
+    },
+    {
+      "file": "10.141.6.42_BRN000EC6962304.json",
+      "address": "10.141.6.42",
+      "name": "Brother ADS-4300N (QLNB)",
+      "manufacturer": "Brother",
+      "model": "Brother ADS-4300N",
+      "sys_object_id": "1.3.6.1.4.1.2435.2.3.9.1",
+      "status": "online",
+      "candidate_counters_count": 16
+    },
+    {
+      "file": "10.141.6.44_My_in_10.141.6.44.json",
+      "address": "10.141.6.44",
+      "name": "HP LaserJet M402dn (QLNB)",
+      "manufacturer": "HP",
+      "model": "HP LaserJet M402dn",
+      "sys_object_id": "1.3.6.1.4.1.11.2.3.9.1",
+      "status": "online",
+      "candidate_counters_count": 6
+    },
+    {
+      "file": "10.141.6.45_BRN94DDF8E43CD4_-_BRN94DDF8E43CD4.json",
+      "address": "10.141.6.45",
+      "name": "Brother HL-L6210DW series - BRN94DDF8E43CD4",
+      "manufacturer": "Brother",
+      "model": "Brother HL-L6210DW series",
+      "sys_object_id": "1.3.6.1.4.1.2435.2.3.9.1",
+      "status": "online",
+      "candidate_counters_count": 500
+    },
+    {
+      "file": "10.141.6.49_ET788C77493D74_-_ET788C77493D74.json",
+      "address": "10.141.6.49",
+      "name": "Lexmark MS510dn",
+      "manufacturer": "Lexmark",
+      "model": "Lexmark MS510dn",
+      "sys_object_id": "1.3.6.1.4.1.641.51.71107404",
+      "status": "online",
+      "candidate_counters_count": 1
+    },
+    {
+      "file": "10.141.6.50_BRN94DDF8E76184_-_BRN94DDF8E76184.json",
+      "address": "10.141.6.50",
+      "name": "Brother HL-L6210DW series (KHDN)",
+      "manufacturer": "Brother",
+      "model": "Brother HL-L6210DW series",
+      "sys_object_id": "1.3.6.1.4.1.2435.2.3.9.1",
+      "status": "online",
+      "candidate_counters_count": 508
+    },
+    {
+      "file": "10.141.6.58_HP87DAF4_-_HP87DAF4.json",
+      "address": "10.141.6.58",
+      "name": "HP LaserJet Pro M404dn",
+      "manufacturer": "HP",
+      "model": "HP LaserJet Pro M404dn",
+      "sys_object_id": "1.3.6.1.4.1.11.2.3.9.1",
+      "status": "online",
+      "candidate_counters_count": 4
+    },
+    {
+      "file": "10.141.6.5_My_in_10.141.6.5.json",
+      "address": "10.141.6.5",
+      "name": "HP LaserJet Pro M501dn (QLRR)",
+      "manufacturer": "HP",
+      "model": "HP LaserJet Pro M501dn",
+      "sys_object_id": "1.3.6.1.4.1.11.2.3.9.1",
+      "status": "online",
+      "candidate_counters_count": 7
+    },
+    {
+      "file": "10.141.6.8_My_in_10.141.6.8.json",
+      "address": "10.141.6.8",
+      "name": "HP LaserJet Pro M501dn (QHKHDN)",
+      "manufacturer": "HP",
+      "model": "HP LaserJet Pro M501dn",
+      "sys_object_id": "1.3.6.1.4.1.11.2.3.9.1",
+      "status": "online",
+      "candidate_counters_count": 7
+    },
+    {
+      "file": "10.141.6.9_My_in_10.141.6.9.json",
+      "address": "10.141.6.9",
+      "name": "HP LaserJet Pro M501dn (QTTD)",
+      "manufacturer": "HP",
+      "model": "HP LaserJet Pro M501dn",
+      "sys_object_id": "1.3.6.1.4.1.11.2.3.9.1",
+      "status": "online",
+      "candidate_counters_count": 7
+    }
+  ]
+}

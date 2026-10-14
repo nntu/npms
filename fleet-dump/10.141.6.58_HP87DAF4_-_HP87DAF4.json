@@ -1,0 +1,96 @@
+{
+  "address": "10.141.6.58",
+  "candidate_counters": [
+    {
+      "key": "marker_life.1.1",
+      "oid": "1.3.6.1.2.1.43.10.2.1.4.1.1",
+      "source": "Printer-MIB (prtMarkerLifeCount)",
+      "unit": "impressions",
+      "value": 27797
+    },
+    {
+      "key": "hp_total_page_count",
+      "oid": "1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.6.0",
+      "source": "HP-Vendor",
+      "unit": "pages",
+      "value": 27797
+    },
+    {
+      "key": "hp_engine_cycles",
+      "oid": "1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.5.0",
+      "source": "HP-Vendor",
+      "unit": "impressions",
+      "value": 27797
+    },
+    {
+      "key": "vendor_walk.1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.22.0",
+      "oid": "1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.22.0",
+      "source": "Vendor Subtree (11)",
+      "unit": "pages",
+      "value": 6075
+    }
+  ],
+  "current_profile_id": "hp-laserjet-pro-m404dn",
+  "display_name": "HP LaserJet Pro M404dn",
+  "id": "05e4a1f8-38bc-4be2-9022-f6c706f3edf7",
+  "manufacturer": "HP",
+  "markers": [
+    {
+      "counter_unit": 7,
+      "instance": "1.1",
+      "life_count": 27797,
+      "unit_name": "impressions"
+    }
+  ],
+  "model": "HP LaserJet Pro M404dn",
+  "port": 161,
+  "raw_marker_binds": [
+    {
+      "oid": ".1.3.6.1.2.1.43.10.2.1.4.1.1",
+      "type": "Counter32",
+      "value": 27797
+    },
+    {
+      "oid": ".1.3.6.1.2.1.43.10.2.1.3.1.1",
+      "type": "Integer",
+      "value": 7
+    }
+  ],
+  "raw_vendor_binds": [
+    {
+      "oid": ".1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.6.0",
+      "type": "Integer",
+      "value": 27797
+    },
+    {
+      "oid": ".1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.5.0",
+      "type": "Integer",
+      "value": 27797
+    },
+    {
+      "oid": ".1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.5.0",
+      "type": "Integer",
+      "value": 27797
+    },
+    {
+      "oid": ".1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.6.0",
+      "type": "Integer",
+      "value": 27797
+    },
+    {
+      "oid": ".1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.7.0",
+      "type": "Integer",
+      "value": 0
+    },
+    {
+      "oid": ".1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.22.0",
+      "type": "Integer",
+      "value": 6075
+    }
+  ],
+  "serial": "PHFXF17054",
+  "status": "online",
+  "sys_descr": "HP ETHERNET MULTI-ENVIRONMENT",
+  "sys_name": "HP87DAF4",
+  "sys_object_id": "1.3.6.1.4.1.11.2.3.9.1"
+}

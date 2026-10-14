@@ -16,8 +16,11 @@ security:
 
 polling:
   concurrency: 5
-  status_interval: 5m
-  counter_interval: 15m
+  # Chu kỳ kiểm tra trạng thái máy in (bật/tắt, mức mực). Khuyên dùng: 15m - 30m
+  status_interval: 15m
+  # Chu kỳ đọc chỉ số trang in (counter). Vì mục đích là đánh giá mức độ sử dụng theo ngày/tháng,
+  # không cần quét liên tục. Khuyên dùng: 4h, 6h, 12h hoặc 24h (hỗ trợ m=phút, h=giờ).
+  counter_interval: 6h
 
 report:
   # IANA timezone used when materializing daily and monthly printer usage.

@@ -1,0 +1,115 @@
+{
+  "address": "10.141.6.19",
+  "candidate_counters": [
+    {
+      "key": "marker_life.1.1",
+      "oid": "1.3.6.1.2.1.43.10.2.1.4.1.1",
+      "source": "Printer-MIB (prtMarkerLifeCount)",
+      "unit": "impressions",
+      "value": 1652
+    },
+    {
+      "key": "vendor_walk.1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.5.0",
+      "oid": "1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.5.0",
+      "source": "Vendor Subtree (11)",
+      "unit": "pages",
+      "value": 1652
+    },
+    {
+      "key": "vendor_walk.1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.6.0",
+      "oid": "1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.6.0",
+      "source": "Vendor Subtree (11)",
+      "unit": "pages",
+      "value": 1652
+    },
+    {
+      "key": "vendor_walk.1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.22.0",
+      "oid": "1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.22.0",
+      "source": "Vendor Subtree (11)",
+      "unit": "pages",
+      "value": 673
+    },
+    {
+      "key": "vendor_walk.1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.34.0",
+      "oid": "1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.34.0",
+      "source": "Vendor Subtree (11)",
+      "unit": "pages",
+      "value": 5
+    },
+    {
+      "key": "vendor_walk.1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.49.0",
+      "oid": "1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.49.0",
+      "source": "Vendor Subtree (11)",
+      "unit": "pages",
+      "value": 1
+    }
+  ],
+  "current_profile_id": "hp-laserjet-pro-m402dn",
+  "display_name": "HP LaserJet M402dn",
+  "id": "e007ccd9-b405-45d2-a04a-c9acf0f6d155",
+  "manufacturer": "HP",
+  "markers": [
+    {
+      "counter_unit": 7,
+      "instance": "1.1",
+      "life_count": 1652,
+      "unit_name": "impressions"
+    }
+  ],
+  "model": "HP LaserJet M402dn",
+  "port": 161,
+  "raw_marker_binds": [
+    {
+      "oid": ".1.3.6.1.2.1.43.10.2.1.4.1.1",
+      "type": "Counter32",
+      "value": 1652
+    },
+    {
+      "oid": ".1.3.6.1.2.1.43.10.2.1.3.1.1",
+      "type": "Integer",
+      "value": 7
+    }
+  ],
+  "raw_vendor_binds": [
+    {
+      "oid": ".1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.5.0",
+      "type": "Integer",
+      "value": 1652
+    },
+    {
+      "oid": ".1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.6.0",
+      "type": "Integer",
+      "value": 1652
+    },
+    {
+      "oid": ".1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.22.0",
+      "type": "Integer",
+      "value": 673
+    },
+    {
+      "oid": ".1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.26.0",
+      "type": "OctetString",
+      "value": "0x01153246413868"
+    },
+    {
+      "oid": ".1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.34.0",
+      "type": "Integer",
+      "value": 5
+    },
+    {
+      "oid": ".1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.35.0",
+      "type": "Integer",
+      "value": 0
+    },
+    {
+      "oid": ".1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.49.0",
+      "type": "Integer",
+      "value": 1
+    }
+  ],
+  "serial": "PHCND69524",
+  "status": "online",
+  "sys_descr": "HP ETHERNET MULTI-ENVIRONMENT,SN:PHCND69524,FN:1L7DQ4V,SVCID:29003,PID:HP LaserJet M402dn",
+  "sys_name": "NPIAD35F4",
+  "sys_object_id": "1.3.6.1.4.1.11.2.3.9.1"
+}

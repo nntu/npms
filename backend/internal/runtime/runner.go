@@ -112,6 +112,10 @@ func (r *Runner) RunCounters(ctx context.Context) error {
 		}
 	}()
 	for _, device := range devices {
+		if device.Status == "offline" || device.Status == "unavailable" {
+			slog.Debug("counter poll skipped: device is not reachable", "device_id", device.ID, "status", device.Status)
+			continue
+		}
 		endpoints, err := r.repository.ListDeviceEndpoints(ctx, device.ID)
 		if err != nil {
 			return err

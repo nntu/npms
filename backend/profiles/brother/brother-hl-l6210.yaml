@@ -2,7 +2,7 @@ schema_version: 1
 id: brother-hl-l6210
 version: 1
 manufacturer: Brother
-verification_status: experimental
+verification_status: verified
 match:
   model_patterns:
     - '(?i)^Brother HL-?L?6210(DW|DW\s*\(T\))?(\s+series)?$'
@@ -15,5 +15,5 @@ counters:
     aggregation: none
     semantic_type: marker_life
     scope: engine
-    unit: impressions
+    unit: sheets
     require_unit_validation: true

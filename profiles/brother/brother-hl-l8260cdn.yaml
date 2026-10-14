@@ -1,0 +1,37 @@
+schema_version: 1
+id: brother-hl-l8260cdn
+version: 1
+manufacturer: Brother
+verification_status: verified
+match:
+  model_patterns:
+    - '(?i)^Brother HL-?L?8260CDN.*$'
+counters:
+  marker_life:
+    value_column: "1.3.6.1.2.1.43.10.2.1.4"
+    unit_column: "1.3.6.1.2.1.43.10.2.1.3"
+    mode: walk
+    selection: validated_marker_rows
+    aggregation: none
+    semantic_type: marker_life
+    scope: engine
+    unit: sheets
+    require_unit_validation: true
+  color_pages:
+    value_column: "1.3.6.1.4.1.2435.2.3.9.4.2.1.5.5.52.2.1.3.2"
+    mode: get
+    selection: ""
+    aggregation: none
+    semantic_type: color_pages
+    scope: engine
+    unit: pages
+    require_unit_validation: false
+  mono_pages:
+    value_column: "1.3.6.1.4.1.2435.2.3.9.4.2.1.5.5.52.2.1.3.1"
+    mode: get
+    selection: ""
+    aggregation: none
+    semantic_type: mono_pages
+    scope: engine
+    unit: pages
+    require_unit_validation: false

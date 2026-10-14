@@ -59,7 +59,7 @@ type Logging struct {
 }
 
 func Defaults() Config {
-	return Config{Database: Database{Path: "./data/npms.db"}, Server: Server{Listen: ":8080", AllowedOrigin: "http://localhost:5173", OpenBrowser: true}, Polling: Polling{Concurrency: 5, StatusInterval: "5m", CounterInterval: "15m"}, Report: Report{Timezone: "UTC"}, Retention: Retention{PollingRunsDays: 30, CounterEventsDays: 90, JobsDays: 30, CleanupInterval: "24h"}, Logging: Logging{ErrorFile: "./data/npms-errors.log", Daily: true, MaxSizeMB: 10}, Profiles: Profiles{Path: "./profiles"}}
+	return Config{Database: Database{Path: "./data/npms.db"}, Server: Server{Listen: ":8080", AllowedOrigin: "http://localhost:5173", OpenBrowser: true}, Polling: Polling{Concurrency: 5, StatusInterval: "15m", CounterInterval: "6h"}, Report: Report{Timezone: "UTC"}, Retention: Retention{PollingRunsDays: 30, CounterEventsDays: 90, JobsDays: 30, CleanupInterval: "24h"}, Logging: Logging{ErrorFile: "./data/npms-errors.log", Daily: true, MaxSizeMB: 10}, Profiles: Profiles{Path: "./profiles"}}
 }
 
 func Load(path string) (Config, error) {
