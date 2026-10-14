@@ -903,6 +903,91 @@ func (r *SQLiteRepository) FinishJob(ctx context.Context, id, status, errorCode 
 	return nil
 }
 
+type JobWithDevice struct {
+	ID         string     `json:"id"`
+	DeviceID   string     `json:"device_id"`
+	DeviceName string     `json:"device_name"`
+	DeviceIP   string     `json:"device_ip"`
+	Kind       string     `json:"kind"`
+	Status     string     `json:"status"`
+	ErrorCode  *string    `json:"error_code,omitempty"`
+	CreatedAt  time.Time  `json:"created_at"`
+	StartedAt  *time.Time `json:"started_at,omitempty"`
+	EndedAt    *time.Time `json:"ended_at,omitempty"`
+	DurationMs int64      `json:"duration_ms"`
+}
+
+func (r *SQLiteRepository) ListJobsWithDevice(ctx context.Context, limit, offset int, statusFilter string) ([]JobWithDevice, int, error) {
+	if limit < 1 || limit > 1000 || offset < 0 {
+		return nil, 0, fmt.Errorf("invalid job pagination")
+	}
+
+	var total int
+	countQuery := "SELECT COUNT(1) FROM jobs"
+	var countArgs []any
+	if statusFilter != "" {
+		countQuery += " WHERE status = ?"
+		countArgs = append(countArgs, statusFilter)
+	}
+	if err := r.db.QueryRowContext(ctx, countQuery, countArgs...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count jobs: %w", err)
+	}
+
+	query := `SELECT j.id, j.device_id, COALESCE(d.display_name, ''), COALESCE(ep.address, ''),
+		j.kind, j.status, j.error_code, j.created_at, j.started_at, j.ended_at
+		FROM jobs j
+		LEFT JOIN devices d ON j.device_id = d.id
+		LEFT JOIN device_endpoints ep ON ep.device_id = d.id AND ep.is_primary = 1`
+	var args []any
+	if statusFilter != "" {
+		query += " WHERE j.status = ?"
+		args = append(args, statusFilter)
+	}
+	query += " ORDER BY j.created_at DESC, j.id DESC LIMIT ? OFFSET ?"
+	args = append(args, limit, offset)
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("list jobs with device: %w", err)
+	}
+	defer rows.Close()
+
+	jobs := make([]JobWithDevice, 0)
+	for rows.Next() {
+		var item JobWithDevice
+		var errCode, createdAt, startedAt, endedAt sql.NullString
+		if err := rows.Scan(&item.ID, &item.DeviceID, &item.DeviceName, &item.DeviceIP, &item.Kind, &item.Status, &errCode, &createdAt, &startedAt, &endedAt); err != nil {
+			return nil, 0, fmt.Errorf("scan job row: %w", err)
+		}
+		if errCode.Valid && errCode.String != "" {
+			item.ErrorCode = &errCode.String
+		}
+		item.CreatedAt, _ = parseRequiredTime(createdAt)
+		st := parseTime(startedAt)
+		if !st.IsZero() {
+			item.StartedAt = &st
+		}
+		et := parseTime(endedAt)
+		if !et.IsZero() {
+			item.EndedAt = &et
+		}
+
+		if item.StartedAt != nil {
+			if item.EndedAt != nil {
+				item.DurationMs = item.EndedAt.Sub(*item.StartedAt).Milliseconds()
+			} else {
+				item.DurationMs = time.Since(*item.StartedAt).Milliseconds()
+			}
+		}
+
+		jobs = append(jobs, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("iterate job rows: %w", err)
+	}
+	return jobs, total, nil
+}
+
 func (r *SQLiteRepository) ListPollingRuns(ctx context.Context, deviceID string, limit, offset int) ([]PollingRunRecord, error) {
 	if strings.TrimSpace(deviceID) == "" || limit < 1 || limit > 1000 || offset < 0 {
 		return nil, fmt.Errorf("invalid polling run pagination")

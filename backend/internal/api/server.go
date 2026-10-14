@@ -47,6 +47,7 @@ type DeviceStore interface {
 	GetJob(context.Context, string) (repository.JobRecord, error)
 	StartJob(context.Context, string, time.Time) error
 	FinishJob(context.Context, string, string, string, time.Time) error
+	ListJobsWithDevice(context.Context, int, int, string) ([]repository.JobWithDevice, int, error)
 	AcquirePollLease(context.Context, string, string, string, time.Time, time.Time) (bool, error)
 	ReleasePollLease(context.Context, string, string, string) error
 }
@@ -154,7 +155,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/v1/printers/bulk-register/", s.bulkRegisterPrinters)
 	mux.Handle("/api/v1/printers", s.printerCollectionHandler())
 	mux.HandleFunc("/api/v1/printers/", s.getPrinter)
-	mux.HandleFunc("/api/v1/jobs/", s.getJob)
+	mux.HandleFunc("/api/v1/jobs", s.handleJobs)
+	mux.HandleFunc("/api/v1/jobs/", s.handleJobs)
 	mux.Handle("/api/v1/cartridges", s.cartridgeListHandler())
 	mux.Handle("/api/v1/cartridges/stock", s.cartridgeStockHandler())
 	mux.Handle("/api/v1/cartridges/stock/refill-bottles", s.cartridgeStockHandler())
@@ -1485,7 +1487,7 @@ func (s *Server) executePollJob(jobID, deviceID, leaseOwnerID string) {
 	}
 }
 
-func (s *Server) getJob(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		s.methodNotAllowed(w)
 		return
@@ -1494,17 +1496,42 @@ func (s *Server) getJob(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "unauthorized", "valid bearer token is required")
 		return
 	}
-	id := strings.TrimPrefix(r.URL.Path, "/api/v1/jobs/")
-	stored, err := s.store.GetJob(r.Context(), id)
-	if errors.Is(err, sql.ErrNoRows) {
-		writeError(w, http.StatusNotFound, "not_found", "job was not found")
+
+	trimmed := strings.TrimPrefix(r.URL.Path, "/api/v1/jobs")
+	trimmed = strings.TrimPrefix(trimmed, "/")
+	if trimmed != "" {
+		stored, err := s.store.GetJob(r.Context(), trimmed)
+		if errors.Is(err, sql.ErrNoRows) {
+			writeError(w, http.StatusNotFound, "not_found", "job was not found")
+			return
+		}
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "job_get_failed", "could not get job")
+			return
+		}
+		writeJSON(w, http.StatusOK, jobResponse{ID: stored.ID, DeviceID: stored.DeviceID, Status: stored.Status, ErrorCode: nullable(stored.ErrorCode)})
 		return
 	}
+
+	limit, offset, err := pagination(r)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "job_get_failed", "could not get job")
+		writeError(w, http.StatusBadRequest, "invalid_pagination", err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, jobResponse{ID: stored.ID, DeviceID: stored.DeviceID, Status: stored.Status, ErrorCode: nullable(stored.ErrorCode)})
+	statusFilter := strings.TrimSpace(r.URL.Query().Get("status"))
+	items, total, err := s.store.ListJobsWithDevice(r.Context(), limit, offset, statusFilter)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "jobs_list_failed", "could not list jobs")
+		return
+	}
+
+	w.Header().Set("X-Total-Count", strconv.Itoa(total))
+	writeJSON(w, http.StatusOK, map[string]any{
+		"items":  items,
+		"total":  total,
+		"limit":  limit,
+		"offset": offset,
+	})
 }
 
 type jobResponse struct {

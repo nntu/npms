@@ -261,3 +261,11 @@ export async function listCartridgeLogs(
   if (offset) params.set('offset', String(offset))
   return request<{ data: import('./types').CartridgeLog[]; total: number }>(`/cartridges/logs?${params.toString()}`)
 }
+
+export async function listJobs(status?: string, limit = 100, offset = 0): Promise<import('./types').ListJobsResponse> {
+  const params = new URLSearchParams()
+  if (status && status !== 'all') params.set('status', status)
+  if (limit) params.set('limit', String(limit))
+  if (offset) params.set('offset', String(offset))
+  return request<import('./types').ListJobsResponse>(`/jobs?${params.toString()}`)
+}

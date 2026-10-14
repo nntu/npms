@@ -56,11 +56,14 @@ func run(args []string, stdout, stderr io.Writer) error {
 	if len(args) == 0 || args[0] == "-h" || args[0] == "--help" || args[0] == "help" || args[0] == "-help" {
 		printUsage(stdout)
 		if len(args) == 0 {
-			return errors.New("command is required: check, probe, collect, get, walk, or export (see usage above)")
+			return errors.New("command is required: check, probe, collect, get, walk, export, or dump-fleet (see usage above)")
 		}
 		return nil
 	}
 	command := args[0]
+	if command == "dump-fleet" {
+		return runDumpFleet(args[1:], stdout, stderr)
+	}
 	switch command {
 	case "check", "probe", "collect", "get", "walk", "export":
 	default:
@@ -353,13 +356,14 @@ Usage:
   snmp-debug <command> [options]
 
 Available Commands:
-  check     Perform console health, marker counter & supply check (human-readable table output)
-  probe     Probe printer identity, marker OIDs and Printer-MIB tables (JSON output)
-  collect   Collect structured Printer-MIB snapshot decoded with Printer-MIB.yaml (JSON output)
-  get       Fetch a single OID value (requires --oid)
-  walk      Walk an OID subtree (requires --oid)
-  export    Export full printer diagnostics to a JSON file (requires --output)
-  help      Show this help message
+  check      Perform console health, marker counter & supply check (human-readable table output)
+  probe      Probe printer identity, marker OIDs and Printer-MIB tables (JSON output)
+  collect    Collect structured Printer-MIB snapshot decoded with Printer-MIB.yaml (JSON output)
+  get        Fetch a single OID value (requires --oid)
+  walk       Walk an OID subtree (requires --oid)
+  export     Export full printer diagnostics to a JSON file (requires --output)
+  dump-fleet Query fleet printers, detect candidate page counters & export JSON fixture for profiles
+  help       Show this help message
 
 Global Options:
   --host string            Printer hostname or IP address (required unless --fixture is set)
@@ -375,10 +379,17 @@ Global Options:
   --retries int            Number of retries (default: 1)
   --max-repetitions int    SNMP bulk walk repetitions (1-255, default: 25)
   --oid string             Target OID for 'get' or 'walk' command
-  --output string          Target file path for 'export' or 'collect' command
+  --output string          Target file path for 'export', 'collect', or 'dump-fleet'
   --mib-file string        Optional path to Printer-MIB.yaml for OID symbol resolution
   --fixture string         Optional path to a Printer-MIB JSON fixture for offline replay
   --anonymize              Mask host IP and serial numbers in exported/collected JSON
+
+Dump-Fleet Options:
+  --hosts string           Comma-separated IPs/hostnames (e.g. 192.168.1.10,192.168.1.11)
+  --db string              Path to SQLite database to load registered printers (default: npms.db)
+  --output-dir string      Export directory for individual files per printer IP/model + summary.json
+  --output string          Path to export a single consolidated JSON report
+  --concurrency int        Parallel worker count for querying fleet (default: 5)
 
 Examples:
   # SNMP v2c console check:
@@ -386,6 +397,12 @@ Examples:
 
   # Collect anonymized Printer-MIB fixture using Printer-MIB.yaml:
   snmp-debug collect --host 192.168.1.50 --community public --mib-file ./Printer-MIB.yaml --anonymize --output sample.json
+
+  # [Khuyên dùng cho Agent] Xuất tách riêng từng file theo IP/Model trong thư mục:
+  snmp-debug dump-fleet --db ./npms.db --config ./config.yaml --output-dir ./fleet-dump/
+
+  # Dump fleet counters thành 1 file JSON duy nhất:
+  snmp-debug dump-fleet --hosts 192.168.1.50,192.168.1.51 --community public --output fleet-counters.json
 
   # Replay a captured fixture offline:
   snmp-debug check --fixture ./backend/testdata/printer-mib/hp-laserjet-enterprise-m501dn.json

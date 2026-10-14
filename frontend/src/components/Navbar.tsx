@@ -1,4 +1,4 @@
-import { BookBookmark, ChartBar, Drop, MagnifyingGlass, Printer, Pulse } from '@phosphor-icons/react'
+import { BookBookmark, ChartBar, Cpu, Drop, MagnifyingGlass, Printer, Pulse } from '@phosphor-icons/react'
 import { NavLink } from 'react-router-dom'
 
 export function Navbar() {
@@ -6,6 +6,7 @@ export function Navbar() {
     { path: '/printers', label: 'Danh sách máy in', icon: Printer },
     { path: '/cartridges', label: 'Quản lý bình mực', icon: Drop },
     { path: '/discovery', label: 'Dò tìm SNMP', icon: MagnifyingGlass },
+    { path: '/jobs', label: 'Tiến trình', icon: Cpu },
     { path: '/reports', label: 'Báo cáo sử dụng', icon: ChartBar },
     { path: '/profiles', label: 'Thư viện Profile', icon: BookBookmark },
   ]

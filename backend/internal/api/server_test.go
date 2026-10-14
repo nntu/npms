@@ -22,6 +22,7 @@ import (
 type fakeStore struct {
 	devices        []repository.Device
 	total          int
+	jobs           []repository.JobWithDevice
 	registrationCh chan repository.PrinterRegistration
 	finishCh       chan string
 	leaseHeld      bool
@@ -135,6 +136,15 @@ func (f fakeStore) AcquirePollLease(context.Context, string, string, string, tim
 	return !f.leaseHeld, nil
 }
 func (fakeStore) ReleasePollLease(context.Context, string, string, string) error { return nil }
+func (f fakeStore) ListJobsWithDevice(_ context.Context, _, _ int, statusFilter string) ([]repository.JobWithDevice, int, error) {
+	var filtered []repository.JobWithDevice
+	for _, j := range f.jobs {
+		if statusFilter == "" || j.Status == statusFilter {
+			filtered = append(filtered, j)
+		}
+	}
+	return filtered, len(filtered), nil
+}
 func (fakeStore) CreateCartridge(context.Context, repository.Cartridge) error    { return nil }
 func (fakeStore) ListCartridges(context.Context) ([]repository.Cartridge, error) {
 	return []repository.Cartridge{{ID: "c1", SKUCode: "HP-26A", Name: "HP Toner", StockNew: 5, StockRefilled: 2, StockEmpty: 1}}, nil
@@ -671,3 +681,64 @@ func containsAll(value string, parts ...string) bool {
 	}
 	return true
 }
+
+func TestListJobsEndpoint(t *testing.T) {
+	now := time.Now().UTC()
+	errCode := "poll_timeout"
+	server, err := NewServer(fakeStore{
+		jobs: []repository.JobWithDevice{
+			{
+				ID:         "job-running-1",
+				DeviceID:   "dev-1",
+				DeviceName: "HP M501dn",
+				DeviceIP:   "192.168.1.50",
+				Kind:       "status",
+				Status:     "running",
+				CreatedAt:  now.Add(-2 * time.Minute),
+				StartedAt:  &now,
+				DurationMs: 120000,
+			},
+			{
+				ID:         "job-failed-2",
+				DeviceID:   "dev-2",
+				DeviceName: "Brother L5100",
+				DeviceIP:   "192.168.1.51",
+				Kind:       "counter",
+				Status:     "failed",
+				ErrorCode:  &errCode,
+				CreatedAt:  now.Add(-10 * time.Minute),
+				DurationMs: 3000,
+			},
+		},
+	}, "token", "http://localhost:5173")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. List all jobs without trailing slash
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/jobs", nil)
+	req.Header.Set("Authorization", "Bearer token")
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d (body: %s)", rec.Code, rec.Body.String())
+	}
+	if !containsAll(rec.Body.String(), `"total":2`, `"job-running-1"`, `"job-failed-2"`, `"HP M501dn"`, `"poll_timeout"`) {
+		t.Fatalf("unexpected body: %s", rec.Body.String())
+	}
+
+	// 2. Filter by status 'running'
+	reqFilter := httptest.NewRequest(http.MethodGet, "/api/v1/jobs?status=running", nil)
+	reqFilter.Header.Set("Authorization", "Bearer token")
+	recFilter := httptest.NewRecorder()
+	server.Handler().ServeHTTP(recFilter, reqFilter)
+
+	if recFilter.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", recFilter.Code)
+	}
+	if !containsAll(recFilter.Body.String(), `"total":1`, `"job-running-1"`) {
+		t.Fatalf("expected only running job, got: %s", recFilter.Body.String())
+	}
+}
+

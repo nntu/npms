@@ -634,3 +634,119 @@ func TestReconcileStaleRuns(t *testing.T) {
 	}
 }
 
+func TestListJobsWithDevice(t *testing.T) {
+	db, err := database.OpenSQLite(filepath.Join(t.TempDir(), "npms.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ctx := context.Background()
+	if err := db.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	repo, err := NewSQLiteRepository(db.DB)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	devID := "dev-job-test"
+	if err := repo.CreateDevice(ctx, Device{
+		ID:          devID,
+		DisplayName: "Office Printer 1",
+		Status:      "online",
+		FirstSeenAt: time.Now().UTC(),
+		LastSeenAt:  time.Now().UTC(),
+	}); err != nil {
+		t.Fatalf("create device: %v", err)
+	}
+
+	if err := repo.CreateDeviceEndpoint(ctx, DeviceEndpoint{
+		ID:        "ep-1",
+		DeviceID:  devID,
+		Address:   "192.168.1.100",
+		Protocol:  "snmp",
+		Port:      161,
+		IsPrimary: true,
+	}); err != nil {
+		t.Fatalf("create endpoint: %v", err)
+	}
+
+	now := time.Now().UTC()
+	start1 := now.Add(-5 * time.Minute)
+	end1 := now.Add(-4 * time.Minute)
+	if err := repo.CreateJob(ctx, JobRecord{
+		ID:        "job-1",
+		DeviceID:  devID,
+		Kind:      "status",
+		Status:    "success",
+		CreatedAt: now.Add(-6 * time.Minute),
+		StartedAt: start1,
+		EndedAt:   end1,
+	}); err != nil {
+		t.Fatalf("create job 1: %v", err)
+	}
+
+	start2 := now.Add(-2 * time.Minute)
+	if err := repo.CreateJob(ctx, JobRecord{
+		ID:        "job-2",
+		DeviceID:  devID,
+		Kind:      "counter",
+		Status:    "running",
+		CreatedAt: now.Add(-3 * time.Minute),
+		StartedAt: start2,
+	}); err != nil {
+		t.Fatalf("create job 2: %v", err)
+	}
+
+	if err := repo.CreateJob(ctx, JobRecord{
+		ID:        "job-3",
+		DeviceID:  devID,
+		Kind:      "status",
+		Status:    "failed",
+		ErrorCode: "snmp_timeout",
+		CreatedAt: now.Add(-1 * time.Minute),
+		StartedAt: now.Add(-30 * time.Second),
+		EndedAt:   now,
+	}); err != nil {
+		t.Fatalf("create job 3: %v", err)
+	}
+
+	// 1. List all jobs
+	allJobs, total, err := repo.ListJobsWithDevice(ctx, 10, 0, "")
+	if err != nil {
+		t.Fatalf("list jobs: %v", err)
+	}
+	if total != 3 || len(allJobs) != 3 {
+		t.Fatalf("expected 3 jobs, got total=%d, len=%d", total, len(allJobs))
+	}
+	// Verify device join
+	if allJobs[0].DeviceName != "Office Printer 1" || allJobs[0].DeviceIP != "192.168.1.100" {
+		t.Errorf("expected device info joined, got name=%q, ip=%q", allJobs[0].DeviceName, allJobs[0].DeviceIP)
+	}
+
+	// 2. Filter by status 'running'
+	runningJobs, runningTotal, err := repo.ListJobsWithDevice(ctx, 10, 0, "running")
+	if err != nil {
+		t.Fatalf("list running jobs: %v", err)
+	}
+	if runningTotal != 1 || len(runningJobs) != 1 {
+		t.Fatalf("expected 1 running job, got total=%d, len=%d", runningTotal, len(runningJobs))
+	}
+	if runningJobs[0].ID != "job-2" || runningJobs[0].DurationMs <= 0 {
+		t.Errorf("unexpected running job: %+v", runningJobs[0])
+	}
+
+	// 3. Filter by status 'failed'
+	failedJobs, failedTotal, err := repo.ListJobsWithDevice(ctx, 10, 0, "failed")
+	if err != nil {
+		t.Fatalf("list failed jobs: %v", err)
+	}
+	if failedTotal != 1 || len(failedJobs) != 1 {
+		t.Fatalf("expected 1 failed job, got total=%d, len=%d", failedTotal, len(failedJobs))
+	}
+	if failedJobs[0].ErrorCode == nil || *failedJobs[0].ErrorCode != "snmp_timeout" {
+		t.Errorf("expected error_code snmp_timeout, got: %v", failedJobs[0].ErrorCode)
+	}
+}
+
+

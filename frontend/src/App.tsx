@@ -20,6 +20,7 @@ const ProfilesPage = lazy(() =>
 const ReportsPage = lazy(() =>
   import('./features/reports/ReportsPage').then((module) => ({ default: module.ReportsPage })),
 )
+const JobsPage = lazy(() => import('./features/jobs/JobsPage').then((module) => ({ default: module.JobsPage })))
 
 function RouteLoading() {
   return (
@@ -41,6 +42,7 @@ export function App() {
             <Route path="/printers/:id" element={<PrinterDetailPage />} />
             <Route path="/cartridges" element={<CartridgesPage />} />
             <Route path="/discovery" element={<DiscoveryPage />} />
+            <Route path="/jobs" element={<JobsPage />} />
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/profiles" element={<ProfilesPage />} />
           </Routes>

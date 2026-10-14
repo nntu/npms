@@ -165,3 +165,24 @@ export interface RefillPrinterCartridgeInput {
 }
 
 export type CartridgeLog = components['schemas']['CartridgeLog']
+
+export interface JobItem {
+  id: string
+  device_id: string
+  device_name: string
+  device_ip: string
+  kind: string
+  status: 'queued' | 'running' | 'success' | 'failed'
+  error_code?: string | null
+  created_at: string
+  started_at?: string | null
+  ended_at?: string | null
+  duration_ms: number
+}
+
+export interface ListJobsResponse {
+  items: JobItem[]
+  total: number
+  limit: number
+  offset: number
+}

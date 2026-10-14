@@ -12,6 +12,7 @@ import {
   X,
 } from '@phosphor-icons/react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import type { ColumnDef } from '@tanstack/react-table'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
@@ -22,7 +23,8 @@ import {
   startPrinterPoll,
   updatePrinter,
 } from '../../api/client'
-import type { DailyUsage, DiscoveryResult, PrinterStatus } from '../../api/types'
+import type { CounterReading, DailyUsage, DiscoveryResult, PrinterStatus } from '../../api/types'
+import { DataTable } from '../../components/DataTable'
 import { showConfirm, showError, showSuccess } from '../../utils/sweetalert'
 import { CounterChart } from './CounterChart'
 import { DailyUsageChart } from './DailyUsageChart'
@@ -76,6 +78,82 @@ export function PrinterDetailPage() {
   const monthlyUsage = useMemo(() => aggregateMonthlyUsage(usage.data?.data ?? []), [usage.data?.data])
   const _pollingRuns = usePollingRuns(printerId)
   const queryClient = useQueryClient()
+
+  const counterColumns = useMemo<ColumnDef<CounterReading>[]>(
+    () => [
+      {
+        id: 'definition_key',
+        accessorKey: 'definition_key',
+        header: 'Bộ đếm',
+        cell: ({ row }) => <span className="font-semibold text-slate-200">{row.original.definition_key}</span>,
+      },
+      {
+        id: 'raw_value',
+        accessorKey: 'raw_value',
+        header: 'Giá trị gốc',
+        cell: ({ row }) => <span className="font-bold text-cyan-400">{row.original.raw_value.toLocaleString()}</span>,
+      },
+      {
+        id: 'unit',
+        accessorKey: 'unit',
+        header: 'Đơn vị',
+        cell: ({ row }) => <span className="text-slate-300">{row.original.unit}</span>,
+      },
+      {
+        id: 'quality',
+        accessorKey: 'quality',
+        header: 'Chất lượng',
+        cell: ({ row }) => (
+          <span className={`quality-tag quality-${row.original.quality}`}>{row.original.quality}</span>
+        ),
+      },
+      {
+        id: 'collected_at',
+        accessorKey: 'collected_at',
+        header: 'Thời gian thu thập',
+        cell: ({ row }) => (
+          <span className="text-slate-400">{new Date(row.original.collected_at).toLocaleString('vi-VN')}</span>
+        ),
+      },
+    ],
+    [],
+  )
+
+  const monthlyUsageColumns = useMemo<ColumnDef<MonthlyUsage>[]>(
+    () => [
+      {
+        id: 'month',
+        accessorKey: 'month',
+        header: 'Tháng',
+        cell: ({ row }) => <span className="font-bold text-slate-200">{row.original.month}</span>,
+      },
+      {
+        id: 'definition_key',
+        accessorKey: 'definition_key',
+        header: 'Bộ đếm',
+        cell: ({ row }) => <span className="text-slate-300">{row.original.definition_key}</span>,
+      },
+      {
+        id: 'delta',
+        accessorKey: 'delta',
+        header: 'Lưu lượng in',
+        cell: ({ row }) => (
+          <span className="font-bold text-emerald-400">
+            {row.original.delta.toLocaleString()} {row.original.unit}
+          </span>
+        ),
+      },
+      {
+        id: 'quality',
+        accessorKey: 'quality',
+        header: 'Trạng thái dữ liệu',
+        cell: ({ row }) => (
+          <span className={`quality-tag quality-${row.original.quality}`}>{row.original.quality}</span>
+        ),
+      },
+    ],
+    [],
+  )
 
   const [jobID, setJobID] = useState<string | null>(null)
   const job = usePollJob(jobID)
@@ -473,8 +551,8 @@ export function PrinterDetailPage() {
       )}
 
       {/* Raw Counter Readings Table */}
-      <div className="glass-panel overflow-hidden">
-        <div className="p-6 border-b border-slate-800 flex items-center justify-between">
+      <div className="glass-panel p-6 sm:p-8 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-4 pb-1">
           <div>
             <p className="text-xs font-bold uppercase tracking-wider text-cyan-400">Dữ liệu gốc bất biến</p>
             <h3 className="text-lg font-bold text-slate-100">Lịch sử bộ đếm (Counter Readings)</h3>
@@ -486,41 +564,21 @@ export function PrinterDetailPage() {
 
         {counters.isLoading ? (
           <div className="p-8 text-center text-slate-400 text-sm">Đang tải lịch sử chỉ số bộ đếm...</div>
-        ) : (counters.data?.data.length ?? 0) === 0 ? (
-          <div className="p-8 text-center text-slate-400 text-sm">Chưa có chỉ số bộ đếm nào được ghi nhận.</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs sm:text-sm">
-              <thead>
-                <tr className="bg-slate-950/60 text-slate-400 uppercase text-[11px] font-bold tracking-wider border-b border-slate-800">
-                  <th className="p-4 pl-6">Bộ đếm</th>
-                  <th className="p-4">Giá trị gốc</th>
-                  <th className="p-4">Đơn vị</th>
-                  <th className="p-4">Chất lượng</th>
-                  <th className="p-4 pr-6">Thời gian thu thập</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60">
-                {counters.data?.data.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-800/40 transition-colors">
-                    <td className="p-4 pl-6 font-semibold text-slate-200">{item.definition_key}</td>
-                    <td className="p-4 font-bold text-cyan-400">{item.raw_value.toLocaleString()}</td>
-                    <td className="p-4 text-slate-300">{item.unit}</td>
-                    <td className="p-4">
-                      <span className={`quality-tag quality-${item.quality}`}>{item.quality}</span>
-                    </td>
-                    <td className="p-4 pr-6 text-slate-400">{new Date(item.collected_at).toLocaleString('vi-VN')}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            columns={counterColumns}
+            data={counters.data?.data ?? []}
+            searchPlaceholder="Tìm kiếm theo bộ đếm, đơn vị, chất lượng..."
+            initialPageSize={10}
+            emptyMessage="Chưa có chỉ số bộ đếm nào được ghi nhận"
+            emptySubMessage="Bấm nút 'Thu thập tức thì' ở trên để tiến hành đọc số trang từ máy in qua SNMP."
+          />
         )}
       </div>
 
       {/* Monthly Usage Aggregation */}
-      <div className="glass-panel overflow-hidden">
-        <div className="p-6 border-b border-slate-800 flex items-center justify-between">
+      <div className="glass-panel p-6 sm:p-8 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-4 pb-1">
           <div>
             <p className="text-xs font-bold uppercase tracking-wider text-emerald-400">Tổng hợp theo tháng</p>
             <h3 className="text-lg font-bold text-slate-100">Sản lượng in hàng tháng</h3>
@@ -530,36 +588,14 @@ export function PrinterDetailPage() {
           </span>
         </div>
 
-        {monthlyUsage.length === 0 ? (
-          <div className="p-8 text-center text-slate-400 text-sm">Chưa có dữ liệu sản lượng in theo tháng.</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs sm:text-sm">
-              <thead>
-                <tr className="bg-slate-950/60 text-slate-400 uppercase text-[11px] font-bold tracking-wider border-b border-slate-800">
-                  <th className="p-4 pl-6">Tháng</th>
-                  <th className="p-4">Bộ đếm</th>
-                  <th className="p-4">Lưu lượng in</th>
-                  <th className="p-4 pr-6">Trạng thái dữ liệu</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60">
-                {monthlyUsage.map((item) => (
-                  <tr key={`${item.definition_key}-${item.month}`} className="hover:bg-slate-800/40 transition-colors">
-                    <td className="p-4 pl-6 font-bold text-slate-200">{item.month}</td>
-                    <td className="p-4 text-slate-300">{item.definition_key}</td>
-                    <td className="p-4 font-bold text-emerald-400">
-                      {item.delta.toLocaleString()} {item.unit}
-                    </td>
-                    <td className="p-4 pr-6">
-                      <span className={`quality-tag quality-${item.quality}`}>{item.quality}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <DataTable
+          columns={monthlyUsageColumns}
+          data={monthlyUsage}
+          searchPlaceholder="Tìm kiếm theo tháng (YYYY-MM), bộ đếm..."
+          initialPageSize={10}
+          emptyMessage="Chưa có dữ liệu sản lượng in theo tháng"
+          emptySubMessage="Dữ liệu tổng hợp theo tháng sẽ tự động hiển thị sau khi ghi nhận các chu kỳ đọc bộ đếm."
+        />
       </div>
 
       {/* Modal Edit Printer */}

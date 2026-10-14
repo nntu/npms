@@ -1,6 +1,7 @@
 import { Drop, Plus, Recycle, Wrench } from '@phosphor-icons/react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import type { ColumnDef } from '@tanstack/react-table'
+import { useMemo, useState } from 'react'
 import {
   createCartridge,
   listCartridgeLogs,
@@ -8,7 +9,8 @@ import {
   refillCartridges,
   updateCartridgeStock,
 } from '../../api/client'
-import type { Cartridge } from '../../api/types'
+import type { Cartridge, CartridgeLog } from '../../api/types'
+import { DataTable } from '../../components/DataTable'
 import { showError, showSuccess } from '../../utils/sweetalert'
 
 export function CartridgesPage() {
@@ -123,6 +125,165 @@ export function CartridgesPage() {
       ? Math.round(refilledYieldLogs.reduce((acc, log) => acc + (log.printed_pages ?? 0), 0) / refilledYieldLogs.length)
       : 0
 
+  const cartridgeColumns = useMemo<ColumnDef<Cartridge>[]>(
+    () => [
+      {
+        id: 'name',
+        accessorFn: (row) => `${row.name} ${row.sku_code}`,
+        header: 'Mã mực (SKU) / Tên',
+        cell: ({ row }) => (
+          <div>
+            <span className="font-bold text-slate-100 block">{row.original.name}</span>
+            <small className="text-cyan-400 font-mono text-xs">{row.original.sku_code}</small>
+          </div>
+        ),
+      },
+      {
+        id: 'compatible_models',
+        accessorKey: 'compatible_models',
+        header: 'Máy in tương thích',
+        cell: ({ row }) => <span className="text-slate-300 text-xs">{row.original.compatible_models || 'Tất cả'}</span>,
+      },
+      {
+        id: 'stock_new',
+        accessorKey: 'stock_new',
+        header: '🟢 Bình MỚI',
+        cell: ({ row }) => <span className="font-bold text-emerald-400 text-base">{row.original.stock_new}</span>,
+      },
+      {
+        id: 'stock_refilled',
+        accessorKey: 'stock_refilled',
+        header: '🔵 Bình BƠM',
+        cell: ({ row }) => <span className="font-bold text-cyan-400 text-base">{row.original.stock_refilled}</span>,
+      },
+      {
+        id: 'stock_empty',
+        accessorKey: 'stock_empty',
+        header: '🔴 Vỏ HẾT (Chờ bơm)',
+        cell: ({ row }) => <span className="font-bold text-amber-400 text-base">{row.original.stock_empty}</span>,
+      },
+      {
+        id: 'actions',
+        header: () => <span className="block text-right">Thao tác kho</span>,
+        enableSorting: false,
+        cell: ({ row }) => {
+          const cartridge = row.original
+          return (
+            <div className="flex items-center justify-end space-x-2">
+              {cartridge.stock_empty > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedCartridge(cartridge)
+                    setRefillQuantity(cartridge.stock_empty)
+                    setShowRefillModal(true)
+                  }}
+                  className="bg-amber-600 hover:bg-amber-500 text-white font-semibold px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer inline-flex items-center gap-1"
+                >
+                  <Recycle size={14} /> Bơm {cartridge.stock_empty} vỏ
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCartridge(cartridge)
+                  setShowStockModal(true)
+                }}
+                className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold px-3 py-1.5 rounded-lg text-xs border border-slate-700 transition-all cursor-pointer"
+              >
+                + Thêm tồn kho
+              </button>
+            </div>
+          )
+        },
+      },
+    ],
+    [],
+  )
+
+  const cartridgeLogColumns = useMemo<ColumnDef<CartridgeLog>[]>(
+    () => [
+      {
+        id: 'performed_at',
+        accessorKey: 'performed_at',
+        header: 'Thời gian',
+        cell: ({ row }) => (
+          <span className="text-slate-400 text-xs">{new Date(row.original.performed_at).toLocaleString('vi-VN')}</span>
+        ),
+      },
+      {
+        id: 'action_type',
+        accessorKey: 'action_type',
+        header: 'Hành động',
+        cell: ({ row }) => {
+          const act = row.original.action_type
+          return (
+            <span className="font-semibold text-xs">
+              {act === 'replace' ? (
+                <span className="text-cyan-400">🖨️ Thay vào máy in</span>
+              ) : act === 'refill' ? (
+                <span className="text-amber-400">🔄 Bơm mực xong</span>
+              ) : (
+                <span className="text-emerald-400">📦 Nhập kho thêm</span>
+              )}
+            </span>
+          )
+        },
+      },
+      {
+        id: 'source_type',
+        accessorKey: 'source_type',
+        header: 'Nguồn mực',
+        cell: ({ row }) => (
+          <span className="text-xs font-medium text-slate-300">
+            {row.original.source_type === 'new'
+              ? '🟢 Bình mới 100%'
+              : row.original.source_type === 'refilled'
+                ? '🔵 Bình đã bơm'
+                : '—'}
+          </span>
+        ),
+      },
+      {
+        id: 'printed_pages',
+        header: 'Sản lượng in',
+        accessorFn: (row) => row.printed_pages ?? row.page_count ?? 0,
+        cell: ({ row }) => {
+          const log = row.original
+          if (log.action_type !== 'replace') return <span className="text-slate-600">—</span>
+          if (log.printed_pages && log.printed_pages > 0) {
+            return (
+              <span className="text-cyan-400 font-bold text-xs">
+                ⚡ {log.printed_pages.toLocaleString('vi-VN')} trang
+              </span>
+            )
+          }
+          if (log.page_count && log.page_count > 0) {
+            return (
+              <span className="text-slate-400 font-normal text-xs">
+                Đang dùng ({log.page_count.toLocaleString('vi-VN')})
+              </span>
+            )
+          }
+          return <span className="text-slate-500 font-normal text-xs">Đang hoạt động</span>
+        },
+      },
+      {
+        id: 'quantity',
+        accessorKey: 'quantity',
+        header: 'Số lượng',
+        cell: ({ row }) => <span className="font-bold text-slate-200">{row.original.quantity}</span>,
+      },
+      {
+        id: 'notes',
+        accessorKey: 'notes',
+        header: 'Ghi chú',
+        cell: ({ row }) => <span className="text-slate-400 text-xs">{row.original.notes || '—'}</span>,
+      },
+    ],
+    [],
+  )
+
   return (
     <div className="space-y-6">
       {/* Page Banner */}
@@ -215,8 +376,8 @@ export function CartridgesPage() {
       </div>
 
       {/* Main Inventory Table */}
-      <div className="glass-panel overflow-hidden">
-        <div className="p-6 border-b border-slate-800 flex items-center justify-between">
+      <div className="glass-panel p-6 sm:p-8 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-4 pb-1">
           <div>
             <p className="text-xs font-bold uppercase tracking-wider text-cyan-400">Danh mục tồn kho</p>
             <h2 className="text-xl font-bold text-slate-100">Các loại bình mực</h2>
@@ -226,132 +387,36 @@ export function CartridgesPage() {
           </span>
         </div>
 
-        {items.length === 0 ? (
-          <div className="p-12 text-center text-slate-400">Chưa có loại mực nào. Nhấn "Thêm loại mực mới" ở trên.</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs sm:text-sm">
-              <thead>
-                <tr className="bg-slate-950/60 text-slate-400 uppercase text-[11px] font-bold tracking-wider border-b border-slate-800">
-                  <th className="p-4 pl-6">Mã mực (SKU) / Tên</th>
-                  <th className="p-4">Máy in tương thích</th>
-                  <th className="p-4">🟢 Bình MỚI</th>
-                  <th className="p-4">🔵 Bình BƠM</th>
-                  <th className="p-4">🔴 Vỏ HẾT (Chờ bơm)</th>
-                  <th className="p-4 pr-6 text-right">Thao tác kho</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60">
-                {items.map((cartridge) => (
-                  <tr key={cartridge.id} className="hover:bg-slate-800/40 transition-colors">
-                    <td className="p-4 pl-6">
-                      <span className="font-bold text-slate-100 block">{cartridge.name}</span>
-                      <small className="text-cyan-400 font-mono text-xs">{cartridge.sku_code}</small>
-                    </td>
-                    <td className="p-4 text-slate-300 text-xs">{cartridge.compatible_models || 'Tất cả'}</td>
-                    <td className="p-4 font-bold text-emerald-400 text-base">{cartridge.stock_new}</td>
-                    <td className="p-4 font-bold text-cyan-400 text-base">{cartridge.stock_refilled}</td>
-                    <td className="p-4 font-bold text-amber-400 text-base">{cartridge.stock_empty}</td>
-                    <td className="p-4 pr-6 text-right space-x-2">
-                      {cartridge.stock_empty > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedCartridge(cartridge)
-                            setRefillQuantity(cartridge.stock_empty)
-                            setShowRefillModal(true)
-                          }}
-                          className="bg-amber-600 hover:bg-amber-500 text-white font-semibold px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer inline-flex items-center gap-1"
-                        >
-                          <Recycle size={14} /> Bơm {cartridge.stock_empty} vỏ
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedCartridge(cartridge)
-                          setShowStockModal(true)
-                        }}
-                        className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold px-3 py-1.5 rounded-lg text-xs border border-slate-700 transition-all cursor-pointer"
-                      >
-                        + Thêm tồn kho
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <DataTable
+          columns={cartridgeColumns}
+          data={items}
+          searchPlaceholder="Tìm kiếm loại mực theo tên, SKU, máy in tương thích..."
+          initialPageSize={10}
+          emptyMessage="Chưa có loại mực nào phù hợp"
+          emptySubMessage="Nhấn 'Thêm loại mực mới' ở trên để khai báo vào hệ thống."
+        />
       </div>
 
       {/* Cartridge Logs Table */}
-      <div className="glass-panel overflow-hidden">
-        <div className="p-6 border-b border-slate-800">
-          <p className="text-xs font-bold uppercase tracking-wider text-cyan-400">Nhật ký hoạt động</p>
-          <h2 className="text-xl font-bold text-slate-100">Lịch sử xuất / nhập / thay / bơm mực & Hiệu suất</h2>
+      <div className="glass-panel p-6 sm:p-8 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-4 pb-1">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-cyan-400">Nhật ký hoạt động</p>
+            <h2 className="text-xl font-bold text-slate-100">Lịch sử xuất / nhập / thay / bơm mực & Hiệu suất</h2>
+          </div>
+          <span className="text-xs font-semibold bg-slate-800 text-slate-300 px-3 py-1 rounded-full">
+            {logs.length} bản ghi
+          </span>
         </div>
 
-        {logs.length === 0 ? (
-          <div className="p-8 text-center text-slate-400 text-sm">Chưa có nhật ký hoạt động.</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs sm:text-sm">
-              <thead>
-                <tr className="bg-slate-950/60 text-slate-400 uppercase text-[11px] font-bold tracking-wider border-b border-slate-800">
-                  <th className="p-4 pl-6">Thời gian</th>
-                  <th className="p-4">Hành động</th>
-                  <th className="p-4">Nguồn mực</th>
-                  <th className="p-4">Sản lượng in</th>
-                  <th className="p-4">Số lượng</th>
-                  <th className="p-4 pr-6">Ghi chú</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60">
-                {logs.map((log) => (
-                  <tr key={log.id} className="hover:bg-slate-800/30 transition-colors">
-                    <td className="p-4 pl-6 text-slate-400 text-xs">
-                      {new Date(log.performed_at).toLocaleString('vi-VN')}
-                    </td>
-                    <td className="p-4 font-semibold">
-                      {log.action_type === 'replace' ? (
-                        <span className="text-cyan-400">🖨️ Thay vào máy in</span>
-                      ) : log.action_type === 'refill' ? (
-                        <span className="text-amber-400">🔄 Bơm mực xong</span>
-                      ) : (
-                        <span className="text-emerald-400">📦 Nhập kho thêm</span>
-                      )}
-                    </td>
-                    <td className="p-4 text-xs font-medium text-slate-300">
-                      {log.source_type === 'new'
-                        ? '🟢 Bình mới 100%'
-                        : log.source_type === 'refilled'
-                          ? '🔵 Bình đã bơm'
-                          : '—'}
-                    </td>
-                    <td className="p-4 font-bold text-cyan-400 text-xs">
-                      {log.action_type === 'replace' ? (
-                        log.printed_pages && log.printed_pages > 0 ? (
-                          <span>⚡ {log.printed_pages.toLocaleString('vi-VN')} trang</span>
-                        ) : log.page_count && log.page_count > 0 ? (
-                          <span className="text-slate-400 font-normal">
-                            Đang dùng (mốc: {log.page_count.toLocaleString('vi-VN')})
-                          </span>
-                        ) : (
-                          <span className="text-slate-500 font-normal">Đang hoạt động</span>
-                        )
-                      ) : (
-                        <span className="text-slate-600">—</span>
-                      )}
-                    </td>
-                    <td className="p-4 font-bold text-slate-200">{log.quantity}</td>
-                    <td className="p-4 pr-6 text-slate-400 text-xs">{log.notes || '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <DataTable
+          columns={cartridgeLogColumns}
+          data={logs}
+          searchPlaceholder="Tìm kiếm nhật ký theo hành động, nguồn mực, ghi chú..."
+          initialPageSize={10}
+          emptyMessage="Chưa có nhật ký hoạt động nào"
+          emptySubMessage="Nhật ký sẽ tự động ghi lại mỗi khi thay mực vào máy in, bơm mực hoặc nhập kho."
+        />
       </div>
 
       {/* Modal Add Cartridge */}

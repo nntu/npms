@@ -11,10 +11,12 @@ import {
   X,
 } from '@phosphor-icons/react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import type { ColumnDef } from '@tanstack/react-table'
+import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { deletePrinter, probeDiscovery, registerPrinter, updatePrinter } from '../../api/client'
 import type { DiscoveryResult, Printer, PrinterStatus } from '../../api/types'
+import { DataTable } from '../../components/DataTable'
 import { showConfirm, showError, showSuccess } from '../../utils/sweetalert'
 import { usePollJob } from './usePollJob'
 import { usePrinters } from './usePrinters'
@@ -36,82 +38,6 @@ interface LocationDiscoveryState {
     result: DiscoveryResult
     community: string
   }
-}
-
-function PrinterRow({
-  printer,
-  onSelect,
-  onEdit,
-  onDelete,
-}: {
-  printer: Printer
-  onSelect: (id: string) => void
-  onEdit: (printer: Printer) => void
-  onDelete: (printer: Printer) => void
-}) {
-  return (
-    <tr
-      onClick={() => onSelect(printer.id)}
-      className="hover:bg-slate-800/50 cursor-pointer transition-colors border-b border-slate-800/60"
-    >
-      <td className="p-4 pl-6">
-        <button type="button" className="text-left group">
-          <span className="font-bold text-slate-100 group-hover:text-cyan-400 transition-colors block text-sm">
-            {printer.display_name}
-          </span>
-          <small className="text-slate-400 text-xs mt-0.5 block">
-            {printer.asset_code ?? 'Chưa gán mã tài sản'}
-            {printer.serial ? ` · SN: ${printer.serial}` : ''}
-          </small>
-        </button>
-      </td>
-      <td className="p-4 text-slate-300 text-xs font-mono">
-        {printer.address ? `${printer.address}${printer.port && printer.port !== 161 ? `:${printer.port}` : ''}` : '—'}
-      </td>
-      <td className="p-4 text-slate-300 text-sm font-semibold">{printer.department || '—'}</td>
-      <td className="p-4 text-slate-300 text-sm">
-        <span className="font-semibold text-slate-200">{printer.manufacturer || '—'}</span>
-        {printer.model ? <span className="block text-xs text-slate-400 mt-0.5">{printer.model}</span> : null}
-      </td>
-      <td className="p-4">
-        <span className="text-xs font-mono bg-slate-900 border border-slate-800 text-cyan-300 px-2.5 py-1 rounded-lg">
-          {printer.profile_id || 'generic-printer-mib'}
-        </span>
-      </td>
-      <td className="p-4">
-        <StatusBadge status={printer.status} />
-      </td>
-      <td className="p-4 text-slate-400 text-xs">
-        {printer.last_seen_at ? new Date(printer.last_seen_at).toLocaleString('vi-VN') : 'Chưa từng quét'}
-      </td>
-      <td className="p-4 pr-6 text-right">
-        <div className="inline-flex items-center gap-1.5">
-          <button
-            type="button"
-            title="Sửa thông tin & cấu hình SNMP"
-            onClick={(e) => {
-              e.stopPropagation()
-              onEdit(printer)
-            }}
-            className="p-2 rounded-lg bg-slate-800/80 hover:bg-cyan-950/80 text-slate-300 hover:text-cyan-300 border border-slate-700/70 hover:border-cyan-700/70 transition-colors cursor-pointer"
-          >
-            <PencilSimple size={16} weight="bold" />
-          </button>
-          <button
-            type="button"
-            title="Xóa máy in"
-            onClick={(e) => {
-              e.stopPropagation()
-              onDelete(printer)
-            }}
-            className="p-2 rounded-lg bg-slate-800/80 hover:bg-rose-950/80 text-slate-300 hover:text-rose-300 border border-slate-700/70 hover:border-rose-700/70 transition-colors cursor-pointer"
-          >
-            <Trash size={16} weight="bold" />
-          </button>
-        </div>
-      </td>
-    </tr>
-  )
 }
 
 export function DevicesPage() {
@@ -395,6 +321,140 @@ export function DevicesPage() {
   const printers = query.data?.data ?? []
   const availableProfiles = profiles.data?.data ?? []
   const verifiedProfilesCount = availableProfiles.filter((p) => p.verification_status === 'verified').length
+
+  const departmentOptions = useMemo(() => {
+    const set = new Set<string>()
+    for (const p of printers) {
+      if (p.department) set.add(p.department)
+    }
+    return Array.from(set).sort()
+  }, [printers])
+
+  const printerColumns = useMemo<ColumnDef<Printer>[]>(
+    () => [
+      {
+        id: 'display_name',
+        accessorFn: (row) => `${row.display_name} ${row.asset_code ?? ''} ${row.serial ?? ''}`,
+        header: 'Tên máy in / Mã tài sản',
+        cell: ({ row }) => {
+          const printer = row.original
+          return (
+            <div className="group text-left">
+              <span className="font-bold text-slate-100 group-hover:text-cyan-400 transition-colors block text-sm">
+                {printer.display_name}
+              </span>
+              <small className="text-slate-400 text-xs mt-0.5 block">
+                {printer.asset_code ?? 'Chưa gán mã tài sản'}
+                {printer.serial ? ` · SN: ${printer.serial}` : ''}
+              </small>
+            </div>
+          )
+        },
+      },
+      {
+        id: 'address',
+        accessorKey: 'address',
+        header: 'Địa chỉ IP',
+        cell: ({ row }) => {
+          const printer = row.original
+          return (
+            <span className="text-slate-300 text-xs font-mono">
+              {printer.address
+                ? `${printer.address}${printer.port && printer.port !== 161 ? `:${printer.port}` : ''}`
+                : '—'}
+            </span>
+          )
+        },
+      },
+      {
+        id: 'department',
+        accessorKey: 'department',
+        header: 'Phòng ban',
+        cell: ({ row }) => (
+          <span className="text-slate-300 text-sm font-semibold">{row.original.department || '—'}</span>
+        ),
+      },
+      {
+        id: 'model',
+        accessorFn: (row) => `${row.manufacturer ?? ''} ${row.model ?? ''}`,
+        header: 'Hãng / Dòng máy',
+        cell: ({ row }) => {
+          const printer = row.original
+          return (
+            <div className="text-sm">
+              <span className="font-semibold text-slate-200">{printer.manufacturer || '—'}</span>
+              {printer.model ? <span className="block text-xs text-slate-400 mt-0.5">{printer.model}</span> : null}
+            </div>
+          )
+        },
+      },
+      {
+        id: 'profile_id',
+        accessorKey: 'profile_id',
+        header: 'Profile SNMP',
+        cell: ({ row }) => (
+          <span className="text-xs font-mono bg-slate-900 border border-slate-800 text-cyan-300 px-2.5 py-1 rounded-lg">
+            {row.original.profile_id || 'generic-printer-mib'}
+          </span>
+        ),
+      },
+      {
+        id: 'status',
+        accessorKey: 'status',
+        header: 'Trạng thái',
+        cell: ({ row }) => <StatusBadge status={row.original.status} />,
+        filterFn: (row, id, value) => {
+          if (!value || value === 'all') return true
+          return row.getValue(id) === value
+        },
+      },
+      {
+        id: 'last_seen_at',
+        accessorKey: 'last_seen_at',
+        header: 'Lần thấy cuối',
+        cell: ({ row }) => (
+          <span className="text-slate-400 text-xs">
+            {row.original.last_seen_at ? new Date(row.original.last_seen_at).toLocaleString('vi-VN') : 'Chưa từng quét'}
+          </span>
+        ),
+      },
+      {
+        id: 'actions',
+        header: () => <span className="block text-right">Thao tác</span>,
+        enableSorting: false,
+        cell: ({ row }) => {
+          const printer = row.original
+          return (
+            <div className="flex items-center justify-end gap-1.5">
+              <button
+                type="button"
+                title="Sửa thông tin & cấu hình SNMP"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleOpenEdit(printer)
+                }}
+                className="p-2 rounded-lg bg-slate-800/80 hover:bg-cyan-950/80 text-slate-300 hover:text-cyan-300 border border-slate-700/70 hover:border-cyan-700/70 transition-colors cursor-pointer"
+              >
+                <PencilSimple size={16} weight="bold" />
+              </button>
+              <button
+                type="button"
+                title="Xóa máy in"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  void handleDeletePrinter(printer)
+                }}
+                className="p-2 rounded-lg bg-slate-800/80 hover:bg-rose-950/80 text-slate-300 hover:text-rose-300 border border-slate-700/70 hover:border-rose-700/70 transition-colors cursor-pointer"
+              >
+                <Trash size={16} weight="bold" />
+              </button>
+            </div>
+          )
+        },
+      },
+    ],
+    [],
+  )
 
   return (
     <div className="space-y-6">
@@ -722,8 +782,8 @@ export function DevicesPage() {
       )}
 
       {/* Printers Main Table */}
-      <div className="glass-panel overflow-hidden">
-        <div className="p-6 border-b border-slate-800 flex items-center justify-between">
+      <div className="glass-panel p-6 sm:p-8 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-4 pb-1">
           <div>
             <p className="text-xs font-bold uppercase tracking-wider text-cyan-400">Danh sách thiết bị</p>
             <h2 className="text-xl font-bold text-slate-100">Máy in hiện có</h2>
@@ -733,45 +793,49 @@ export function DevicesPage() {
           </span>
         </div>
 
-        {printers.length === 0 ? (
-          <div className="p-12 text-center text-slate-400 space-y-3">
-            <div className="w-12 h-12 rounded-2xl bg-slate-800/80 text-cyan-400 flex items-center justify-center mx-auto text-xl">
-              ⌁
+        <DataTable
+          columns={printerColumns}
+          data={printers}
+          searchPlaceholder="Tìm kiếm máy in theo tên, IP, phòng ban, model, serial..."
+          initialPageSize={10}
+          onRowClick={(printer) => navigate(`/printers/${printer.id}`)}
+          emptyMessage="Chưa có máy in nào phù hợp"
+          emptySubMessage="Thử điều chỉnh từ khóa tìm kiếm hoặc bấm Thêm máy in để đăng ký mới."
+          renderCustomFilter={(table) => (
+            <div className="flex items-center gap-2 flex-wrap">
+              <select
+                value={(table.getColumn('status')?.getFilterValue() as string) ?? 'all'}
+                onChange={(e) =>
+                  table.getColumn('status')?.setFilterValue(e.target.value === 'all' ? undefined : e.target.value)
+                }
+                className="bg-slate-950/80 border border-slate-800 rounded-xl px-3 py-2 text-xs sm:text-sm text-slate-200 focus:outline-none focus:border-cyan-500 cursor-pointer"
+              >
+                <option value="all">Tất cả trạng thái</option>
+                <option value="online">🟢 Hoạt động</option>
+                <option value="offline">🔴 Ngoại tuyến</option>
+                <option value="unknown">⚪ Chưa xác định</option>
+                <option value="unavailable">⚫ Không khả dụng</option>
+              </select>
+
+              {departmentOptions.length > 0 && (
+                <select
+                  value={(table.getColumn('department')?.getFilterValue() as string) ?? 'all'}
+                  onChange={(e) =>
+                    table.getColumn('department')?.setFilterValue(e.target.value === 'all' ? undefined : e.target.value)
+                  }
+                  className="bg-slate-950/80 border border-slate-800 rounded-xl px-3 py-2 text-xs sm:text-sm text-slate-200 focus:outline-none focus:border-cyan-500 cursor-pointer max-w-[200px]"
+                >
+                  <option value="all">Tất cả phòng ban</option>
+                  {departmentOptions.map((dept) => (
+                    <option key={dept} value={dept}>
+                      {dept}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
-            <h3 className="text-base font-bold text-slate-200">Chưa có máy in nào được đăng ký</h3>
-            <p className="text-xs text-slate-400 max-w-sm mx-auto">
-              Nhấn nút &ldquo;Thêm máy in&rdquo; ở trên để kết nối và tự động nhận diện máy in trong mạng LAN qua SNMP.
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs sm:text-sm">
-              <thead>
-                <tr className="bg-slate-950/60 text-slate-400 uppercase text-[11px] font-bold tracking-wider border-b border-slate-800">
-                  <th className="p-4 pl-6">Tên máy in / Mã tài sản</th>
-                  <th className="p-4">Địa chỉ IP</th>
-                  <th className="p-4">Phòng ban</th>
-                  <th className="p-4">Hãng / Dòng máy</th>
-                  <th className="p-4">Profile SNMP</th>
-                  <th className="p-4">Trạng thái</th>
-                  <th className="p-4">Lần thấy cuối</th>
-                  <th className="p-4 pr-6 text-right">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60">
-                {printers.map((printer) => (
-                  <PrinterRow
-                    key={printer.id}
-                    printer={printer}
-                    onSelect={(id) => navigate(`/printers/${id}`)}
-                    onEdit={handleOpenEdit}
-                    onDelete={(p) => void handleDeletePrinter(p)}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+          )}
+        />
       </div>
 
       {/* Edit Printer Modal */}
