@@ -47,9 +47,6 @@ func (s *Scheduler) Run(ctx context.Context, targets []Target, poll PollFunc) ([
 	if poll == nil {
 		return nil, fmt.Errorf("poll function is required")
 	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
 	seen := make(map[string]struct{}, len(targets))
 	for _, target := range targets {
 		if target.ID == "" {
@@ -61,6 +58,13 @@ func (s *Scheduler) Run(ctx context.Context, targets []Target, poll PollFunc) ([
 		seen[target.ID] = struct{}{}
 	}
 	results := make([]Result, len(targets))
+	for index, target := range targets {
+		results[index].TargetID = target.ID
+	}
+	if err := ctx.Err(); err != nil {
+		markUnstarted(results, err)
+		return results, err
+	}
 	tasks := make(chan int)
 	var workers sync.WaitGroup
 	workerCount := s.config.Concurrency
@@ -82,12 +86,21 @@ func (s *Scheduler) Run(ctx context.Context, targets []Target, poll PollFunc) ([
 		case <-ctx.Done():
 			close(tasks)
 			workers.Wait()
+			markUnstarted(results, ctx.Err())
 			return results, ctx.Err()
 		}
 	}
 	close(tasks)
 	workers.Wait()
 	return results, nil
+}
+
+func markUnstarted(results []Result, err error) {
+	for index := range results {
+		if results[index].Attempts == 0 {
+			results[index].Err = err
+		}
+	}
 }
 
 func (s *Scheduler) pollOne(ctx context.Context, target Target, poll PollFunc) Result {

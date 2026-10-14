@@ -169,6 +169,21 @@ func (r registryRunner) RunCounters(ctx context.Context) error {
 }
 
 func (r registryRunner) RunCleanup(ctx context.Context) error {
+	reconcileStats, err := r.repository.ReconcileStaleRuns(ctx, repository.StaleReconciliationPolicy{
+		RunningTimeout: 10 * time.Minute,
+		Now:            time.Now().UTC(),
+	})
+	if err != nil {
+		slog.Error("stale runs reconciliation failed", "error", err)
+	} else if reconcileStats.InterruptedRuns > 0 || reconcileStats.FailedJobs > 0 || reconcileStats.ReleasedLeases > 0 {
+		slog.Info("stale runs reconciliation complete",
+			"interrupted_runs", reconcileStats.InterruptedRuns,
+			"failed_jobs", reconcileStats.FailedJobs,
+			"released_leases", reconcileStats.ReleasedLeases,
+			"audit_events", reconcileStats.AuditEvents,
+		)
+	}
+
 	stats, err := r.repository.CleanupPollerData(ctx, r.retention)
 	if err != nil {
 		return err

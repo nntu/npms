@@ -69,3 +69,30 @@ func TestSchedulerReturnsPerTargetErrorAndRejectsDuplicates(t *testing.T) {
 		t.Fatal("expected duplicate target error")
 	}
 }
+
+func TestSchedulerCancellationIdentifiesUnstartedTargets(t *testing.T) {
+	scheduler, err := NewScheduler(Config{Concurrency: 1, MaxAttempts: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	started := make(chan struct{})
+	results, runErr := scheduler.Run(ctx, []Target{{ID: "a"}, {ID: "b"}, {ID: "c"}}, func(ctx context.Context, _ Target) error {
+		close(started)
+		cancel()
+		return ctx.Err()
+	})
+	<-started
+	if !errors.Is(runErr, context.Canceled) {
+		t.Fatalf("run error = %v, want context canceled", runErr)
+	}
+	if len(results) != 3 {
+		t.Fatalf("result count = %d, want 3", len(results))
+	}
+	for index, result := range results {
+		wantID := string(rune('a' + index))
+		if result.TargetID != wantID || !errors.Is(result.Err, context.Canceled) {
+			t.Fatalf("unexpected result %d: %#v", index, result)
+		}
+	}
+}

@@ -267,6 +267,21 @@ func (r *Runner) PollDevice(ctx context.Context, deviceID string) error {
 }
 
 func (r *Runner) RunCleanup(ctx context.Context) error {
+	reconcileStats, err := r.repository.ReconcileStaleRuns(ctx, repository.StaleReconciliationPolicy{
+		RunningTimeout: 10 * time.Minute,
+		Now:            time.Now().UTC(),
+	})
+	if err != nil {
+		slog.Error("stale runs reconciliation failed", "error", err)
+	} else if reconcileStats.InterruptedRuns > 0 || reconcileStats.FailedJobs > 0 || reconcileStats.ReleasedLeases > 0 {
+		slog.Info("stale runs reconciliation complete",
+			"interrupted_runs", reconcileStats.InterruptedRuns,
+			"failed_jobs", reconcileStats.FailedJobs,
+			"released_leases", reconcileStats.ReleasedLeases,
+			"audit_events", reconcileStats.AuditEvents,
+		)
+	}
+
 	stats, err := r.repository.CleanupPollerData(ctx, r.retention)
 	if err != nil {
 		return err
@@ -284,6 +299,20 @@ func newID() (string, error) {
 }
 
 func RunLoop(ctx context.Context, runner *Runner, statusInterval, counterInterval, cleanupInterval time.Duration) error {
+	if stats, err := runner.repository.ReconcileStaleRuns(ctx, repository.StaleReconciliationPolicy{
+		RunningTimeout: 10 * time.Minute,
+		Now:            time.Now().UTC(),
+	}); err != nil {
+		slog.Error("startup stale runs reconciliation failed", "error", err)
+	} else if stats.InterruptedRuns > 0 || stats.FailedJobs > 0 || stats.ReleasedLeases > 0 {
+		slog.Info("startup stale runs reconciliation complete",
+			"interrupted_runs", stats.InterruptedRuns,
+			"failed_jobs", stats.FailedJobs,
+			"released_leases", stats.ReleasedLeases,
+			"audit_events", stats.AuditEvents,
+		)
+	}
+
 	loop, err := worker.NewLoop(worker.Config{StatusInterval: statusInterval, CounterInterval: counterInterval, CleanupInterval: cleanupInterval}, runner)
 	if err != nil {
 		return err

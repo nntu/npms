@@ -109,6 +109,160 @@ func (r *SQLiteRepository) CleanupPollerData(ctx context.Context, policy Cleanup
 	return stats, nil
 }
 
+type StaleReconciliationPolicy struct {
+	RunningTimeout time.Duration
+	Now            time.Time
+}
+
+type StaleReconciliationStats struct {
+	InterruptedRuns int64
+	FailedJobs      int64
+	ReleasedLeases  int64
+	AuditEvents     int64
+}
+
+// ReconcileStaleRuns identifies stale/timed-out polling runs in 'running' state,
+// marks them as 'interrupted' with 'poll_timeout', marks stale jobs as 'failed'
+// with 'job_timeout', creates audit records in counter_events, and releases expired poll leases.
+func (r *SQLiteRepository) ReconcileStaleRuns(ctx context.Context, policy StaleReconciliationPolicy) (StaleReconciliationStats, error) {
+	now := policy.Now.UTC()
+	if now.IsZero() {
+		now = time.Now().UTC()
+	}
+	timeout := policy.RunningTimeout
+	if timeout <= 0 {
+		timeout = 10 * time.Minute
+	}
+	threshold := now.Add(-timeout)
+	nowStr := now.Format(time.RFC3339Nano)
+	thresholdStr := threshold.Format(time.RFC3339Nano)
+
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return StaleReconciliationStats{}, fmt.Errorf("begin stale reconciliation: %w", err)
+	}
+	defer tx.Rollback()
+
+	var stats StaleReconciliationStats
+
+	// 1. Reconcile stale polling runs (running past timeout or ended_at IS NULL past threshold)
+	rows, err := tx.QueryContext(ctx, `SELECT id, device_id, job_kind, started_at
+		FROM polling_runs
+		WHERE (result = 'running' OR ended_at IS NULL) AND started_at < ?`, thresholdStr)
+	if err != nil {
+		return StaleReconciliationStats{}, fmt.Errorf("query stale polling runs: %w", err)
+	}
+	type staleRunItem struct {
+		id        string
+		deviceID  string
+		jobKind   string
+		startedAt string
+	}
+	var staleRuns []staleRunItem
+	for rows.Next() {
+		var item staleRunItem
+		if err := rows.Scan(&item.id, &item.deviceID, &item.jobKind, &item.startedAt); err != nil {
+			rows.Close()
+			return StaleReconciliationStats{}, fmt.Errorf("scan stale polling run: %w", err)
+		}
+		staleRuns = append(staleRuns, item)
+	}
+	if err := rows.Err(); err != nil {
+		return StaleReconciliationStats{}, fmt.Errorf("iterate stale polling runs: %w", err)
+	}
+	rows.Close()
+
+	for _, item := range staleRuns {
+		res, err := tx.ExecContext(ctx, `UPDATE polling_runs
+			SET ended_at = ?, result = 'interrupted', error_code = 'poll_timeout'
+			WHERE id = ? AND (result = 'running' OR ended_at IS NULL)`, nowStr, item.id)
+		if err != nil {
+			return StaleReconciliationStats{}, fmt.Errorf("interrupt stale polling run %s: %w", item.id, err)
+		}
+		affected, err := res.RowsAffected()
+		if err != nil {
+			return StaleReconciliationStats{}, fmt.Errorf("count interrupted polling run %s: %w", item.id, err)
+		}
+		if affected > 0 {
+			stats.InterruptedRuns += affected
+			details := fmt.Sprintf(`{"poll_run_id":%q,"job_kind":%q,"started_at":%q,"reason":"run exceeded timeout threshold of %s"}`, item.id, item.jobKind, item.startedAt, timeout)
+			if _, err := tx.ExecContext(ctx, `INSERT INTO counter_events(device_id, counter_definition_id, event_type, details, created_at)
+				VALUES (?, NULL, 'poll_interrupted', ?, ?)`, item.deviceID, details, nowStr); err != nil {
+				return StaleReconciliationStats{}, fmt.Errorf("insert audit event for run %s: %w", item.id, err)
+			}
+			stats.AuditEvents++
+		}
+	}
+
+	// 2. Reconcile stale jobs (queued or running past threshold)
+	jobRows, err := tx.QueryContext(ctx, `SELECT id, device_id, kind, created_at, started_at
+		FROM jobs
+		WHERE status IN ('queued', 'running') AND ended_at IS NULL
+		  AND ((started_at IS NOT NULL AND started_at < ?) OR (started_at IS NULL AND created_at < ?))`, thresholdStr, thresholdStr)
+	if err != nil {
+		return StaleReconciliationStats{}, fmt.Errorf("query stale jobs: %w", err)
+	}
+	type staleJobItem struct {
+		id        string
+		deviceID  string
+		kind      string
+		createdAt string
+		startedAt sql.NullString
+	}
+	var staleJobs []staleJobItem
+	for jobRows.Next() {
+		var j staleJobItem
+		if err := jobRows.Scan(&j.id, &j.deviceID, &j.kind, &j.createdAt, &j.startedAt); err != nil {
+			jobRows.Close()
+			return StaleReconciliationStats{}, fmt.Errorf("scan stale job: %w", err)
+		}
+		staleJobs = append(staleJobs, j)
+	}
+	if err := jobRows.Err(); err != nil {
+		return StaleReconciliationStats{}, fmt.Errorf("iterate stale jobs: %w", err)
+	}
+	jobRows.Close()
+
+	for _, j := range staleJobs {
+		res, err := tx.ExecContext(ctx, `UPDATE jobs
+			SET ended_at = ?, status = 'failed', error_code = 'job_timeout'
+			WHERE id = ? AND status IN ('queued', 'running')`, nowStr, j.id)
+		if err != nil {
+			return StaleReconciliationStats{}, fmt.Errorf("fail stale job %s: %w", j.id, err)
+		}
+		affected, err := res.RowsAffected()
+		if err != nil {
+			return StaleReconciliationStats{}, fmt.Errorf("count failed job %s: %w", j.id, err)
+		}
+		if affected > 0 {
+			stats.FailedJobs += affected
+			if j.deviceID != "" {
+				details := fmt.Sprintf(`{"job_id":%q,"kind":%q,"reason":"job exceeded timeout threshold of %s"}`, j.id, j.kind, timeout)
+				if _, err := tx.ExecContext(ctx, `INSERT INTO counter_events(device_id, counter_definition_id, event_type, details, created_at)
+					VALUES (?, NULL, 'job_timeout', ?, ?)`, j.deviceID, details, nowStr); err != nil {
+					return StaleReconciliationStats{}, fmt.Errorf("insert audit event for job %s: %w", j.id, err)
+				}
+				stats.AuditEvents++
+			}
+		}
+	}
+
+	// 3. Release expired poll leases
+	leaseRes, err := tx.ExecContext(ctx, `DELETE FROM poll_leases WHERE lease_until <= ?`, nowStr)
+	if err != nil {
+		return StaleReconciliationStats{}, fmt.Errorf("release expired poll leases: %w", err)
+	}
+	stats.ReleasedLeases, err = leaseRes.RowsAffected()
+	if err != nil {
+		return StaleReconciliationStats{}, fmt.Errorf("count released poll leases: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return StaleReconciliationStats{}, fmt.Errorf("commit stale reconciliation: %w", err)
+	}
+	return stats, nil
+}
+
 func NewSQLiteRepository(db *sql.DB) (*SQLiteRepository, error) {
 	if db == nil {
 		return nil, fmt.Errorf("database is required")
@@ -651,6 +805,22 @@ type PollingRun struct {
 	AttemptCount   int
 }
 
+// CounterPollCompletion is the atomic terminal state of one counter poll.
+// A successful completion carries exactly one immutable reading; a failed
+// completion carries exactly one audit event.
+type CounterPollCompletion struct {
+	PollRunID           string
+	DeviceID            string
+	CounterDefinitionID string
+	Reading             *counter.Reading
+	Result              string
+	ErrorCode           string
+	EventType           string
+	EventDetails        string
+	EndedAt             time.Time
+	AttemptCount        int
+}
+
 type PollingRunRecord struct {
 	ID             string
 	DeviceID       string
@@ -794,6 +964,47 @@ func (r *SQLiteRepository) CreatePollingRun(ctx context.Context, run PollingRun)
 	return nil
 }
 
+// CreateCounterPollingRuns creates the work ledger for a counter cycle as one
+// transaction. Counter runs start with zero attempts and are updated to the
+// scheduler's actual attempt count when completed.
+func (r *SQLiteRepository) CreateCounterPollingRuns(ctx context.Context, runs []PollingRun) error {
+	seen := make(map[string]struct{}, len(runs))
+	for index := range runs {
+		run := &runs[index]
+		if run.ID == "" || run.DeviceID == "" || run.JobKind != "counter" {
+			return fmt.Errorf("counter polling run id, device id and job kind are required")
+		}
+		if _, exists := seen[run.ID]; exists {
+			return fmt.Errorf("duplicate polling run id %q", run.ID)
+		}
+		seen[run.ID] = struct{}{}
+		if run.AttemptCount < 0 {
+			return fmt.Errorf("attempt count cannot be negative")
+		}
+		if run.StartedAt.IsZero() {
+			run.StartedAt = time.Now().UTC()
+		}
+		if run.Result == "" {
+			run.Result = "running"
+		}
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin counter polling runs: %w", err)
+	}
+	defer tx.Rollback()
+	for _, run := range runs {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO polling_runs(id, device_id, job_kind, started_at, result, error_code, profile_version, attempt_count)
+			VALUES (?, ?, ?, ?, ?, NULLIF(?, ''), NULLIF(?, 0), ?)`, run.ID, run.DeviceID, run.JobKind, run.StartedAt.UTC().Format(time.RFC3339Nano), run.Result, run.ErrorCode, run.ProfileVersion, run.AttemptCount); err != nil {
+			return fmt.Errorf("create counter polling run %s: %w", run.ID, err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit counter polling runs: %w", err)
+	}
+	return nil
+}
+
 func (r *SQLiteRepository) FinishPollingRun(ctx context.Context, id, result, errorCode string, endedAt time.Time) error {
 	if result == "" {
 		return fmt.Errorf("polling result is required")
@@ -807,6 +1018,82 @@ func (r *SQLiteRepository) FinishPollingRun(ctx context.Context, id, result, err
 	}
 	if count, _ := res.RowsAffected(); count == 0 {
 		return sql.ErrNoRows
+	}
+	return nil
+}
+
+// CompleteCounterPoll commits the polling-run terminal state and its reading
+// or failure event together. Repeating an already completed run is a no-op, so
+// callers can safely retry after an uncertain commit result.
+func (r *SQLiteRepository) CompleteCounterPoll(ctx context.Context, completion CounterPollCompletion) error {
+	if strings.TrimSpace(completion.PollRunID) == "" || strings.TrimSpace(completion.DeviceID) == "" || strings.TrimSpace(completion.CounterDefinitionID) == "" {
+		return fmt.Errorf("poll run, device and counter definition are required")
+	}
+	if completion.AttemptCount < 0 {
+		return fmt.Errorf("attempt count cannot be negative")
+	}
+	switch completion.Result {
+	case "success":
+		if completion.Reading == nil {
+			return fmt.Errorf("successful counter poll requires a reading")
+		}
+		if completion.Reading.CollectedAt.IsZero() {
+			return fmt.Errorf("reading collected_at is required")
+		}
+		if !validQuality(completion.Reading.Quality) {
+			return fmt.Errorf("invalid reading quality %q", completion.Reading.Quality)
+		}
+	case "failed":
+		if completion.Reading != nil || strings.TrimSpace(completion.ErrorCode) == "" || strings.TrimSpace(completion.EventType) == "" {
+			return fmt.Errorf("failed counter poll requires an error code and event without a reading")
+		}
+	default:
+		return fmt.Errorf("unsupported counter poll result %q", completion.Result)
+	}
+	if completion.EndedAt.IsZero() {
+		completion.EndedAt = time.Now().UTC()
+	}
+
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin counter poll completion: %w", err)
+	}
+	defer tx.Rollback()
+	updated, err := tx.ExecContext(ctx, `UPDATE polling_runs
+		SET ended_at = ?, result = ?, error_code = NULLIF(?, ''), attempt_count = ?
+		WHERE id = ? AND device_id = ? AND ended_at IS NULL`, completion.EndedAt.UTC().Format(time.RFC3339Nano), completion.Result, completion.ErrorCode, completion.AttemptCount, completion.PollRunID, completion.DeviceID)
+	if err != nil {
+		return fmt.Errorf("finish counter polling run: %w", err)
+	}
+	count, err := updated.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("count finished counter polling run: %w", err)
+	}
+	if count == 0 {
+		var alreadyFinished bool
+		if err := tx.QueryRowContext(ctx, `SELECT ended_at IS NOT NULL FROM polling_runs WHERE id = ? AND device_id = ?`, completion.PollRunID, completion.DeviceID).Scan(&alreadyFinished); err != nil {
+			return err
+		}
+		if alreadyFinished {
+			return nil
+		}
+		return sql.ErrNoRows
+	}
+
+	if completion.Result == "success" {
+		reading := completion.Reading
+		if _, err := tx.ExecContext(ctx, `INSERT INTO counter_readings(poll_run_id, counter_definition_id, raw_value, collected_at, quality)
+			VALUES (?, ?, ?, ?, ?)`, completion.PollRunID, completion.CounterDefinitionID, reading.RawValue, reading.CollectedAt.UTC().Format(time.RFC3339Nano), reading.Quality); err != nil {
+			return fmt.Errorf("insert counter reading: %w", err)
+		}
+	} else {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO counter_events(device_id, counter_definition_id, event_type, details, created_at)
+			VALUES (?, ?, ?, ?, ?)`, completion.DeviceID, completion.CounterDefinitionID, completion.EventType, completion.EventDetails, completion.EndedAt.UTC().Format(time.RFC3339Nano)); err != nil {
+			return fmt.Errorf("insert counter event: %w", err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit counter poll completion: %w", err)
 	}
 	return nil
 }

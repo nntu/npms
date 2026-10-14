@@ -15,7 +15,7 @@ import {
   Sparkle,
 } from '@phosphor-icons/react'
 import { useQuery } from '@tanstack/react-query'
-import ExcelJS from 'exceljs'
+import type { Borders } from 'exceljs'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { listCartridgeLogs, listCartridges } from '../../api/client'
@@ -381,12 +381,13 @@ export function ReportsPage() {
   const handleExportExcel = async () => {
     setIsExporting(true)
     try {
+      const { default: ExcelJS } = await import('exceljs')
       const workbook = new ExcelJS.Workbook()
       workbook.creator = 'NPMS LAN Printer Management'
       workbook.created = new Date()
 
       const headerFont = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 }
-      const thinBorder: Partial<ExcelJS.Borders> = {
+      const thinBorder: Partial<Borders> = {
         top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
         bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
         left: { style: 'thin', color: { argb: 'FFCBD5E1' } },

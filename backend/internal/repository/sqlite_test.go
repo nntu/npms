@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"path/filepath"
 	"testing"
 	"time"
@@ -159,6 +160,143 @@ func TestPollLeasePreventsConcurrentOwnersAndAllowsExpiry(t *testing.T) {
 	}
 	if err := repo.ReleasePollLease(ctx, "device-lease", "status", "owner-2"); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestCompleteCounterPollIsAtomicIdempotentAndTracksAttempts(t *testing.T) {
+	db, err := database.OpenSQLite(filepath.Join(t.TempDir(), "npms.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ctx := context.Background()
+	if err := db.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	repo, err := NewSQLiteRepository(db.DB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.CreateDevice(ctx, Device{ID: "device-completion", DisplayName: "Completion printer", Status: "unknown"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.CreateCounterDefinition(ctx, CounterDefinition{ID: "counter-completion", DeviceID: "device-completion", Key: "pages", SourceProtocol: "snmp", OID: "1.2.3", Unit: "impressions", SemanticType: "marker_life", Scope: "engine"}); err != nil {
+		t.Fatal(err)
+	}
+	createRun := func(id string) {
+		t.Helper()
+		if err := repo.CreatePollingRun(ctx, PollingRun{ID: id, DeviceID: "device-completion", JobKind: "counter"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := repo.CreateCounterPollingRuns(ctx, []PollingRun{
+		{ID: "run-batch-a", DeviceID: "device-completion", JobKind: "counter"},
+		{ID: "run-batch-b", DeviceID: "missing-device", JobKind: "counter"},
+	}); err == nil {
+		t.Fatal("expected atomic batch creation failure")
+	}
+	var batchRuns int
+	if err := db.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM polling_runs WHERE id IN ('run-batch-a', 'run-batch-b')`).Scan(&batchRuns); err != nil {
+		t.Fatal(err)
+	}
+	if batchRuns != 0 {
+		t.Fatalf("batch creation left %d polling runs behind", batchRuns)
+	}
+	if err := repo.CreateCounterPollingRuns(ctx, []PollingRun{
+		{ID: "run-batch-a", DeviceID: "device-completion", JobKind: "counter"},
+		{ID: "run-batch-b", DeviceID: "device-completion", JobKind: "counter"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var initialAttempts int
+	if err := db.DB.QueryRowContext(ctx, `SELECT SUM(attempt_count) FROM polling_runs WHERE id IN ('run-batch-a', 'run-batch-b')`).Scan(&initialAttempts); err != nil {
+		t.Fatal(err)
+	}
+	if initialAttempts != 0 {
+		t.Fatalf("new counter runs have %d attempts, want 0", initialAttempts)
+	}
+
+	createRun("run-success")
+	collectedAt := time.Date(2026, 10, 14, 1, 2, 3, 0, time.UTC)
+	success := CounterPollCompletion{
+		PollRunID:           "run-success",
+		DeviceID:            "device-completion",
+		CounterDefinitionID: "counter-completion",
+		Reading:             &counter.Reading{RawValue: 123, CollectedAt: collectedAt, Quality: counter.QualityValid},
+		Result:              "success",
+		EndedAt:             collectedAt.Add(time.Second),
+		AttemptCount:        3,
+	}
+	if err := repo.CompleteCounterPoll(ctx, success); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.CompleteCounterPoll(ctx, success); err != nil {
+		t.Fatalf("idempotent completion: %v", err)
+	}
+	var result, endedAt string
+	var attempts, readings int
+	if err := db.DB.QueryRowContext(ctx, `SELECT result, ended_at, attempt_count FROM polling_runs WHERE id = 'run-success'`).Scan(&result, &endedAt, &attempts); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM counter_readings WHERE poll_run_id = 'run-success'`).Scan(&readings); err != nil {
+		t.Fatal(err)
+	}
+	if result != "success" || endedAt == "" || attempts != 3 || readings != 1 {
+		t.Fatalf("unexpected success state: result=%s ended=%s attempts=%d readings=%d", result, endedAt, attempts, readings)
+	}
+
+	createRun("run-failed")
+	failure := CounterPollCompletion{
+		PollRunID:           "run-failed",
+		DeviceID:            "device-completion",
+		CounterDefinitionID: "counter-completion",
+		Result:              "failed",
+		ErrorCode:           "poll_failed",
+		EventType:           "poll_failed",
+		EventDetails:        `{"error":"timeout"}`,
+		EndedAt:             collectedAt.Add(2 * time.Second),
+		AttemptCount:        2,
+	}
+	if err := repo.CompleteCounterPoll(ctx, failure); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.CompleteCounterPoll(ctx, failure); err != nil {
+		t.Fatalf("idempotent failure completion: %v", err)
+	}
+	var events int
+	if err := db.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM counter_events WHERE device_id = 'device-completion' AND event_type = 'poll_failed'`).Scan(&events); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.DB.QueryRowContext(ctx, `SELECT attempt_count FROM polling_runs WHERE id = 'run-failed'`).Scan(&attempts); err != nil {
+		t.Fatal(err)
+	}
+	if events != 1 || attempts != 2 {
+		t.Fatalf("unexpected failure state: events=%d attempts=%d", events, attempts)
+	}
+
+	for _, runID := range []string{"run-reading-rollback", "run-event-rollback"} {
+		createRun(runID)
+	}
+	badReading := success
+	badReading.PollRunID = "run-reading-rollback"
+	badReading.CounterDefinitionID = "missing-counter"
+	if err := repo.CompleteCounterPoll(ctx, badReading); err == nil {
+		t.Fatal("expected reading insert failure")
+	}
+	badEvent := failure
+	badEvent.PollRunID = "run-event-rollback"
+	badEvent.CounterDefinitionID = "missing-counter"
+	if err := repo.CompleteCounterPoll(ctx, badEvent); err == nil {
+		t.Fatal("expected event insert failure")
+	}
+	for _, runID := range []string{"run-reading-rollback", "run-event-rollback"} {
+		var terminalAt string
+		if err := db.DB.QueryRowContext(ctx, `SELECT result, COALESCE(ended_at, ''), attempt_count FROM polling_runs WHERE id = ?`, runID).Scan(&result, &terminalAt, &attempts); err != nil {
+			t.Fatal(err)
+		}
+		if result != "running" || terminalAt != "" || attempts != 1 {
+			t.Fatalf("transaction did not roll back for %s: result=%s ended=%s attempts=%d", runID, result, terminalAt, attempts)
+		}
 	}
 }
 
@@ -355,3 +493,144 @@ func TestUpdatePrinterAndSoftDeletePreservesHistory(t *testing.T) {
 		t.Fatalf("expected historical counter reading to be preserved after soft delete, got %d", readings)
 	}
 }
+
+func TestReconcileStaleRuns(t *testing.T) {
+	db, err := database.OpenSQLite(filepath.Join(t.TempDir(), "npms.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ctx := context.Background()
+	if err := db.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	repo, err := NewSQLiteRepository(db.DB)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Date(2026, 10, 14, 12, 0, 0, 0, time.UTC)
+	twentyMinsAgo := now.Add(-20 * time.Minute).Format(time.RFC3339Nano)
+	oneMinAgo := now.Add(-1 * time.Minute).Format(time.RFC3339Nano)
+	fiveMinsAgo := now.Add(-5 * time.Minute).Format(time.RFC3339Nano)
+	fiveMinsLater := now.Add(5 * time.Minute).Format(time.RFC3339Nano)
+
+	// Setup device
+	if _, err := db.DB.ExecContext(ctx, `INSERT INTO devices(id, display_name, status, created_at, updated_at) VALUES ('device-stale', 'Stale test printer', 'unknown', ?, ?)`, twentyMinsAgo, twentyMinsAgo); err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. Polling runs: stale (20m ago, running, ended_at NULL), fresh (1m ago, running, ended_at NULL), ended (20m ago, success)
+	if _, err := db.DB.ExecContext(ctx, `INSERT INTO polling_runs(id, device_id, job_kind, started_at, ended_at, result) VALUES
+		('stale-run-1', 'device-stale', 'counter', ?, NULL, 'running'),
+		('fresh-run-2', 'device-stale', 'counter', ?, NULL, 'running'),
+		('ended-run-3', 'device-stale', 'counter', ?, ?, 'success')`,
+		twentyMinsAgo, oneMinAgo, twentyMinsAgo, twentyMinsAgo); err != nil {
+		t.Fatal(err)
+	}
+
+	// 2. Jobs: stale running (20m ago), fresh running (1m ago), stale queued (20m ago)
+	if _, err := db.DB.ExecContext(ctx, `INSERT INTO jobs(id, device_id, kind, status, created_at, started_at, ended_at) VALUES
+		('stale-job-1', 'device-stale', 'status_poll', 'running', ?, ?, NULL),
+		('fresh-job-2', 'device-stale', 'status_poll', 'running', ?, ?, NULL),
+		('stale-queued-3', 'device-stale', 'status_poll', 'queued', ?, NULL, NULL)`,
+		twentyMinsAgo, twentyMinsAgo, oneMinAgo, oneMinAgo, twentyMinsAgo); err != nil {
+		t.Fatal(err)
+	}
+
+	// 3. Leases: expired (5m ago), active (5m later)
+	if _, err := db.DB.ExecContext(ctx, `INSERT INTO poll_leases(device_id, job_kind, owner_id, acquired_at, lease_until) VALUES
+		('device-stale', 'counter', 'owner-old', ?, ?),
+		('device-stale', 'status', 'owner-live', ?, ?)`,
+		twentyMinsAgo, fiveMinsAgo, oneMinAgo, fiveMinsLater); err != nil {
+		t.Fatal(err)
+	}
+
+	// Run reconciliation with 10m timeout
+	stats, err := repo.ReconcileStaleRuns(ctx, StaleReconciliationPolicy{
+		RunningTimeout: 10 * time.Minute,
+		Now:            now,
+	})
+	if err != nil {
+		t.Fatalf("reconcile stale runs: %v", err)
+	}
+
+	if stats.InterruptedRuns != 1 {
+		t.Errorf("expected 1 interrupted run, got %d", stats.InterruptedRuns)
+	}
+	if stats.FailedJobs != 2 {
+		t.Errorf("expected 2 failed jobs, got %d", stats.FailedJobs)
+	}
+	if stats.ReleasedLeases != 1 {
+		t.Errorf("expected 1 released lease, got %d", stats.ReleasedLeases)
+	}
+	if stats.AuditEvents != 3 {
+		t.Errorf("expected 3 audit events, got %d", stats.AuditEvents)
+	}
+
+	// Check DB state of polling runs
+	var staleRunResult, staleRunErr, staleRunEnded string
+	if err := db.DB.QueryRowContext(ctx, `SELECT result, error_code, ended_at FROM polling_runs WHERE id = 'stale-run-1'`).Scan(&staleRunResult, &staleRunErr, &staleRunEnded); err != nil {
+		t.Fatal(err)
+	}
+	if staleRunResult != "interrupted" || staleRunErr != "poll_timeout" || staleRunEnded == "" {
+		t.Errorf("unexpected stale run state: result=%s, err=%s, ended=%s", staleRunResult, staleRunErr, staleRunEnded)
+	}
+
+	var freshRunResult string
+	var freshRunEnded sql.NullString
+	if err := db.DB.QueryRowContext(ctx, `SELECT result, ended_at FROM polling_runs WHERE id = 'fresh-run-2'`).Scan(&freshRunResult, &freshRunEnded); err != nil {
+		t.Fatal(err)
+	}
+	if freshRunResult != "running" || freshRunEnded.Valid {
+		t.Errorf("fresh run should still be running, got result=%s, ended=%v", freshRunResult, freshRunEnded)
+	}
+
+	// Check DB state of jobs
+	var staleJobStatus, staleJobErr string
+	if err := db.DB.QueryRowContext(ctx, `SELECT status, error_code FROM jobs WHERE id = 'stale-job-1'`).Scan(&staleJobStatus, &staleJobErr); err != nil {
+		t.Fatal(err)
+	}
+	if staleJobStatus != "failed" || staleJobErr != "job_timeout" {
+		t.Errorf("unexpected stale job state: status=%s, err=%s", staleJobStatus, staleJobErr)
+	}
+
+	var queuedJobStatus, queuedJobErr string
+	if err := db.DB.QueryRowContext(ctx, `SELECT status, error_code FROM jobs WHERE id = 'stale-queued-3'`).Scan(&queuedJobStatus, &queuedJobErr); err != nil {
+		t.Fatal(err)
+	}
+	if queuedJobStatus != "failed" || queuedJobErr != "job_timeout" {
+		t.Errorf("unexpected stale queued job state: status=%s, err=%s", queuedJobStatus, queuedJobErr)
+	}
+
+	// Check leases
+	var leaseCount int
+	if err := db.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM poll_leases WHERE device_id = 'device-stale'`).Scan(&leaseCount); err != nil {
+		t.Fatal(err)
+	}
+	if leaseCount != 1 {
+		t.Errorf("expected 1 remaining lease (fresh), got %d", leaseCount)
+	}
+
+	// Check audit events
+	var auditCount int
+	if err := db.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM counter_events WHERE device_id = 'device-stale'`).Scan(&auditCount); err != nil {
+		t.Fatal(err)
+	}
+	if auditCount != 3 {
+		t.Errorf("expected 3 audit events, got %d", auditCount)
+	}
+
+	// Second pass should be idempotent and find nothing new
+	secondStats, err := repo.ReconcileStaleRuns(ctx, StaleReconciliationPolicy{
+		RunningTimeout: 10 * time.Minute,
+		Now:            now,
+	})
+	if err != nil {
+		t.Fatalf("second reconcile: %v", err)
+	}
+	if secondStats.InterruptedRuns != 0 || secondStats.FailedJobs != 0 || secondStats.ReleasedLeases != 0 || secondStats.AuditEvents != 0 {
+		t.Errorf("expected idempotent zero stats on second pass, got %+v", secondStats)
+	}
+}
+

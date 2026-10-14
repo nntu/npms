@@ -176,3 +176,56 @@ func (f *fakeSNMPClient) Walk(ctx context.Context, oid string) ([]snmp.VarBind, 
 func (f *fakeSNMPClient) Close() error {
 	return nil
 }
+
+func TestRunnerRunCleanup(t *testing.T) {
+	ctx := context.Background()
+	db, err := database.OpenSQLite(":memory:")
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	defer db.Close()
+	if err := db.Migrate(ctx); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	repo, err := repository.NewSQLiteRepository(db.DB)
+	if err != nil {
+		t.Fatalf("new repo: %v", err)
+	}
+	box, _ := security.NewSecretBox(make([]byte, 32))
+	resolver := ingestion.ConfigResolver{Store: repo, Box: box}
+	clientFactory := func(snmp.Config) (snmp.Client, error) { return &fakeSNMPClient{}, nil }
+	poller, _ := ingestion.NewStatusPoller(repo, resolver, clientFactory)
+	counterPoller, _ := ingestion.NewCounterPoller(resolver, clientFactory)
+	scheduler, _ := polling.NewScheduler(polling.Config{Concurrency: 1, MaxAttempts: 1})
+	counterService, _ := polling.NewService(scheduler, repo)
+
+	retention := repository.CleanupPolicy{
+		PollingRunsBefore:   time.Now().Add(-30 * 24 * time.Hour),
+		CounterEventsBefore: time.Now().Add(-30 * 24 * time.Hour),
+		JobsBefore:          time.Now().Add(-30 * 24 * time.Hour),
+	}
+	runner, err := NewRunner(repo, poller, counterPoller, scheduler, counterService, retention, time.UTC)
+	if err != nil {
+		t.Fatalf("new runner: %v", err)
+	}
+
+	staleTime := time.Now().UTC().Add(-30 * time.Minute).Format(time.RFC3339Nano)
+	if _, err := db.DB.ExecContext(ctx, `INSERT INTO devices(id, display_name, status, created_at, updated_at) VALUES ('printer-clean', 'Clean test printer', 'unknown', ?, ?)`, staleTime, staleTime); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.DB.ExecContext(ctx, `INSERT INTO polling_runs(id, device_id, job_kind, started_at, ended_at, result) VALUES ('stale-run-clean', 'printer-clean', 'counter', ?, NULL, 'running')`, staleTime); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := runner.RunCleanup(ctx); err != nil {
+		t.Fatalf("runner.RunCleanup failed: %v", err)
+	}
+
+	var result, errorCode string
+	if err := db.DB.QueryRowContext(ctx, `SELECT result, COALESCE(error_code, '') FROM polling_runs WHERE id = 'stale-run-clean'`).Scan(&result, &errorCode); err != nil {
+		t.Fatal(err)
+	}
+	if result != "interrupted" || errorCode != "poll_timeout" {
+		t.Errorf("expected interrupted/poll_timeout, got result=%s, err=%s", result, errorCode)
+	}
+}
