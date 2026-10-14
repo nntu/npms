@@ -141,6 +141,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/discovery/scan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post API v1 discovery scan */
+        post: operations["post-api-v1-discovery-scan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -227,6 +244,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/printers/bulk-register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post API v1 printers bulk register */
+        post: operations["post-api-v1-printers-bulk-register"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/printers/register": {
         parameters: {
             query?: never;
@@ -253,9 +287,11 @@ export interface paths {
         };
         /** Get API v1 printers by ID */
         get: operations["get-api-v1-printers-by-id"];
-        put?: never;
+        /** Put API v1 printers by ID */
+        put: operations["put-api-v1-printers-by-id"];
         post?: never;
-        delete?: never;
+        /** Delete API v1 printers by ID */
+        delete: operations["delete-api-v1-printers-by-id"];
         options?: never;
         head?: never;
         patch?: never;
@@ -410,6 +446,61 @@ export interface components {
             /** Format: int64 */
             quantity: number;
         };
+        BulkRegisterInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/BulkRegisterInputBody.json
+             */
+            readonly $schema?: string;
+            printers: components["schemas"]["BulkRegisterPrinterItem"][] | null;
+        };
+        BulkRegisterItemResult: {
+            address: string;
+            device_id?: string;
+            error?: string;
+            /** @enum {string} */
+            status: "success" | "error";
+        };
+        BulkRegisterOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/BulkRegisterOutputBody.json
+             */
+            readonly $schema?: string;
+            /** Format: int64 */
+            failed_count: number;
+            /** Format: int64 */
+            registered_count: number;
+            results: components["schemas"]["BulkRegisterItemResult"][] | null;
+        };
+        BulkRegisterPrinterItem: {
+            address: string;
+            asset_code?: string;
+            auth_passphrase?: string;
+            /** @enum {string} */
+            auth_protocol?: "MD5" | "SHA";
+            community?: string;
+            department?: string;
+            display_name: string;
+            manufacturer?: string;
+            model?: string;
+            /**
+             * Format: int64
+             * @default 161
+             */
+            port: number;
+            priv_passphrase?: string;
+            /** @enum {string} */
+            priv_protocol?: "DES" | "AES" | "AES128";
+            profile_id?: string;
+            serial?: string;
+            sys_object_id?: string;
+            username?: string;
+            /** @enum {string} */
+            version: "2c" | "3";
+        };
         Cartridge: {
             /**
              * Format: uri
@@ -562,6 +653,32 @@ export interface components {
             /** @enum {string} */
             unit: "impressions" | "sheets";
         };
+        DeletePrinterOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/DeletePrinterOutputBody.json
+             */
+            readonly $schema?: string;
+            id: string;
+            status: string;
+        };
+        DiscoveredDevice: {
+            /** Format: ipv4 */
+            address: string;
+            already_registered: boolean;
+            description: string;
+            location?: string;
+            manufacturer?: string;
+            markers?: components["schemas"]["DiscoveryMarker"][] | null;
+            matched_profile_id?: string;
+            model?: string;
+            name: string;
+            /** Format: int64 */
+            port: number;
+            serial: string;
+            sys_object_id: string;
+        };
         DiscoveryInputBody: {
             /**
              * Format: uri
@@ -595,6 +712,7 @@ export interface components {
         DiscoveryMarker: {
             /** Format: int64 */
             counter_unit: number;
+            counter_unit_name?: string;
             instance: string;
             /** Format: int64 */
             life_count: number;
@@ -609,7 +727,11 @@ export interface components {
             /** Format: ipv4 */
             address: string;
             description: string;
+            location?: string;
+            manufacturer?: string;
             markers?: components["schemas"]["DiscoveryMarker"][] | null;
+            matched_profile_id?: string;
+            model?: string;
             name: string;
             serial: string;
             sys_object_id: string;
@@ -789,6 +911,7 @@ export interface components {
              * @example https://example.com/schemas/Printer.json
              */
             readonly $schema?: string;
+            address?: string;
             asset_code?: string;
             department?: string;
             display_name: string;
@@ -797,9 +920,14 @@ export interface components {
             last_seen_at?: string;
             manufacturer?: string;
             model?: string;
+            /** Format: int64 */
+            port?: number;
+            profile_id?: string;
             serial?: string;
+            snmp_version?: string;
             /** @enum {string} */
             status: "online" | "offline" | "unknown" | "unavailable";
+            sys_object_id?: string;
         };
         PrinterPageOutputBody: {
             /**
@@ -936,6 +1064,94 @@ export interface components {
             readonly $schema?: string;
             message?: string;
             status: string;
+        };
+        SubnetScanInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/SubnetScanInputBody.json
+             */
+            readonly $schema?: string;
+            auth_passphrase?: string;
+            /** @enum {string} */
+            auth_protocol?: "MD5" | "SHA";
+            /** @example 192.168.1.0/24 */
+            cidr?: string;
+            community?: string;
+            /**
+             * Format: int64
+             * @default 25
+             */
+            concurrency: number;
+            /**
+             * Format: ipv4
+             * @example 192.168.1.254
+             */
+            end_ip?: string;
+            /**
+             * Format: int64
+             * @default 161
+             */
+            port: number;
+            priv_passphrase?: string;
+            /** @enum {string} */
+            priv_protocol?: "DES" | "AES" | "AES128";
+            /**
+             * Format: ipv4
+             * @example 192.168.1.1
+             */
+            start_ip?: string;
+            /**
+             * Format: int64
+             * @default 1000
+             */
+            timeout_ms: number;
+            username?: string;
+            /**
+             * @default 2c
+             * @enum {string}
+             */
+            version: "2c" | "3";
+        };
+        SubnetScanOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/SubnetScanOutputBody.json
+             */
+            readonly $schema?: string;
+            discovered_printers: components["schemas"]["DiscoveredDevice"][] | null;
+            /** Format: int64 */
+            scanned_count: number;
+        };
+        UpdatePrinterInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/UpdatePrinterInputBody.json
+             */
+            readonly $schema?: string;
+            address?: string;
+            asset_code?: string;
+            auth_passphrase?: string;
+            /** @enum {string} */
+            auth_protocol?: "MD5" | "SHA";
+            community?: string;
+            department?: string;
+            display_name: string;
+            manufacturer?: string;
+            model?: string;
+            /** Format: int64 */
+            port?: number;
+            priv_passphrase?: string;
+            /** @enum {string} */
+            priv_protocol?: "DES" | "AES" | "AES128";
+            profile_id?: string;
+            serial?: string;
+            sys_object_id?: string;
+            username?: string;
+            /** @enum {string} */
+            version?: "2c" | "3";
         };
         UpdateStockInputBody: {
             /**
@@ -1268,6 +1484,39 @@ export interface operations {
             };
         };
     };
+    "post-api-v1-discovery-scan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubnetScanInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubnetScanOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     "get-api-v1-health": {
         parameters: {
             query?: never;
@@ -1451,6 +1700,39 @@ export interface operations {
             };
         };
     };
+    "post-api-v1-printers-bulk-register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BulkRegisterInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BulkRegisterOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     "post-api-v1-printers-register": {
         parameters: {
             query?: never;
@@ -1502,6 +1784,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Printer"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "put-api-v1-printers-by-id": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePrinterInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Printer"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "delete-api-v1-printers-by-id": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeletePrinterOutputBody"];
                 };
             };
             /** @description Error */

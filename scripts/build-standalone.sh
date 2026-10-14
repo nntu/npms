@@ -47,17 +47,26 @@ cp "$DIST_DIR/bin/"* "$ROOT_DIR/bin/"
 cp "$DIST_DIR/bin/npms-api" "$DIST_DIR/npms"
 cp "$DIST_DIR/bin/npms-api" "$ROOT_DIR/npms"
 
-# 4. Copy config files
+# 4. Copy config & MIB files
 if [ -f "$ROOT_DIR/config.example.yaml" ]; then
     cp "$ROOT_DIR/config.example.yaml" "$DIST_DIR/config.example.yaml"
     # Do not create a runnable config from the example: it contains a placeholder token.
     # Run npms-init before first startup to generate secrets.
 fi
 
-# 5. Copy profiles
+if [ -f "$ROOT_DIR/Printer-MIB.yaml" ]; then
+    cp "$ROOT_DIR/Printer-MIB.yaml" "$DIST_DIR/Printer-MIB.yaml"
+fi
+
+# 5. Copy profiles & Printer-MIB sample fixtures
 if [ -d "$ROOT_DIR/backend/profiles" ]; then
     cp -R "$ROOT_DIR/backend/profiles/." "$DIST_DIR/profiles/"
     cp -R "$ROOT_DIR/backend/profiles/." "$ROOT_DIR/profiles/"
+fi
+
+if [ -d "$ROOT_DIR/backend/testdata/printer-mib" ]; then
+    mkdir -p "$DIST_DIR/testdata/printer-mib"
+    cp -R "$ROOT_DIR/backend/testdata/printer-mib/." "$DIST_DIR/testdata/printer-mib/"
 fi
 
 cd "$ROOT_DIR"

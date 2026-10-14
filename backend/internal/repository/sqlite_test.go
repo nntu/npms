@@ -285,3 +285,73 @@ func TestCleanupPollerDataPreservesRawReadingHistory(t *testing.T) {
 		t.Fatalf("cleanup removed protected history: runs=%d readings=%d queued=%d", runs, readings, queued)
 	}
 }
+
+func TestUpdatePrinterAndSoftDeletePreservesHistory(t *testing.T) {
+	db, err := database.OpenSQLite(filepath.Join(t.TempDir(), "npms.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ctx := context.Background()
+	if err := db.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	repo, err := NewSQLiteRepository(db.DB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reg := PrinterRegistration{
+		Device:     Device{ID: "dev-crud", AssetCode: "ASSET-1", DisplayName: "Printer 1", Manufacturer: "HP", Model: "M402dn", Status: "online"},
+		Credential: SNMPCredential{ID: "cred-1", Version: "2c", EncryptedSecretMaterial: []byte("secret-1")},
+		Endpoint:   DeviceEndpoint{ID: "ep-1", DeviceID: "dev-crud", Address: "192.0.2.10", Protocol: "snmp", Port: 161, CredentialID: "cred-1", IsPrimary: true},
+		Profile:    &SNMPProfile{ID: "generic-printer-mib@1", ProfileKey: "generic-printer-mib", Version: 1, SchemaVersion: 1, Content: "profile-v1", Checksum: "sum-1", VerificationStatus: "unverified"},
+		CounterDefinitions: []CounterDefinition{{
+			ID: "dev-crud:marker_life", DeviceID: "dev-crud", Key: "marker_life", SourceProtocol: "snmp", OID: "1.3.6.1.2.1.43.10.2.1.4", Unit: "impressions", SemanticType: "marker_life", Scope: "engine", Mode: "walk", UnitOID: "1.3.6.1.2.1.43.10.2.1.3",
+		}},
+	}
+	if err := repo.RegisterPrinter(ctx, reg); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.DB.ExecContext(ctx, `INSERT INTO polling_runs(id, device_id, job_kind, started_at, result) VALUES ('run-crud', 'dev-crud', 'counter', '2026-01-01T00:00:00Z', 'success')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.DB.ExecContext(ctx, `INSERT INTO counter_readings(poll_run_id, counter_definition_id, raw_value, collected_at, quality) VALUES ('run-crud', 'dev-crud:marker_life', 500, '2026-01-01T00:00:00Z', 'valid')`); err != nil {
+		t.Fatal(err)
+	}
+
+	upd := PrinterUpdate{
+		Device:          Device{ID: "dev-crud", AssetCode: "ASSET-1", DisplayName: "Printer 1 Updated", Manufacturer: "HP", Model: "HP LaserJet Enterprise M501dn", Serial: "SN123", Department: "Kế toán"},
+		EndpointAddress: "192.0.2.25",
+		EndpointPort:    1161,
+		Credential:      &SNMPCredential{ID: "cred-2", Version: "2c", EncryptedSecretMaterial: []byte("secret-2")},
+		Profile:         &SNMPProfile{ID: "hp-laserjet-enterprise-m501dn@1", ProfileKey: "hp-laserjet-enterprise-m501dn", Version: 1, SchemaVersion: 1, Content: "profile-hp", Checksum: "sum-hp", VerificationStatus: "experimental"},
+		ProfileExplicit: true,
+		CounterDefinitions: []CounterDefinition{{
+			ID: "dev-crud:marker_life", DeviceID: "dev-crud", Key: "marker_life", SourceProtocol: "snmp", OID: "1.3.6.1.2.1.43.10.2.1.4", Instance: "1.1", Unit: "impressions", SemanticType: "marker_life", Scope: "engine", Mode: "walk", UnitOID: "1.3.6.1.2.1.43.10.2.1.3",
+		}},
+	}
+	if err := repo.UpdatePrinter(ctx, upd); err != nil {
+		t.Fatal(err)
+	}
+	got, err := repo.GetDevice(ctx, "dev-crud")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.DisplayName != "Printer 1 Updated" || got.Address != "192.0.2.25" || got.Port != 1161 || got.ProfileKey != "hp-laserjet-enterprise-m501dn" || got.Department != "Kế toán" {
+		t.Fatalf("unexpected updated device: %+v", got)
+	}
+
+	if err := repo.SoftDeleteDevice(ctx, "dev-crud"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := repo.GetDevice(ctx, "dev-crud"); err == nil {
+		t.Fatal("expected soft-deleted device to be hidden from GetDevice")
+	}
+	var readings int
+	if err := db.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM counter_readings WHERE counter_definition_id = 'dev-crud:marker_life'`).Scan(&readings); err != nil {
+		t.Fatal(err)
+	}
+	if readings != 1 {
+		t.Fatalf("expected historical counter reading to be preserved after soft delete, got %d", readings)
+	}
+}

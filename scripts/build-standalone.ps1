@@ -1,3 +1,7 @@
+param(
+    [switch]$SkipFrontend
+)
+
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 
@@ -8,13 +12,21 @@ foreach ($name in $processNames) {
 }
 
 # 1. Build frontend assets
-Set-Location (Join-Path $root "frontend")
-pnpm install --frozen-lockfile
-pnpm run build
+$frontendDir = Join-Path $root "frontend"
+$frontendDist = Join-Path $frontendDir "dist"
+if (-not $SkipFrontend -or -not (Test-Path (Join-Path $frontendDist "index.html"))) {
+    Set-Location $frontendDir
+    pnpm install --frozen-lockfile
+    pnpm run build
+}
 
-$assets = Join-Path $root "backend\web\dist\assets"
-if (Test-Path $assets) { Remove-Item $assets -Recurse -Force }
-Copy-Item (Join-Path (Get-Location) "dist\*") (Join-Path $root "backend\web\dist") -Recurse -Force
+$webDist = Join-Path $root "backend\web\dist"
+if (!(Test-Path $webDist)) { New-Item -ItemType Directory -Path $webDist -Force | Out-Null }
+$assets = Join-Path $webDist "assets"
+if (Test-Path -LiteralPath $assets) {
+    Remove-Item -LiteralPath $assets -Recurse -Force -ErrorAction SilentlyContinue
+}
+Copy-Item (Join-Path $frontendDist "*") $webDist -Recurse -Force
 
 # 2. Setup distribution directories
 $distDir = Join-Path $root "dist"
@@ -33,12 +45,12 @@ foreach ($dir in @($distDir, $distBinDir, $distProfilesDir, $distDataDir, $rootB
 Set-Location (Join-Path $root "backend")
 go mod download
 
+$openApiFile = Join-Path $root "docs\openapi.huma.generated.yaml"
+$beforeHash = if (Test-Path $openApiFile) { (Get-FileHash $openApiFile -Algorithm SHA256).Hash } else { "" }
 go run .\cmd\api-contract
-if ((Get-Command git -ErrorAction SilentlyContinue) -and (Test-Path (Join-Path $root ".git"))) {
-    git -C $root diff --exit-code -- docs/openapi.huma.generated.yaml
-    if ($LASTEXITCODE -ne 0) {
-        throw "Generated OpenAPI is out of date. Commit the regenerated docs/openapi.huma.generated.yaml before building standalone."
-    }
+$afterHash = if (Test-Path $openApiFile) { (Get-FileHash $openApiFile -Algorithm SHA256).Hash } else { "" }
+if ($beforeHash -ne $afterHash) {
+    throw "Generated OpenAPI was out of date and has been updated. Run 'pnpm run api:generate' in frontend/ and rebuild."
 }
 
 go build -trimpath -ldflags="-s -w" -o (Join-Path $distBinDir "npms-api.exe") .\cmd\api
@@ -52,7 +64,7 @@ Copy-Item (Join-Path $distBinDir "*") $rootBinDir -Force
 Copy-Item (Join-Path $distBinDir "npms-api.exe") (Join-Path $distDir "npms.exe") -Force
 Copy-Item (Join-Path $distBinDir "npms-api.exe") (Join-Path $root "npms.exe") -Force
 
-# 4. Copy config files
+# 4. Copy config & MIB files
 $cfgExample = Join-Path $root "config.example.yaml"
 if (Test-Path $cfgExample) {
     Copy-Item $cfgExample (Join-Path $distDir "config.example.yaml") -Force
@@ -61,11 +73,23 @@ if (Test-Path $cfgExample) {
     # Run npms-init before first startup to generate secrets.
 }
 
-# 5. Copy profiles
+$printerMIB = Join-Path $root "Printer-MIB.yaml"
+if (Test-Path $printerMIB) {
+    Copy-Item $printerMIB (Join-Path $distDir "Printer-MIB.yaml") -Force
+}
+
+# 5. Copy profiles & Printer-MIB sample fixtures
 $backendProfiles = Join-Path $root "backend\profiles"
 if (Test-Path $backendProfiles) {
     Copy-Item (Join-Path $backendProfiles "*") $distProfilesDir -Recurse -Force
     Copy-Item (Join-Path $backendProfiles "*") $rootProfilesDir -Recurse -Force
+}
+
+$printerMIBFixtures = Join-Path $root "backend\testdata\printer-mib"
+$distFixturesDir = Join-Path $distDir "testdata\printer-mib"
+if (Test-Path $printerMIBFixtures) {
+    if (!(Test-Path $distFixturesDir)) { New-Item -ItemType Directory -Path $distFixturesDir -Force | Out-Null }
+    Copy-Item (Join-Path $printerMIBFixtures "*") $distFixturesDir -Recurse -Force
 }
 
 Set-Location $root

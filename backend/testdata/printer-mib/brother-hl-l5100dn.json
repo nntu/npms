@@ -1,0 +1,241 @@
+{
+  "schema_version": 1,
+  "synthetic_fixture": true,
+  "model": "Brother HL-L5100DN",
+  "manufacturer": "Brother",
+  "verification_status": "experimental",
+  "host": "192.0.2.12",
+  "name": "BRN-L5100DN-GD01",
+  "printer_name": "Brother HL-L5100DN series",
+  "description": "Brother NC-8300h, Firmware Ver.1.24",
+  "sys_object_id": "1.3.6.1.4.1.2435.2.3.9.1",
+  "serial": "REDACTED-BRL5100-003",
+  "default_marker_index": 1,
+  "markers": [
+    {
+      "instance": "1.1",
+      "life_count": 35890,
+      "counter_unit": 7,
+      "unit_name": "impressions",
+      "power_on_count": 142,
+      "mark_tech": 4,
+      "status": 0
+    }
+  ],
+  "supplies": [
+    {
+      "instance": "1.1",
+      "description": "Black Toner Cartridge",
+      "class": 3,
+      "type": 3,
+      "supply_unit": 19,
+      "max_capacity": 100,
+      "level": 80,
+      "percent": 80
+    },
+    {
+      "instance": "1.2",
+      "description": "Drum Unit",
+      "class": 3,
+      "type": 9,
+      "supply_unit": 7,
+      "max_capacity": 30000,
+      "level": 18110,
+      "percent": 60.4
+    }
+  ],
+  "console_lines": [
+    {
+      "instance": "1.1",
+      "text": "Sleep"
+    }
+  ],
+  "decoded_oids": [
+    {
+      "oid": "1.3.6.1.2.1.1.1.0",
+      "symbol": "sysDescr",
+      "type": "OctetString",
+      "value": "Brother NC-8300h, Firmware Ver.1.24"
+    },
+    {
+      "oid": "1.3.6.1.2.1.1.2.0",
+      "symbol": "sysObjectID",
+      "type": "ObjectIdentifier",
+      "value": "1.3.6.1.4.1.2435.2.3.9.1"
+    },
+    {
+      "oid": "1.3.6.1.2.1.1.5.0",
+      "symbol": "sysName",
+      "type": "OctetString",
+      "value": "BRN-L5100DN-GD01"
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.5.1.1.8.1",
+      "symbol": "prtMarkerDefaultIndex",
+      "table": "prtGeneralTable",
+      "instance": "1",
+      "type": "Integer",
+      "value": 1
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.5.1.1.16.1",
+      "symbol": "prtGeneralPrinterName",
+      "table": "prtGeneralTable",
+      "instance": "1",
+      "type": "OctetString",
+      "value": "Brother HL-L5100DN series"
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.5.1.1.17.1",
+      "symbol": "prtGeneralSerialNumber",
+      "table": "prtGeneralTable",
+      "instance": "1",
+      "type": "OctetString",
+      "value": "REDACTED-BRL5100-003"
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.10.2.1.2.1.1",
+      "symbol": "prtMarkerMarkTech",
+      "table": "prtMarkerTable",
+      "instance": "1.1",
+      "type": "Integer",
+      "value": 4
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.10.2.1.3.1.1",
+      "symbol": "prtMarkerCounterUnit",
+      "table": "prtMarkerTable",
+      "instance": "1.1",
+      "type": "Integer",
+      "value": 7
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.10.2.1.4.1.1",
+      "symbol": "prtMarkerLifeCount",
+      "table": "prtMarkerTable",
+      "instance": "1.1",
+      "type": "Counter32",
+      "value": 35890
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.10.2.1.5.1.1",
+      "symbol": "prtMarkerPowerOnCount",
+      "table": "prtMarkerTable",
+      "instance": "1.1",
+      "type": "Counter32",
+      "value": 142
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.10.2.1.15.1.1",
+      "symbol": "prtMarkerStatus",
+      "table": "prtMarkerTable",
+      "instance": "1.1",
+      "type": "Integer",
+      "value": 0
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.11.1.1.4.1.1",
+      "symbol": "prtMarkerSuppliesClass",
+      "table": "prtMarkerSuppliesTable",
+      "instance": "1.1",
+      "type": "Integer",
+      "value": 3
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.11.1.1.4.1.2",
+      "symbol": "prtMarkerSuppliesClass",
+      "table": "prtMarkerSuppliesTable",
+      "instance": "1.2",
+      "type": "Integer",
+      "value": 3
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.11.1.1.5.1.1",
+      "symbol": "prtMarkerSuppliesType",
+      "table": "prtMarkerSuppliesTable",
+      "instance": "1.1",
+      "type": "Integer",
+      "value": 3
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.11.1.1.5.1.2",
+      "symbol": "prtMarkerSuppliesType",
+      "table": "prtMarkerSuppliesTable",
+      "instance": "1.2",
+      "type": "Integer",
+      "value": 9
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.11.1.1.6.1.1",
+      "symbol": "prtMarkerSuppliesDescription",
+      "table": "prtMarkerSuppliesTable",
+      "instance": "1.1",
+      "type": "OctetString",
+      "value": "Black Toner Cartridge"
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.11.1.1.6.1.2",
+      "symbol": "prtMarkerSuppliesDescription",
+      "table": "prtMarkerSuppliesTable",
+      "instance": "1.2",
+      "type": "OctetString",
+      "value": "Drum Unit"
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.11.1.1.7.1.1",
+      "symbol": "prtMarkerSuppliesSupplyUnit",
+      "table": "prtMarkerSuppliesTable",
+      "instance": "1.1",
+      "type": "Integer",
+      "value": 19
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.11.1.1.7.1.2",
+      "symbol": "prtMarkerSuppliesSupplyUnit",
+      "table": "prtMarkerSuppliesTable",
+      "instance": "1.2",
+      "type": "Integer",
+      "value": 7
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.11.1.1.8.1.1",
+      "symbol": "prtMarkerSuppliesMaxCapacity",
+      "table": "prtMarkerSuppliesTable",
+      "instance": "1.1",
+      "type": "Integer",
+      "value": 100
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.11.1.1.8.1.2",
+      "symbol": "prtMarkerSuppliesMaxCapacity",
+      "table": "prtMarkerSuppliesTable",
+      "instance": "1.2",
+      "type": "Integer",
+      "value": 30000
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.11.1.1.9.1.1",
+      "symbol": "prtMarkerSuppliesLevel",
+      "table": "prtMarkerSuppliesTable",
+      "instance": "1.1",
+      "type": "Integer",
+      "value": 80
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.11.1.1.9.1.2",
+      "symbol": "prtMarkerSuppliesLevel",
+      "table": "prtMarkerSuppliesTable",
+      "instance": "1.2",
+      "type": "Integer",
+      "value": 18110
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.16.5.1.2.1.1",
+      "symbol": "prtConsoleDisplayBufferText",
+      "table": "prtConsoleDisplayBufferTable",
+      "instance": "1.1",
+      "type": "OctetString",
+      "value": "Sleep"
+    }
+  ]
+}

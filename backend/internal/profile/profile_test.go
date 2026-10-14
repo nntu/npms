@@ -45,10 +45,13 @@ func TestRepositoryModelProfilesResolveTheirDeclaredIdentities(t *testing.T) {
 		wantID       string
 	}{
 		{name: "HP M402dn", manufacturer: "HP", model: "HP LaserJet Pro M402dn", wantID: "hp-laserjet-pro-m402dn"},
+		{name: "HP M404dn", manufacturer: "HP", model: "HP LaserJet Pro M404dn", wantID: "hp-laserjet-pro-m404dn"},
 		{name: "HP M501dn", manufacturer: "HP", model: "HP LaserJet Enterprise M501dn", wantID: "hp-laserjet-enterprise-m501dn"},
 		{name: "Brother L5100DN", manufacturer: "Brother", model: "Brother HL-L5100DN", wantID: "brother-hl-l5100dn"},
+		{name: "Brother L5100DN series", manufacturer: "Brother", model: "Brother HL-L5100DN series", wantID: "brother-hl-l5100dn"},
 		{name: "Brother L5100DNT", manufacturer: "Brother", model: "Brother HL-L5100DNT", wantID: "brother-hl-l5100dn"},
 		{name: "Brother L6210DW", manufacturer: "Brother", model: "Brother HL-L6210DW", wantID: "brother-hl-l6210"},
+		{name: "Ricoh IM 2702", manufacturer: "Ricoh", model: "RICOH IM 2702", wantID: "ricoh-im-2xxx"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

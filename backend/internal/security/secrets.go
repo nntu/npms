@@ -71,7 +71,6 @@ func GenerateAPIToken() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
-
 func (b *SecretBox) Encrypt(plaintext []byte) ([]byte, error) {
 	if b == nil || b.gcm == nil {
 		return nil, fmt.Errorf("secret box is not initialized")

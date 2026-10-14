@@ -126,6 +126,10 @@ type Device struct {
 	SysObjectID  string
 	Department   string
 	Status       string
+	Address      string
+	Port         uint16
+	SNMPVersion  string
+	ProfileKey   string
 	FirstSeenAt  time.Time
 	LastSeenAt   time.Time
 	CreatedAt    time.Time
@@ -206,6 +210,8 @@ func (r *SQLiteRepository) MarkEndpointSuccess(ctx context.Context, endpointID s
 	if count, _ := result.RowsAffected(); count == 0 {
 		return sql.ErrNoRows
 	}
+	formatted := at.UTC().Format(time.RFC3339Nano)
+	_, _ = r.db.ExecContext(ctx, "UPDATE devices SET status = 'online', last_seen_at = ?, first_seen_at = COALESCE(first_seen_at, ?) WHERE id = (SELECT device_id FROM device_endpoints WHERE id = ?)", formatted, formatted, endpointID)
 	return nil
 }
 
@@ -219,6 +225,17 @@ type PrinterRegistration struct {
 	Device             Device
 	Credential         SNMPCredential
 	Endpoint           DeviceEndpoint
+	Profile            *SNMPProfile
+	ProfileExplicit    bool
+	CounterDefinitions []CounterDefinition
+}
+
+type PrinterUpdate struct {
+	Device             Device
+	EndpointAddress    string
+	EndpointPort       uint16
+	NewEndpointID      string
+	Credential         *SNMPCredential
 	Profile            *SNMPProfile
 	ProfileExplicit    bool
 	CounterDefinitions []CounterDefinition
@@ -386,13 +403,26 @@ func (r *SQLiteRepository) CreateDevice(ctx context.Context, device Device) erro
 func (r *SQLiteRepository) GetDevice(ctx context.Context, id string) (Device, error) {
 	var d Device
 	var asset, manufacturer, model, serial, objectID, department, firstSeen, lastSeen sql.NullString
-	var createdAt, updatedAt sql.NullString
-	err := r.db.QueryRowContext(ctx, `SELECT id, asset_code, display_name, manufacturer, model, serial, sys_object_id, department, status, first_seen_at, last_seen_at, created_at, updated_at
-		FROM devices WHERE id = ? AND deleted_at IS NULL`, id).Scan(&d.ID, &asset, &d.DisplayName, &manufacturer, &model, &serial, &objectID, &department, &d.Status, &firstSeen, &lastSeen, &createdAt, &updatedAt)
+	var createdAt, updatedAt, address, snmpVersion, profileKey sql.NullString
+	var port sql.NullInt64
+	err := r.db.QueryRowContext(ctx, `SELECT
+		d.id, d.asset_code, d.display_name, d.manufacturer, d.model, d.serial, d.sys_object_id, d.department, d.status, d.first_seen_at, d.last_seen_at, d.created_at, d.updated_at,
+		(SELECT de.address FROM device_endpoints de WHERE de.device_id = d.id ORDER BY de.is_primary DESC, de.id LIMIT 1),
+		(SELECT de.port FROM device_endpoints de WHERE de.device_id = d.id ORDER BY de.is_primary DESC, de.id LIMIT 1),
+		(SELECT sc.version FROM device_endpoints de JOIN snmp_credentials sc ON sc.id = de.credential_id WHERE de.device_id = d.id ORDER BY de.is_primary DESC, de.id LIMIT 1),
+		(SELECT sp.profile_key FROM device_profile_assignments dpa JOIN snmp_profiles sp ON sp.id = dpa.profile_id WHERE dpa.device_id = d.id LIMIT 1)
+		FROM devices d WHERE d.id = ? AND d.deleted_at IS NULL`, id).Scan(
+		&d.ID, &asset, &d.DisplayName, &manufacturer, &model, &serial, &objectID, &department, &d.Status, &firstSeen, &lastSeen, &createdAt, &updatedAt,
+		&address, &port, &snmpVersion, &profileKey,
+	)
 	if err != nil {
 		return Device{}, fmt.Errorf("get device: %w", err)
 	}
 	d.AssetCode, d.Manufacturer, d.Model, d.Serial, d.SysObjectID, d.Department = nullString(asset), nullString(manufacturer), nullString(model), nullString(serial), nullString(objectID), nullString(department)
+	d.Address, d.SNMPVersion, d.ProfileKey = nullString(address), nullString(snmpVersion), nullString(profileKey)
+	if port.Valid && port.Int64 > 0 && port.Int64 <= 65535 {
+		d.Port = uint16(port.Int64)
+	}
 	d.FirstSeenAt = parseTime(firstSeen)
 	d.LastSeenAt = parseTime(lastSeen)
 	d.CreatedAt, d.UpdatedAt = parseTime(createdAt), parseTime(updatedAt)
@@ -403,8 +433,13 @@ func (r *SQLiteRepository) ListDevices(ctx context.Context, limit, offset int) (
 	if limit < 1 || limit > 1000 || offset < 0 {
 		return nil, fmt.Errorf("invalid pagination")
 	}
-	rows, err := r.db.QueryContext(ctx, `SELECT id, asset_code, display_name, manufacturer, model, serial, sys_object_id, department, status, first_seen_at, last_seen_at, created_at, updated_at
-		FROM devices WHERE deleted_at IS NULL ORDER BY created_at DESC, id LIMIT ? OFFSET ?`, limit, offset)
+	rows, err := r.db.QueryContext(ctx, `SELECT
+		d.id, d.asset_code, d.display_name, d.manufacturer, d.model, d.serial, d.sys_object_id, d.department, d.status, d.first_seen_at, d.last_seen_at, d.created_at, d.updated_at,
+		(SELECT de.address FROM device_endpoints de WHERE de.device_id = d.id ORDER BY de.is_primary DESC, de.id LIMIT 1),
+		(SELECT de.port FROM device_endpoints de WHERE de.device_id = d.id ORDER BY de.is_primary DESC, de.id LIMIT 1),
+		(SELECT sc.version FROM device_endpoints de JOIN snmp_credentials sc ON sc.id = de.credential_id WHERE de.device_id = d.id ORDER BY de.is_primary DESC, de.id LIMIT 1),
+		(SELECT sp.profile_key FROM device_profile_assignments dpa JOIN snmp_profiles sp ON sp.id = dpa.profile_id WHERE dpa.device_id = d.id LIMIT 1)
+		FROM devices d WHERE d.deleted_at IS NULL ORDER BY d.created_at DESC, d.id LIMIT ? OFFSET ?`, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("list devices: %w", err)
 	}
@@ -413,10 +448,19 @@ func (r *SQLiteRepository) ListDevices(ctx context.Context, limit, offset int) (
 	for rows.Next() {
 		var d Device
 		var asset, manufacturer, model, serial, objectID, department, firstSeen, lastSeen, createdAt, updatedAt sql.NullString
-		if err := rows.Scan(&d.ID, &asset, &d.DisplayName, &manufacturer, &model, &serial, &objectID, &department, &d.Status, &firstSeen, &lastSeen, &createdAt, &updatedAt); err != nil {
+		var address, snmpVersion, profileKey sql.NullString
+		var port sql.NullInt64
+		if err := rows.Scan(
+			&d.ID, &asset, &d.DisplayName, &manufacturer, &model, &serial, &objectID, &department, &d.Status, &firstSeen, &lastSeen, &createdAt, &updatedAt,
+			&address, &port, &snmpVersion, &profileKey,
+		); err != nil {
 			return nil, fmt.Errorf("scan device: %w", err)
 		}
 		d.AssetCode, d.Manufacturer, d.Model, d.Serial, d.SysObjectID, d.Department = nullString(asset), nullString(manufacturer), nullString(model), nullString(serial), nullString(objectID), nullString(department)
+		d.Address, d.SNMPVersion, d.ProfileKey = nullString(address), nullString(snmpVersion), nullString(profileKey)
+		if port.Valid && port.Int64 > 0 && port.Int64 <= 65535 {
+			d.Port = uint16(port.Int64)
+		}
 		d.FirstSeenAt, d.LastSeenAt = parseTime(firstSeen), parseTime(lastSeen)
 		d.CreatedAt, d.UpdatedAt = parseTime(createdAt), parseTime(updatedAt)
 		result = append(result, d)
@@ -450,8 +494,143 @@ func (r *SQLiteRepository) GetDeviceProfileVersion(ctx context.Context, deviceID
 	return int(version.Int64), nil
 }
 
+func (r *SQLiteRepository) UpdatePrinter(ctx context.Context, update PrinterUpdate) error {
+	if strings.TrimSpace(update.Device.ID) == "" || strings.TrimSpace(update.Device.DisplayName) == "" {
+		return fmt.Errorf("device id and display name are required")
+	}
+	now := time.Now().UTC()
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin printer update: %w", err)
+	}
+	defer tx.Rollback()
+
+	res, err := tx.ExecContext(ctx, `UPDATE devices SET
+		asset_code = NULLIF(?, ''),
+		display_name = ?,
+		manufacturer = NULLIF(?, ''),
+		model = NULLIF(?, ''),
+		serial = NULLIF(?, ''),
+		sys_object_id = NULLIF(?, ''),
+		department = NULLIF(?, ''),
+		updated_at = ?
+		WHERE id = ? AND deleted_at IS NULL`,
+		update.Device.AssetCode, update.Device.DisplayName, update.Device.Manufacturer, update.Device.Model,
+		update.Device.Serial, update.Device.SysObjectID, update.Device.Department, now.Format(time.RFC3339Nano), update.Device.ID)
+	if err != nil {
+		return fmt.Errorf("update device: %w", err)
+	}
+	if count, _ := res.RowsAffected(); count == 0 {
+		return sql.ErrNoRows
+	}
+
+	var newCredentialID string
+	if update.Credential != nil {
+		if update.Credential.ID == "" || update.Credential.Version == "" || len(update.Credential.EncryptedSecretMaterial) == 0 {
+			return fmt.Errorf("credential id, version and encrypted material are required")
+		}
+		createdAt := update.Credential.CreatedAt
+		if createdAt.IsZero() {
+			createdAt = now
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO snmp_credentials(id, version, encrypted_secret_material, security_metadata, created_at) VALUES (?, ?, ?, ?, ?)`,
+			update.Credential.ID, update.Credential.Version, update.Credential.EncryptedSecretMaterial, update.Credential.SecurityMetadata, createdAt.Format(time.RFC3339Nano)); err != nil {
+			return fmt.Errorf("store updated credential: %w", err)
+		}
+		newCredentialID = update.Credential.ID
+	}
+
+	if strings.TrimSpace(update.EndpointAddress) != "" {
+		port := update.EndpointPort
+		if port == 0 {
+			port = 161
+		}
+		var existingEndpointID string
+		err := tx.QueryRowContext(ctx, `SELECT id FROM device_endpoints WHERE device_id = ? ORDER BY is_primary DESC, id LIMIT 1`, update.Device.ID).Scan(&existingEndpointID)
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			endpointID := update.NewEndpointID
+			if endpointID == "" {
+				endpointID = update.Device.ID + ":primary"
+			}
+			if _, err := tx.ExecContext(ctx, `INSERT INTO device_endpoints(id, device_id, address, protocol, port, credential_id, is_primary) VALUES (?, ?, ?, 'snmp', ?, NULLIF(?, ''), 1)`,
+				endpointID, update.Device.ID, update.EndpointAddress, port, newCredentialID); err != nil {
+				return fmt.Errorf("insert primary endpoint: %w", err)
+			}
+		case err == nil:
+			if newCredentialID != "" {
+				_, err = tx.ExecContext(ctx, `UPDATE device_endpoints SET address = ?, port = ?, credential_id = ? WHERE id = ?`,
+					update.EndpointAddress, port, newCredentialID, existingEndpointID)
+			} else {
+				_, err = tx.ExecContext(ctx, `UPDATE device_endpoints SET address = ?, port = ? WHERE id = ?`,
+					update.EndpointAddress, port, existingEndpointID)
+			}
+			if err != nil {
+				return fmt.Errorf("update primary endpoint: %w", err)
+			}
+		default:
+			return fmt.Errorf("lookup primary endpoint: %w", err)
+		}
+	} else if newCredentialID != "" {
+		if _, err := tx.ExecContext(ctx, `UPDATE device_endpoints SET credential_id = ? WHERE id = (SELECT id FROM device_endpoints WHERE device_id = ? ORDER BY is_primary DESC, id LIMIT 1)`,
+			newCredentialID, update.Device.ID); err != nil {
+			return fmt.Errorf("update endpoint credential: %w", err)
+		}
+	}
+
+	if update.Profile != nil {
+		var existingID, existingChecksum string
+		err = tx.QueryRowContext(ctx, `SELECT id, checksum FROM snmp_profiles WHERE profile_key = ? AND version = ?`, update.Profile.ProfileKey, update.Profile.Version).Scan(&existingID, &existingChecksum)
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			_, err = tx.ExecContext(ctx, `INSERT INTO snmp_profiles(id, profile_key, version, schema_version, content, checksum, verification_status) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+				update.Profile.ID, update.Profile.ProfileKey, update.Profile.Version, update.Profile.SchemaVersion, update.Profile.Content, update.Profile.Checksum, update.Profile.VerificationStatus)
+		case err == nil:
+			if existingID != update.Profile.ID || existingChecksum != update.Profile.Checksum {
+				return fmt.Errorf("profile %q version %d conflicts with stored content", update.Profile.ProfileKey, update.Profile.Version)
+			}
+		default:
+			return fmt.Errorf("check stored profile: %w", err)
+		}
+		if err != nil {
+			return fmt.Errorf("store profile: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO device_profile_assignments(device_id, profile_id, assigned_at, explicit)
+			VALUES (?, ?, ?, ?)
+			ON CONFLICT(device_id) DO UPDATE SET profile_id = excluded.profile_id, assigned_at = excluded.assigned_at, explicit = excluded.explicit`,
+			update.Device.ID, update.Profile.ID, now.Format(time.RFC3339Nano), boolInt(update.ProfileExplicit)); err != nil {
+			return fmt.Errorf("assign profile: %w", err)
+		}
+		for _, definition := range update.CounterDefinitions {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO counter_definitions(id, device_id, key, source_protocol, oid, instance, unit, semantic_type, scope, verified, mode, unit_oid, selection, aggregation, require_unit_validation)
+				VALUES (?, ?, ?, ?, ?, NULLIF(?, ''), ?, ?, ?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?)
+				ON CONFLICT(id) DO UPDATE SET
+					oid = excluded.oid,
+					instance = COALESCE(excluded.instance, counter_definitions.instance),
+					unit = excluded.unit,
+					semantic_type = excluded.semantic_type,
+					scope = excluded.scope,
+					verified = excluded.verified,
+					mode = excluded.mode,
+					unit_oid = excluded.unit_oid,
+					selection = excluded.selection,
+					aggregation = excluded.aggregation,
+					require_unit_validation = excluded.require_unit_validation`,
+				definition.ID, definition.DeviceID, definition.Key, definition.SourceProtocol, definition.OID, definition.Instance, definition.Unit, definition.SemanticType, definition.Scope, boolInt(definition.Verified), definition.Mode, definition.UnitOID, definition.Selection, definition.Aggregation, boolInt(definition.RequireUnitValidation)); err != nil {
+				return fmt.Errorf("upsert counter definition %q: %w", definition.Key, err)
+			}
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit printer update: %w", err)
+	}
+	return nil
+}
+
 func (r *SQLiteRepository) SoftDeleteDevice(ctx context.Context, id string) error {
-	result, err := r.db.ExecContext(ctx, "UPDATE devices SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL", time.Now().UTC().Format(time.RFC3339Nano), time.Now().UTC().Format(time.RFC3339Nano), id)
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	result, err := r.db.ExecContext(ctx, "UPDATE devices SET deleted_at = ?, updated_at = ?, asset_code = NULL WHERE id = ? AND deleted_at IS NULL", now, now, id)
 	if err != nil {
 		return fmt.Errorf("soft-delete device: %w", err)
 	}

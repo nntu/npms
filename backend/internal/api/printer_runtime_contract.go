@@ -85,5 +85,20 @@ func (s *Server) printerCollectionHandler() http.Handler {
 
 func printerContract(device repository.Device) contract.Printer {
 	response := toPrinterResponse(device)
-	return contract.Printer{ID: response.ID, AssetCode: response.AssetCode, DisplayName: response.DisplayName, Manufacturer: response.Manufacturer, Model: response.Model, Serial: response.Serial, Department: response.Department, Status: response.Status, LastSeenAt: response.LastSeenAt}
+	return contract.Printer{
+		ID:           response.ID,
+		AssetCode:    response.AssetCode,
+		DisplayName:  response.DisplayName,
+		Manufacturer: response.Manufacturer,
+		Model:        response.Model,
+		Serial:       response.Serial,
+		SysObjectID:  response.SysObjectID,
+		Department:   response.Department,
+		Address:      response.Address,
+		Port:         response.Port,
+		SNMPVersion:  response.SNMPVersion,
+		ProfileID:    response.ProfileID,
+		Status:       response.Status,
+		LastSeenAt:   response.LastSeenAt,
+	}
 }

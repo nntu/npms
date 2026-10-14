@@ -1,4 +1,6 @@
 import type {
+  BulkRegisterInput,
+  BulkRegisterOutput,
   CounterReading,
   CreateEndpointInput,
   CreatePrinterInput,
@@ -13,12 +15,11 @@ import type {
   PrinterProfile,
   RegisterPrinterInput,
   RegisterPrinterResult,
+  UpdatePrinterInput,
 } from './types'
 
 const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '/api/v1'
 const configuredApiToken = import.meta.env.VITE_API_TOKEN as string | undefined
-const sessionApiTokenKey = 'npms_api_token'
-let apiTokenPrompt: Promise<string | undefined> | undefined
 
 export class ApiError extends Error {
   readonly status: number
@@ -30,42 +31,15 @@ export class ApiError extends Error {
   }
 }
 
-function requestSessionApiToken(): Promise<string | undefined> {
-  if (apiTokenPrompt) return apiTokenPrompt
-  apiTokenPrompt = Promise.resolve(
-    typeof window === 'undefined' ? undefined : window.prompt('Nhập API token NPMS để tiếp tục:')?.trim(),
-  ).then((enteredToken) => {
-    if (enteredToken && typeof window !== 'undefined') {
-      window.sessionStorage.setItem(sessionApiTokenKey, enteredToken)
-    }
-    return enteredToken || undefined
-  })
-  apiTokenPrompt.finally(() => {
-    apiTokenPrompt = undefined
-  })
-  return apiTokenPrompt
-}
-
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const requestWithToken = (token?: string) =>
-    fetch(`${apiBase}${path}`, {
-      ...init,
-      headers: {
-        Accept: 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...init?.headers,
-      },
-    })
-
-  const sessionApiToken =
-    typeof window === 'undefined' ? undefined : (window.sessionStorage.getItem(sessionApiTokenKey) ?? undefined)
-  let response = await requestWithToken(configuredApiToken || sessionApiToken)
-  if (response.status === 401 && !configuredApiToken && typeof window !== 'undefined') {
-    const enteredToken = await requestSessionApiToken()
-    if (enteredToken) {
-      response = await requestWithToken(enteredToken)
-    }
-  }
+  const response = await fetch(`${apiBase}${path}`, {
+    ...init,
+    headers: {
+      Accept: 'application/json',
+      ...(configuredApiToken ? { Authorization: `Bearer ${configuredApiToken}` } : {}),
+      ...init?.headers,
+    },
+  })
   if (!response.ok) {
     let message = `API request failed (${response.status})`
     try {
@@ -110,6 +84,28 @@ export async function registerPrinter(input: RegisterPrinterInput): Promise<Regi
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
+  })
+}
+
+export async function bulkRegisterPrinters(input: BulkRegisterInput): Promise<BulkRegisterOutput> {
+  return request<BulkRegisterOutput>('/printers/bulk-register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+}
+
+export async function updatePrinter(id: string, input: UpdatePrinterInput): Promise<Printer> {
+  return request<Printer>(`/printers/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+}
+
+export async function deletePrinter(id: string): Promise<{ status: string; id: string }> {
+  return request<{ status: string; id: string }>(`/printers/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
   })
 }
 
@@ -171,6 +167,16 @@ export async function listProfiles(): Promise<{ data: PrinterProfile[]; total: n
 
 export async function probeDiscovery(input: DiscoveryProbeInput): Promise<DiscoveryResult> {
   return request<DiscoveryResult>('/discovery/probe', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+}
+
+export async function scanSubnet(
+  input: import('./types').SubnetScanInput,
+): Promise<import('./types').SubnetScanResult> {
+  return request<import('./types').SubnetScanResult>('/discovery/scan', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -245,9 +251,13 @@ export async function refillPrinterCartridge(
 export async function listCartridgeLogs(
   cartridgeId?: string,
   deviceId?: string,
+  limit = 1000,
+  offset = 0,
 ): Promise<{ data: import('./types').CartridgeLog[]; total: number }> {
   const params = new URLSearchParams()
   if (cartridgeId) params.set('cartridge_id', cartridgeId)
   if (deviceId) params.set('device_id', deviceId)
+  if (limit) params.set('limit', String(limit))
+  if (offset) params.set('offset', String(offset))
   return request<{ data: import('./types').CartridgeLog[]; total: number }>(`/cartridges/logs?${params.toString()}`)
 }

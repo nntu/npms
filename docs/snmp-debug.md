@@ -33,10 +33,11 @@ go run ./cmd/snmp-debug <command> [options]
 
 | Lệnh (`command`) | Mô tả | Cờ yêu cầu |
 | :--- | :--- | :--- |
-| `check` | Hiển thị bảng thông tin máy in và counter dạng console dễ đọc. | `--host` |
-| `probe` | Đọc các OID định danh hệ thống (`sysDescr`, `sysObjectID`, `sysName`, `serial`) và bảng Marker Life/Unit dưới dạng JSON. | `--host` |
+| `check` | Hiển thị bảng thông tin máy in, counter và mực/vật tư (`prtMarkerSupplies`) dạng console dễ đọc. | `--host` (hoặc `--fixture`) |
+| `probe` | Đọc các OID định danh hệ thống (`sysDescr`, `sysObjectID`, `sysName`, `prtGeneralPrinterName.1`, `prtGeneralSerialNumber.1`) và bảng Marker/Supplies dưới dạng JSON. | `--host` (hoặc `--fixture`) |
+| `collect` | Thu thập toàn bộ snapshot chuẩn hóa theo `Printer-MIB.yaml` (`prtGeneral`, `prtMarker`, `prtMarkerSupplies`, `prtInput`, `prtCover`, `prtConsoleDisplayBuffer`, `prtAlert`) kèm ánh xạ symbol. | `--host` (hoặc `--fixture`) |
 | `get` | Đọc giá trị của duy nhất 1 OID cụ thể. | `--host`, `--oid` |
-| `walk` | Duyệt (Walk) toàn bộ cây OID bắt đầu từ OID chỉ định. | `--host`, `--oid` |
+| `walk` | Duyệt (Walk/BulkWalk) toàn bộ cây OID bắt đầu từ OID chỉ định. | `--host`, `--oid` |
 | `export` | Quét toàn bộ thông tin máy in và xuất ra file JSON. | `--host`, `--output` |
 
 ---
@@ -45,7 +46,7 @@ go run ./cmd/snmp-debug <command> [options]
 
 ### Cấu hình kết nối SNMP
 
-* `--host` *(Chuỗi, bắt buộc)*: Địa chỉ IP hoặc Hostname của máy in. (Ví dụ: `192.168.1.50`).
+* `--host` *(Chuỗi, bắt buộc trừ khi dùng `--fixture`)*: Địa chỉ IP hoặc Hostname của máy in. (Ví dụ: `192.168.1.50`).
 * `--port` *(Số nguyên, mặc định: `161`)*: Cổng UDP giao tiếp SNMP.
 * `--version` *(Chuỗi, mặc định: `2c`)*: Phiên bản SNMP (`2c` hoặc `3`).
 * `--timeout` *(Số nguyên, mặc định: `3`)*: Thời gian chờ phản hồi (tính bằng giây).
@@ -61,10 +62,13 @@ go run ./cmd/snmp-debug <command> [options]
 * `--priv-protocol` *(Chuỗi)*: Giao thức mã hóa riêng tư SNMPv3 (`DES` hoặc `AES`).
 * `--priv-passphrase` *(Chuỗi)*: Mật khẩu mã hóa (Privacy Passphrase).
 
-### Tham số Truy vấn & Xuất Dữ liệu
+### Tham số Truy vấn, Thu thập MIB & Xuất Dữ liệu
 * `--oid` *(Chuỗi)*: Mã OID cần truy vấn cho lệnh `get` hoặc `walk` (ví dụ: `1.3.6.1.2.1.43.10.2.1.4`).
 * `--max-repetitions` *(Số nguyên 1-255, mặc định: `25`)*: Số dòng trả về tối đa trong mỗi gói tin Bulk Walk.
-* `--output` *(Chuỗi)*: Đường dẫn lưu file kết quả JSON cho lệnh `export` (ví dụ: `sample.json`).
+* `--output` *(Chuỗi)*: Đường dẫn lưu file kết quả JSON cho lệnh `export` hoặc `collect` (ví dụ: `sample.json`).
+* `--mib-file` *(Chuỗi, tùy chọn)*: Đường dẫn tới file `Printer-MIB.yaml` để phân giải symbol/table/instance cho từng OID.
+* `--fixture` *(Chuỗi, tùy chọn)*: Đường dẫn tới file JSON mẫu (`backend/testdata/printer-mib/*.json`) để chạy mô phỏng offline không cần máy in thật.
+* `--anonymize` *(Cờ boolean)*: Tự động ẩn danh địa chỉ IP (`192.0.2.10`) và số Serial (`REDACTED-SERIAL`) khi xuất dữ liệu mẫu.
 
 ---
 

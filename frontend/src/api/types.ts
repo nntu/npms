@@ -45,6 +45,19 @@ export interface RegisterPrinterInput extends CreatePrinterInput {
   priv_passphrase?: string
 }
 
+export interface UpdatePrinterInput extends CreatePrinterInput {
+  profile_id?: string
+  address?: string
+  port?: number
+  version?: '2c' | '3'
+  community?: string
+  username?: string
+  auth_protocol?: string
+  auth_passphrase?: string
+  priv_protocol?: string
+  priv_passphrase?: string
+}
+
 export interface RegisterPrinterResult {
   printer: Printer
   credential_id: string
@@ -83,6 +96,25 @@ export interface DiscoveryProbeInput {
 }
 
 export type DiscoveryResult = components['schemas']['DiscoveryOutputBody']
+
+export interface SubnetScanInput {
+  cidr?: string
+  start_ip?: string
+  end_ip?: string
+  port?: number
+  version?: '2c' | '3'
+  community?: string
+  timeout_ms?: number
+  concurrency?: number
+}
+
+export type DiscoveredPrinter = components['schemas']['DiscoveredDevice']
+export type SubnetScanResult = components['schemas']['SubnetScanOutputBody']
+
+export type BulkRegisterPrinterItem = components['schemas']['BulkRegisterPrinterItem']
+export type BulkRegisterInput = components['schemas']['BulkRegisterInputBody']
+export type BulkRegisterItemResult = components['schemas']['BulkRegisterItemResult']
+export type BulkRegisterOutput = components['schemas']['BulkRegisterOutputBody']
 
 export type Cartridge = components['schemas']['Cartridge']
 

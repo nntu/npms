@@ -1,10 +1,14 @@
 package snmp
 
 import (
+	"bytes"
 	"context"
+	"encoding/hex"
 	"fmt"
 	"strconv"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 // Version is an SNMP protocol version supported by NPMS.
@@ -84,14 +88,34 @@ type Client interface {
 
 // MarkerRow is joined by the exact Printer-MIB table instance, never by row order.
 type MarkerRow struct {
-	Instance string `json:"instance"`
-	Life     int64  `json:"life_count"`
-	Unit     int64  `json:"counter_unit"`
+	Instance     string `json:"instance"`
+	Life         int64  `json:"life_count"`
+	Unit         int64  `json:"counter_unit"`
+	UnitName     string `json:"unit_name,omitempty"`
+	PowerOnCount int64  `json:"power_on_count,omitempty"`
+	MarkTech     int64  `json:"mark_tech,omitempty"`
+	Status       int64  `json:"status,omitempty"`
+}
+
+// IsExceptionVarBind reports whether a VarBind represents an SNMP exception or null value
+// (such as NoSuchObject, NoSuchInstance, EndOfMibView) rather than a valid datum.
+func IsExceptionVarBind(vb VarBind) bool {
+	if vb.Value == nil {
+		return true
+	}
+	switch strings.ToLower(strings.TrimSpace(vb.Type)) {
+	case "nosuchobject", "nosuchinstance", "endofmibview", "null":
+		return true
+	}
+	return false
 }
 
 func JoinMarkerRows(life, units []VarBind, lifeBase, unitBase string) []MarkerRow {
 	unitByInstance := make(map[string]int64, len(units))
 	for _, vb := range units {
+		if IsExceptionVarBind(vb) {
+			continue
+		}
 		instance, ok := tableInstance(vb.OID, unitBase)
 		if !ok {
 			continue
@@ -103,6 +127,9 @@ func JoinMarkerRows(life, units []VarBind, lifeBase, unitBase string) []MarkerRo
 	}
 	rows := make([]MarkerRow, 0, len(life))
 	for _, vb := range life {
+		if IsExceptionVarBind(vb) {
+			continue
+		}
 		instance, ok := tableInstance(vb.OID, lifeBase)
 		if !ok {
 			continue
@@ -115,9 +142,13 @@ func JoinMarkerRows(life, units []VarBind, lifeBase, unitBase string) []MarkerRo
 		if !ok {
 			continue
 		}
-		rows = append(rows, MarkerRow{Instance: instance, Life: lifeValue, Unit: unitValue})
+		rows = append(rows, MarkerRow{Instance: instance, Life: lifeValue, Unit: unitValue, UnitName: CounterUnitName(unitValue)})
 	}
 	return rows
+}
+
+func TableInstance(oid, base string) (string, bool) {
+	return tableInstance(oid, base)
 }
 
 func tableInstance(oid, base string) (string, bool) {
@@ -129,18 +160,18 @@ func tableInstance(oid, base string) (string, bool) {
 	return strings.TrimPrefix(oid, base+"."), true
 }
 
-func integerValue(value any) (int64, bool) {
+func signedInt64(value any) (int64, bool) {
 	switch n := value.(type) {
 	case int:
-		return nonNegativeInt(int64(n))
+		return int64(n), true
 	case int8:
-		return nonNegativeInt(int64(n))
+		return int64(n), true
 	case int16:
-		return nonNegativeInt(int64(n))
+		return int64(n), true
 	case int32:
-		return nonNegativeInt(int64(n))
+		return int64(n), true
 	case int64:
-		return nonNegativeInt(n)
+		return n, true
 	case uint:
 		return int64(n), true
 	case uint8:
@@ -153,13 +184,25 @@ func integerValue(value any) (int64, bool) {
 		if n <= uint64(^uint64(0)>>1) {
 			return int64(n), true
 		}
+	case float64:
+		if float64(int64(n)) == n {
+			return int64(n), true
+		}
 	case string:
 		parsed, err := strconv.ParseInt(strings.TrimSpace(n), 10, 64)
 		if err == nil {
-			return nonNegativeInt(parsed)
+			return parsed, true
 		}
 	}
 	return 0, false
+}
+
+func integerValue(value any) (int64, bool) {
+	v, ok := signedInt64(value)
+	if !ok {
+		return 0, false
+	}
+	return nonNegativeInt(v)
 }
 
 func nonNegativeInt(value int64) (int64, bool) {
@@ -169,6 +212,77 @@ func nonNegativeInt(value int64) (int64, bool) {
 	return value, true
 }
 
-// NumericValue exposes the safe integer conversion needed by application
+// NumericValue exposes the safe non-negative integer conversion needed by counter
 // ingestion while keeping SNMP decoding separate from counter validation.
 func NumericValue(value any) (int64, bool) { return integerValue(value) }
+
+// SignedIntegerValue converts an SNMP integer value that may legitimately use RFC 3805
+// negative sentinel codes (e.g. -1 other, -2 unknown, -3 someRemaining in prtMarkerSuppliesLevel).
+func SignedIntegerValue(value any) (int64, bool) { return signedInt64(value) }
+
+// NormalizeVarBindValue converts raw []byte OctetStrings into human-readable UTF-8 text
+// when all runes are printable, or into a "0x..." hex string when binary bytes are present.
+func NormalizeVarBindValue(value any) any {
+	switch v := value.(type) {
+	case []byte:
+		trimmed := bytes.TrimRight(v, "\x00")
+		if len(trimmed) == 0 {
+			if len(v) == 0 {
+				return ""
+			}
+			return fmt.Sprintf("0x%x", v)
+		}
+		if isPrintableUTF8(trimmed) {
+			return string(trimmed)
+		}
+		return fmt.Sprintf("0x%x", v)
+	default:
+		return value
+	}
+}
+
+// StringValue extracts a clean string from a VarBind value (handling []byte, printable strings,
+// and legacy "0x..." hex-encoded ASCII strings).
+func StringValue(value any) (string, bool) {
+	if value == nil {
+		return "", false
+	}
+	switch v := value.(type) {
+	case []byte:
+		trimmed := bytes.TrimRight(v, "\x00")
+		if isPrintableUTF8(trimmed) {
+			return strings.TrimSpace(string(trimmed)), true
+		}
+		return fmt.Sprintf("0x%x", v), true
+	case string:
+		s := strings.TrimSpace(v)
+		if strings.HasPrefix(s, "0x") && len(s) > 2 && len(s)%2 == 0 {
+			if raw, err := hex.DecodeString(s[2:]); err == nil {
+				trimmed := bytes.TrimRight(raw, "\x00")
+				if len(trimmed) > 0 && isPrintableUTF8(trimmed) {
+					return strings.TrimSpace(string(trimmed)), true
+				}
+			}
+		}
+		return s, true
+	default:
+		return strings.TrimSpace(fmt.Sprint(v)), true
+	}
+}
+
+func isPrintableUTF8(b []byte) bool {
+	if !utf8.Valid(b) {
+		return false
+	}
+	for len(b) > 0 {
+		r, size := utf8.DecodeRune(b)
+		if r == utf8.RuneError && size == 1 {
+			return false
+		}
+		if !unicode.IsPrint(r) && r != '\t' && r != '\n' && r != '\r' {
+			return false
+		}
+		b = b[size:]
+	}
+	return true
+}

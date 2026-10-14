@@ -3,6 +3,7 @@ package ingestion
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"npms/backend/internal/repository"
@@ -60,7 +61,7 @@ func (p *StatusPoller) PollDevice(ctx context.Context, deviceID string) error {
 			lastErr = err
 			continue
 		}
-		_, readErr := (SNMPReader{Client: client, OID: sysNameOID, Quality: "unverified"}).Read(ctx)
+		values, readErr := client.Get(ctx, []string{sysNameOID})
 		closeErr := client.Close()
 		if readErr != nil {
 			lastErr = readErr
@@ -68,6 +69,25 @@ func (p *StatusPoller) PollDevice(ctx context.Context, deviceID string) error {
 		}
 		if closeErr != nil {
 			lastErr = closeErr
+			continue
+		}
+		var found bool
+		for _, value := range values {
+			if strings.TrimPrefix(value.OID, ".") == sysNameOID {
+				if strings.EqualFold(value.Type, "NoSuchObject") || strings.EqualFold(value.Type, "NoSuchInstance") {
+					readErr = fmt.Errorf("SNMP OID %s not supported by device", sysNameOID)
+					break
+				}
+				found = true
+				break
+			}
+		}
+		if readErr != nil {
+			lastErr = readErr
+			continue
+		}
+		if !found {
+			lastErr = fmt.Errorf("SNMP response did not contain requested OID %s", sysNameOID)
 			continue
 		}
 		if err := p.Store.MarkEndpointSuccess(ctx, endpoint.ID, time.Now().UTC()); err != nil {

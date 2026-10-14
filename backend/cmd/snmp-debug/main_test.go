@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/json"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -42,5 +44,32 @@ func TestRunHelpCommand(t *testing.T) {
 		if !strings.Contains(stdout.String(), "NPMS SNMP Diagnostic CLI (snmp-debug)") {
 			t.Fatalf("help output missing usage title:\n%s", stdout.String())
 		}
+	}
+}
+
+func TestRunCheckAndCollectWithFixtureAndPrinterMIB(t *testing.T) {
+	fixturePath := filepath.Join("..", "..", "testdata", "printer-mib", "hp-laserjet-enterprise-m501dn.json")
+	mibPath := filepath.Join("..", "..", "..", "Printer-MIB.yaml")
+
+	var checkOut, checkErr strings.Builder
+	if err := run([]string{"check", "--fixture", fixturePath, "--mib-file", mibPath}, &checkOut, &checkErr); err != nil {
+		t.Fatalf("snmp-debug check failed: %v (stderr: %s)", err, checkErr.String())
+	}
+	for _, want := range []string{"HP-M501DN-KT01", "REDACTED-M501DN-001", "48250", "Black Cartridge HP CF287A"} {
+		if !strings.Contains(checkOut.String(), want) {
+			t.Fatalf("check output missing %q:\n%s", want, checkOut.String())
+		}
+	}
+
+	var collectOut, collectErr strings.Builder
+	if err := run([]string{"collect", "--fixture", fixturePath, "--mib-file", mibPath, "--anonymize"}, &collectOut, &collectErr); err != nil {
+		t.Fatalf("snmp-debug collect failed: %v (stderr: %s)", err, collectErr.String())
+	}
+	var snapshot snmp.PrinterMIBSnapshot
+	if err := json.Unmarshal([]byte(collectOut.String()), &snapshot); err != nil {
+		t.Fatalf("unmarshal collected snapshot: %v", err)
+	}
+	if snapshot.Serial != "REDACTED-SERIAL" || len(snapshot.Markers) != 1 || snapshot.Markers[0].Life != 48250 || len(snapshot.Supplies) != 1 {
+		t.Fatalf("unexpected collected snapshot: %+v", snapshot)
 	}
 }

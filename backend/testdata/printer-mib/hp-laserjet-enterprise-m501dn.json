@@ -1,0 +1,340 @@
+{
+  "schema_version": 1,
+  "synthetic_fixture": true,
+  "model": "HP LaserJet Enterprise M501dn",
+  "manufacturer": "HP",
+  "verification_status": "experimental",
+  "host": "192.0.2.10",
+  "name": "HP-M501DN-KT01",
+  "printer_name": "HP LaserJet Enterprise M501dn",
+  "description": "HP ETHERNET MULTI-ENVIRONMENT,SNMP,JETDIRECT,JD153",
+  "sys_object_id": "1.3.6.1.4.1.11.2.3.9.4.2.1.1.3.82",
+  "serial": "REDACTED-M501DN-001",
+  "default_marker_index": 1,
+  "markers": [
+    {
+      "instance": "1.1",
+      "life_count": 48250,
+      "counter_unit": 7,
+      "unit_name": "impressions",
+      "power_on_count": 310,
+      "mark_tech": 4,
+      "status": 0
+    }
+  ],
+  "supplies": [
+    {
+      "instance": "1.1",
+      "description": "Black Cartridge HP CF287A",
+      "class": 3,
+      "type": 3,
+      "supply_unit": 7,
+      "max_capacity": 9000,
+      "level": 5400,
+      "percent": 60
+    }
+  ],
+  "inputs": [
+    {
+      "instance": "1.1",
+      "name": "Tray 1",
+      "description": "Multipurpose Tray 1",
+      "media_name": "iso-a4-white",
+      "capacity_unit": 8,
+      "max_capacity": 100,
+      "current_level": -3,
+      "status": 0
+    },
+    {
+      "instance": "1.2",
+      "name": "Tray 2",
+      "description": "550-Sheet Input Tray 2",
+      "media_name": "iso-a4-white",
+      "capacity_unit": 8,
+      "max_capacity": 550,
+      "current_level": 550,
+      "status": 0
+    }
+  ],
+  "covers": [
+    {
+      "instance": "1.1",
+      "description": "Top Cover",
+      "status": 4
+    }
+  ],
+  "console_lines": [
+    {
+      "instance": "1.1",
+      "text": "Ready"
+    }
+  ],
+  "decoded_oids": [
+    {
+      "oid": "1.3.6.1.2.1.1.1.0",
+      "symbol": "sysDescr",
+      "type": "OctetString",
+      "value": "HP ETHERNET MULTI-ENVIRONMENT,SNMP,JETDIRECT,JD153"
+    },
+    {
+      "oid": "1.3.6.1.2.1.1.2.0",
+      "symbol": "sysObjectID",
+      "type": "ObjectIdentifier",
+      "value": "1.3.6.1.4.1.11.2.3.9.4.2.1.1.3.82"
+    },
+    {
+      "oid": "1.3.6.1.2.1.1.5.0",
+      "symbol": "sysName",
+      "type": "OctetString",
+      "value": "HP-M501DN-KT01"
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.5.1.1.8.1",
+      "symbol": "prtMarkerDefaultIndex",
+      "table": "prtGeneralTable",
+      "instance": "1",
+      "type": "Integer",
+      "value": 1
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.5.1.1.16.1",
+      "symbol": "prtGeneralPrinterName",
+      "table": "prtGeneralTable",
+      "instance": "1",
+      "type": "OctetString",
+      "value": "HP LaserJet Enterprise M501dn"
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.5.1.1.17.1",
+      "symbol": "prtGeneralSerialNumber",
+      "table": "prtGeneralTable",
+      "instance": "1",
+      "type": "OctetString",
+      "value": "REDACTED-M501DN-001"
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.6.1.1.2.1.1",
+      "symbol": "prtCoverDescription",
+      "table": "prtCoverTable",
+      "instance": "1.1",
+      "type": "OctetString",
+      "value": "Top Cover"
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.6.1.1.3.1.1",
+      "symbol": "prtCoverStatus",
+      "table": "prtCoverTable",
+      "instance": "1.1",
+      "type": "Integer",
+      "value": 4
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.8.2.1.8.1.1",
+      "symbol": "prtInputCapacityUnit",
+      "table": "prtInputTable",
+      "instance": "1.1",
+      "type": "Integer",
+      "value": 8
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.8.2.1.8.1.2",
+      "symbol": "prtInputCapacityUnit",
+      "table": "prtInputTable",
+      "instance": "1.2",
+      "type": "Integer",
+      "value": 8
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.8.2.1.9.1.1",
+      "symbol": "prtInputMaxCapacity",
+      "table": "prtInputTable",
+      "instance": "1.1",
+      "type": "Integer",
+      "value": 100
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.8.2.1.9.1.2",
+      "symbol": "prtInputMaxCapacity",
+      "table": "prtInputTable",
+      "instance": "1.2",
+      "type": "Integer",
+      "value": 550
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.8.2.1.10.1.1",
+      "symbol": "prtInputCurrentLevel",
+      "table": "prtInputTable",
+      "instance": "1.1",
+      "type": "Integer",
+      "value": -3
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.8.2.1.10.1.2",
+      "symbol": "prtInputCurrentLevel",
+      "table": "prtInputTable",
+      "instance": "1.2",
+      "type": "Integer",
+      "value": 550
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.8.2.1.11.1.1",
+      "symbol": "prtInputStatus",
+      "table": "prtInputTable",
+      "instance": "1.1",
+      "type": "Integer",
+      "value": 0
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.8.2.1.11.1.2",
+      "symbol": "prtInputStatus",
+      "table": "prtInputTable",
+      "instance": "1.2",
+      "type": "Integer",
+      "value": 0
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.8.2.1.12.1.1",
+      "symbol": "prtInputMediaName",
+      "table": "prtInputTable",
+      "instance": "1.1",
+      "type": "OctetString",
+      "value": "iso-a4-white"
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.8.2.1.12.1.2",
+      "symbol": "prtInputMediaName",
+      "table": "prtInputTable",
+      "instance": "1.2",
+      "type": "OctetString",
+      "value": "iso-a4-white"
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.8.2.1.13.1.1",
+      "symbol": "prtInputName",
+      "table": "prtInputTable",
+      "instance": "1.1",
+      "type": "OctetString",
+      "value": "Tray 1"
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.8.2.1.13.1.2",
+      "symbol": "prtInputName",
+      "table": "prtInputTable",
+      "instance": "1.2",
+      "type": "OctetString",
+      "value": "Tray 2"
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.8.2.1.18.1.1",
+      "symbol": "prtInputDescription",
+      "table": "prtInputTable",
+      "instance": "1.1",
+      "type": "OctetString",
+      "value": "Multipurpose Tray 1"
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.8.2.1.18.1.2",
+      "symbol": "prtInputDescription",
+      "table": "prtInputTable",
+      "instance": "1.2",
+      "type": "OctetString",
+      "value": "550-Sheet Input Tray 2"
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.10.2.1.2.1.1",
+      "symbol": "prtMarkerMarkTech",
+      "table": "prtMarkerTable",
+      "instance": "1.1",
+      "type": "Integer",
+      "value": 4
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.10.2.1.3.1.1",
+      "symbol": "prtMarkerCounterUnit",
+      "table": "prtMarkerTable",
+      "instance": "1.1",
+      "type": "Integer",
+      "value": 7
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.10.2.1.4.1.1",
+      "symbol": "prtMarkerLifeCount",
+      "table": "prtMarkerTable",
+      "instance": "1.1",
+      "type": "Counter32",
+      "value": 48250
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.10.2.1.5.1.1",
+      "symbol": "prtMarkerPowerOnCount",
+      "table": "prtMarkerTable",
+      "instance": "1.1",
+      "type": "Counter32",
+      "value": 310
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.10.2.1.15.1.1",
+      "symbol": "prtMarkerStatus",
+      "table": "prtMarkerTable",
+      "instance": "1.1",
+      "type": "Integer",
+      "value": 0
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.11.1.1.4.1.1",
+      "symbol": "prtMarkerSuppliesClass",
+      "table": "prtMarkerSuppliesTable",
+      "instance": "1.1",
+      "type": "Integer",
+      "value": 3
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.11.1.1.5.1.1",
+      "symbol": "prtMarkerSuppliesType",
+      "table": "prtMarkerSuppliesTable",
+      "instance": "1.1",
+      "type": "Integer",
+      "value": 3
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.11.1.1.6.1.1",
+      "symbol": "prtMarkerSuppliesDescription",
+      "table": "prtMarkerSuppliesTable",
+      "instance": "1.1",
+      "type": "OctetString",
+      "value": "Black Cartridge HP CF287A"
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.11.1.1.7.1.1",
+      "symbol": "prtMarkerSuppliesSupplyUnit",
+      "table": "prtMarkerSuppliesTable",
+      "instance": "1.1",
+      "type": "Integer",
+      "value": 7
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.11.1.1.8.1.1",
+      "symbol": "prtMarkerSuppliesMaxCapacity",
+      "table": "prtMarkerSuppliesTable",
+      "instance": "1.1",
+      "type": "Integer",
+      "value": 9000
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.11.1.1.9.1.1",
+      "symbol": "prtMarkerSuppliesLevel",
+      "table": "prtMarkerSuppliesTable",
+      "instance": "1.1",
+      "type": "Integer",
+      "value": 5400
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.16.5.1.2.1.1",
+      "symbol": "prtConsoleDisplayBufferText",
+      "table": "prtConsoleDisplayBufferTable",
+      "instance": "1.1",
+      "type": "OctetString",
+      "value": "Ready"
+    }
+  ]
+}

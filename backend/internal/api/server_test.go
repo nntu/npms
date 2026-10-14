@@ -159,6 +159,22 @@ func (fakeStore) ListCartridgeLogs(context.Context, string, string, int, int) ([
 	return []repository.CartridgeLog{}, nil
 }
 func (fakeStore) CountCartridgeLogs(context.Context, string, string) (int, error) { return 0, nil }
+func (f fakeStore) UpdatePrinter(_ context.Context, u repository.PrinterUpdate) error {
+	for _, d := range f.devices {
+		if d.ID == u.Device.ID {
+			return nil
+		}
+	}
+	return sql.ErrNoRows
+}
+func (f fakeStore) SoftDeleteDevice(_ context.Context, id string) error {
+	for _, d := range f.devices {
+		if d.ID == id {
+			return nil
+		}
+	}
+	return sql.ErrNoRows
+}
 
 func TestListPrintersReturnsPaginatedSafeDTO(t *testing.T) {
 	server, err := NewServer(fakeStore{devices: []repository.Device{{ID: "d1", DisplayName: "Front", Status: "online", Serial: "secret", LastSeenAt: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)}}, total: 1}, "token", "http://localhost:5173")
@@ -480,6 +496,170 @@ func TestCartridgeEndpoints(t *testing.T) {
 	server.Handler().ServeHTTP(recReplace, replaceReq)
 	if recReplace.Code != http.StatusOK || !containsAll(recReplace.Body.String(), `"counter":12345`, `"counter_quality":"unverified"`) {
 		t.Fatalf("unexpected replace response: status=%d body=%s", recReplace.Code, recReplace.Body.String())
+	}
+}
+
+func TestRegisterPrinterAutoProbesSNMPAndAssignsModelProfile(t *testing.T) {
+	registrationCh := make(chan repository.PrinterRegistration, 1)
+	server, err := NewServer(fakeStore{registrationCh: registrationCh}, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	box, err := security.NewSecretBox(make([]byte, 32))
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.SetSecretBox(box)
+	profiles, err := profile.LoadDir("../../profiles")
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.SetProfiles(profiles)
+	server.SetDiscoveryProbe(func(_ context.Context, cfg snmp.Config) (discovery.Result, error) {
+		return discovery.Result{
+			Address:      cfg.Host,
+			Name:         "HP-M501DN-KT01",
+			Manufacturer: "HP",
+			Model:        "HP LaserJet Enterprise M501dn",
+			Serial:       "REDACTED-M501DN-001",
+			SysObjectID:  "1.3.6.1.4.1.11.2.3.9.4.2.1.1.3.120",
+			Markers:      []snmp.MarkerRow{{Instance: "1.1", Life: 48250, Unit: 7}},
+		}, nil
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/printers/register", strings.NewReader(`{"display_name":"Máy in Kế toán","address":"192.0.2.10","version":"2c","community":"public"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	reg := <-registrationCh
+	if reg.Device.Manufacturer != "HP" || reg.Device.Model != "HP LaserJet Enterprise M501dn" || reg.Device.Serial != "REDACTED-M501DN-001" {
+		t.Fatalf("expected auto-probed device identity, got %+v", reg.Device)
+	}
+	if reg.Profile == nil || reg.Profile.ProfileKey != "hp-laserjet-enterprise-m501dn" {
+		t.Fatalf("expected hp-laserjet-enterprise-m501dn profile, got %+v", reg.Profile)
+	}
+	if len(reg.CounterDefinitions) != 1 || reg.CounterDefinitions[0].Instance != "1.1" {
+		t.Fatalf("expected counter definition with discovered instance 1.1, got %+v", reg.CounterDefinitions)
+	}
+}
+
+func TestUpdateAndSoftDeletePrinter(t *testing.T) {
+	store := fakeStore{devices: []repository.Device{{ID: "d1", DisplayName: "Old Name", Address: "192.0.2.10", Port: 161, SNMPVersion: "2c", Status: "online"}}}
+	server, err := NewServer(store, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	box, err := security.NewSecretBox(make([]byte, 32))
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.SetSecretBox(box)
+
+	putReq := httptest.NewRequest(http.MethodPut, "/api/v1/printers/d1", strings.NewReader(`{"display_name":"New Name","department":"IT","address":"192.0.2.11","port":161}`))
+	putReq.Header.Set("Content-Type", "application/json")
+	putRec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(putRec, putReq)
+	if putRec.Code != http.StatusOK {
+		t.Fatalf("PUT status = %d, body = %s", putRec.Code, putRec.Body.String())
+	}
+
+	delReq := httptest.NewRequest(http.MethodDelete, "/api/v1/printers/d1", nil)
+	delRec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(delRec, delReq)
+	if delRec.Code != http.StatusOK || !strings.Contains(delRec.Body.String(), `"status":"deleted"`) {
+		t.Fatalf("DELETE status = %d, body = %s", delRec.Code, delRec.Body.String())
+	}
+}
+
+func TestScanSubnetEndpoint(t *testing.T) {
+	server, err := NewServer(fakeStore{}, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.SetSubnetScanner(func(_ context.Context, cfg discovery.SubnetScanConfig) ([]discovery.Result, error) {
+		return []discovery.Result{
+			{
+				Address:      "192.168.1.50",
+				Name:         "HP LaserJet M404dn",
+				Manufacturer: "HP",
+				Model:        "HP LaserJet Pro M404dn",
+				SysObjectID:  "1.3.6.1.4.1.11.2.3.9.1",
+				Serial:       "VNBF123456",
+			},
+		}, nil
+	})
+
+	validReq := httptest.NewRequest(http.MethodPost, "/api/v1/discovery/scan", strings.NewReader(`{"cidr":"192.168.1.0/24","version":"2c","community":"public"}`))
+	validReq.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, validReq)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if !containsAll(rec.Body.String(), `"scanned_count":254`, `"192.168.1.50"`, `"HP LaserJet Pro M404dn"`) {
+		t.Fatalf("unexpected body: %s", rec.Body.String())
+	}
+
+	invalidReq := httptest.NewRequest(http.MethodPost, "/api/v1/discovery/scan", strings.NewReader(`{"cidr":"8.8.8.0/24","version":"2c","community":"public"}`))
+	invalidReq.Header.Set("Content-Type", "application/json")
+	invalidRec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(invalidRec, invalidReq)
+	if invalidRec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for public IP scan, got %d", invalidRec.Code)
+	}
+}
+
+func TestBulkRegisterPrintersEndpoint(t *testing.T) {
+	registrationCh := make(chan repository.PrinterRegistration, 5)
+	server, err := NewServer(fakeStore{registrationCh: registrationCh}, "token", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	box, err := security.NewSecretBox(make([]byte, 32))
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.SetSecretBox(box)
+
+	payload := `{
+		"printers": [
+			{"display_name":"Printer 1","address":"192.168.1.10","version":"2c","community":"public","department":"Phòng Kế toán"},
+			{"display_name":"Printer 2","address":"192.168.1.11","version":"2c","community":"public","department":"Phòng Kỹ thuật"}
+		]
+	}`
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/printers/bulk-register", strings.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer token")
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if !containsAll(rec.Body.String(), `"registered_count":2`, `"failed_count":0`, `"192.168.1.10"`, `"192.168.1.11"`) {
+		t.Fatalf("unexpected bulk register body: %s", rec.Body.String())
+	}
+
+	// Test with trailing slash: /api/v1/printers/bulk-register/
+	reqSlash := httptest.NewRequest(http.MethodPost, "/api/v1/printers/bulk-register/", strings.NewReader(payload))
+	reqSlash.Header.Set("Content-Type", "application/json")
+	reqSlash.Header.Set("Authorization", "Bearer token")
+	recSlash := httptest.NewRecorder()
+	server.Handler().ServeHTTP(recSlash, reqSlash)
+	if recSlash.Code != http.StatusOK {
+		t.Fatalf("status with slash = %d, body = %s", recSlash.Code, recSlash.Body.String())
+	}
+
+	// Test OPTIONS preflight
+	reqOpt := httptest.NewRequest(http.MethodOptions, "/api/v1/printers/bulk-register", nil)
+	recOpt := httptest.NewRecorder()
+	server.Handler().ServeHTTP(recOpt, reqOpt)
+	if recOpt.Code != http.StatusNoContent {
+		t.Fatalf("status for options = %d", recOpt.Code)
 	}
 }
 

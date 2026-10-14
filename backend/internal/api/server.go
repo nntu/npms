@@ -67,6 +67,11 @@ type RegistrationStore interface {
 	RegisterPrinter(context.Context, repository.PrinterRegistration) error
 }
 
+type PrinterManagementStore interface {
+	UpdatePrinter(context.Context, repository.PrinterUpdate) error
+	SoftDeleteDevice(context.Context, string) error
+}
+
 type CartridgeStore interface {
 	CreateCartridge(context.Context, repository.Cartridge) error
 	ListCartridges(context.Context) ([]repository.Cartridge, error)
@@ -85,6 +90,7 @@ type CounterSnapshotter interface {
 }
 
 type DiscoveryProbe func(context.Context, snmp.Config) (discovery.Result, error)
+type SubnetScanner func(context.Context, discovery.SubnetScanConfig) ([]discovery.Result, error)
 
 type Server struct {
 	store              DeviceStore
@@ -95,6 +101,7 @@ type Server struct {
 	profiles           []profile.Profile
 	secretBox          *security.SecretBox
 	discovery          DiscoveryProbe
+	subnetScanner      SubnetScanner
 	counterSnapshotter CounterSnapshotter
 	pollTimeout        time.Duration
 }
@@ -121,6 +128,8 @@ func (s *Server) SetSecretBox(box *security.SecretBox) { s.secretBox = box }
 
 func (s *Server) SetDiscoveryProbe(probe DiscoveryProbe) { s.discovery = probe }
 
+func (s *Server) SetSubnetScanner(scanner SubnetScanner) { s.subnetScanner = scanner }
+
 func (s *Server) SetCounterSnapshotter(snapshotter CounterSnapshotter) {
 	s.counterSnapshotter = snapshotter
 }
@@ -138,7 +147,11 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("/api/v1/health/ready", s.healthHandler())
 	mux.Handle("/api/v1/snmp/profiles", s.profileHandler())
 	mux.HandleFunc("/api/v1/discovery/probe", s.probeDiscovery)
+	mux.HandleFunc("/api/v1/discovery/scan", s.scanSubnet)
 	mux.HandleFunc("/api/v1/printers/register", s.registerPrinter)
+	mux.HandleFunc("/api/v1/printers/register/", s.registerPrinter)
+	mux.HandleFunc("/api/v1/printers/bulk-register", s.bulkRegisterPrinters)
+	mux.HandleFunc("/api/v1/printers/bulk-register/", s.bulkRegisterPrinters)
 	mux.Handle("/api/v1/printers", s.printerCollectionHandler())
 	mux.HandleFunc("/api/v1/printers/", s.getPrinter)
 	mux.HandleFunc("/api/v1/jobs/", s.getJob)
@@ -179,7 +192,7 @@ func (s *Server) Handler() http.Handler {
 		w.Header().Set("Vary", "Origin")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		if r.Method == http.MethodOptions {
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Accept, Authorization, Content-Type")
 			w.WriteHeader(http.StatusNoContent)
 			return
@@ -273,7 +286,199 @@ func (s *Server) probeDiscovery(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadGateway, "discovery_failed", "could not read the printer identity")
 		return
 	}
+	if len(s.profiles) > 0 {
+		if selected, resolveErr := (profile.Resolver{Profiles: s.profiles}).Resolve(profile.DeviceIdentity{
+			SysObjectID:  result.SysObjectID,
+			Manufacturer: result.Manufacturer,
+			Model:        result.Model,
+		}, ""); resolveErr == nil {
+			result.MatchedProfileID = selected.ID
+		}
+	}
 	writeJSON(w, http.StatusOK, result)
+}
+
+type subnetScanRequest struct {
+	CIDR           string `json:"cidr"`
+	StartIP        string `json:"start_ip"`
+	EndIP          string `json:"end_ip"`
+	Port           int    `json:"port"`
+	Version        string `json:"version"`
+	Community      string `json:"community"`
+	Username       string `json:"username"`
+	AuthProtocol   string `json:"auth_protocol"`
+	AuthPassphrase string `json:"auth_passphrase"`
+	PrivProtocol   string `json:"priv_protocol"`
+	PrivPassphrase string `json:"priv_passphrase"`
+	TimeoutMS      int    `json:"timeout_ms"`
+	Concurrency    int    `json:"concurrency"`
+}
+
+type discoveredPrinterItem struct {
+	Address           string                  `json:"address"`
+	Port              int                     `json:"port"`
+	Name              string                  `json:"name"`
+	Description       string                  `json:"description"`
+	SysObjectID       string                  `json:"sys_object_id"`
+	Serial            string                  `json:"serial"`
+	Location          string                  `json:"location,omitempty"`
+	Manufacturer      string                  `json:"manufacturer,omitempty"`
+	Model             string                  `json:"model,omitempty"`
+	MatchedProfileID  string                  `json:"matched_profile_id,omitempty"`
+	Markers           []discoveryMarkerOutput `json:"markers,omitempty"`
+	AlreadyRegistered bool                    `json:"already_registered"`
+}
+
+type discoveryMarkerOutput struct {
+	Instance string `json:"instance"`
+	Life     int64  `json:"life_count"`
+	Unit     int64  `json:"counter_unit"`
+	UnitName string `json:"counter_unit_name,omitempty"`
+}
+
+func (s *Server) scanSubnet(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodOptions {
+		w.Header().Set("Access-Control-Allow-Origin", s.allowedOrigin)
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if r.Method != http.MethodPost {
+		s.methodNotAllowed(w)
+		return
+	}
+	if !s.authorized(r) {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "valid bearer token is required")
+		return
+	}
+	if s.subnetScanner == nil {
+		writeError(w, http.StatusServiceUnavailable, "scan_unavailable", "subnet scanner is not configured")
+		return
+	}
+
+	var input subnetScanRequest
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&input); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", "request body must be valid JSON: "+err.Error())
+		return
+	}
+
+	ips, err := discovery.GenerateIPList(input.CIDR, input.StartIP, input.EndIP)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_ip_range", err.Error())
+		return
+	}
+
+	port := input.Port
+	if port == 0 {
+		port = 161
+	}
+	version := strings.TrimSpace(input.Version)
+	if version == "" {
+		version = "2c"
+	}
+	timeoutMS := input.TimeoutMS
+	if timeoutMS <= 0 {
+		timeoutMS = 1000
+	}
+	concurrency := input.Concurrency
+	if concurrency <= 0 {
+		concurrency = 25
+	}
+
+	secret := security.SNMPSecret{
+		Version:        version,
+		Community:      input.Community,
+		Username:       strings.TrimSpace(input.Username),
+		AuthProtocol:   strings.TrimSpace(input.AuthProtocol),
+		AuthPassphrase: input.AuthPassphrase,
+		PrivProtocol:   strings.TrimSpace(input.PrivProtocol),
+		PrivPassphrase: input.PrivPassphrase,
+	}
+	if err := secret.Validate(); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_credential", err.Error())
+		return
+	}
+
+	scanCfg := discovery.SubnetScanConfig{
+		IPs:            ips,
+		Port:           uint16(port),
+		Version:        snmp.Version(secret.Version),
+		Community:      secret.Community,
+		Username:       secret.Username,
+		AuthProtocol:   secret.AuthProtocol,
+		AuthPassphrase: secret.AuthPassphrase,
+		PrivProtocol:   secret.PrivProtocol,
+		PrivPassphrase: secret.PrivPassphrase,
+		Timeout:        time.Duration(timeoutMS) * time.Millisecond,
+		Concurrency:    concurrency,
+	}
+
+	results, err := s.subnetScanner(r.Context(), scanCfg)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "scan_failed", err.Error())
+		return
+	}
+
+	// Identify already registered IPs to guide the user in the UI
+	registeredIPs := make(map[string]bool)
+	if existingDevices, err := s.store.ListDevices(r.Context(), 1000, 0); err == nil {
+		for _, dev := range existingDevices {
+			if dev.Address != "" {
+				registeredIPs[dev.Address] = true
+			}
+		}
+	}
+
+	items := make([]discoveredPrinterItem, 0, len(results))
+	for _, res := range results {
+		matchedProfile := ""
+		if len(s.profiles) > 0 {
+			if selected, resolveErr := (profile.Resolver{Profiles: s.profiles}).Resolve(profile.DeviceIdentity{
+				SysObjectID:  res.SysObjectID,
+				Manufacturer: res.Manufacturer,
+				Model:        res.Model,
+			}, ""); resolveErr == nil {
+				matchedProfile = selected.ID
+			}
+		}
+
+		markers := make([]discoveryMarkerOutput, 0, len(res.Markers))
+		for _, m := range res.Markers {
+			unitName := m.UnitName
+			if unitName == "" {
+				unitName = snmp.CounterUnitName(m.Unit)
+			}
+			markers = append(markers, discoveryMarkerOutput{
+				Instance: m.Instance,
+				Life:     m.Life,
+				Unit:     int64(m.Unit),
+				UnitName: unitName,
+			})
+		}
+
+		items = append(items, discoveredPrinterItem{
+			Address:           res.Address,
+			Port:              port,
+			Name:              res.Name,
+			Description:       res.Description,
+			SysObjectID:       res.SysObjectID,
+			Serial:            res.Serial,
+			Location:          res.Location,
+			Manufacturer:      res.Manufacturer,
+			Model:             res.Model,
+			MatchedProfileID:  matchedProfile,
+			Markers:           markers,
+			AlreadyRegistered: registeredIPs[res.Address],
+		})
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"scanned_count":       len(ips),
+		"discovered_printers": items,
+	})
 }
 
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
@@ -354,6 +559,15 @@ func (s *Server) createPrinter(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getPrinter(w http.ResponseWriter, r *http.Request) {
+	cleanID := strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/v1/printers/"), "/")
+	if cleanID == "bulk-register" {
+		s.bulkRegisterPrinters(w, r)
+		return
+	}
+	if cleanID == "register" {
+		s.registerPrinter(w, r)
+		return
+	}
 	id := strings.TrimPrefix(r.URL.Path, "/api/v1/printers/")
 	if strings.HasSuffix(id, "/credentials") {
 		s.createCredential(w, r, strings.TrimSuffix(id, "/credentials"))
@@ -371,19 +585,27 @@ func (s *Server) getPrinter(w http.ResponseWriter, r *http.Request) {
 		s.startPoll(w, r, strings.TrimSuffix(id, "/poll"))
 		return
 	}
-	if r.Method != http.MethodGet {
-		s.methodNotAllowed(w)
-		return
-	}
-	if s.apiToken != "" && r.Header.Get("Authorization") != "Bearer "+s.apiToken {
-		writeError(w, http.StatusUnauthorized, "unauthorized", "valid bearer token is required")
-		return
-	}
 	if strings.HasSuffix(id, "/counters") {
+		if r.Method != http.MethodGet {
+			s.methodNotAllowed(w)
+			return
+		}
+		if !s.authorized(r) {
+			writeError(w, http.StatusUnauthorized, "unauthorized", "valid bearer token is required")
+			return
+		}
 		s.listCounters(w, r, strings.TrimSuffix(id, "/counters"))
 		return
 	}
 	if strings.HasSuffix(id, "/polling-runs") {
+		if r.Method != http.MethodGet {
+			s.methodNotAllowed(w)
+			return
+		}
+		if !s.authorized(r) {
+			writeError(w, http.StatusUnauthorized, "unauthorized", "valid bearer token is required")
+			return
+		}
 		s.listPollingRuns(w, r, strings.TrimSuffix(id, "/polling-runs"))
 		return
 	}
@@ -391,16 +613,29 @@ func (s *Server) getPrinter(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not_found", "printer was not found")
 		return
 	}
-	device, err := s.store.GetDevice(r.Context(), id)
-	if errors.Is(err, sql.ErrNoRows) {
-		writeError(w, http.StatusNotFound, "not_found", "printer was not found")
-		return
+	switch r.Method {
+	case http.MethodGet:
+		if !s.authorized(r) {
+			writeError(w, http.StatusUnauthorized, "unauthorized", "valid bearer token is required")
+			return
+		}
+		device, err := s.store.GetDevice(r.Context(), id)
+		if errors.Is(err, sql.ErrNoRows) {
+			writeError(w, http.StatusNotFound, "not_found", "printer was not found")
+			return
+		}
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "device_get_failed", "could not get printer")
+			return
+		}
+		writeJSON(w, http.StatusOK, toPrinterResponse(device))
+	case http.MethodPut:
+		s.updatePrinter(w, r, id)
+	case http.MethodDelete:
+		s.deletePrinter(w, r, id)
+	default:
+		s.methodNotAllowed(w)
 	}
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "device_get_failed", "could not get printer")
-		return
-	}
-	writeJSON(w, http.StatusOK, toPrinterResponse(device))
 }
 
 type createCredentialRequest struct {
@@ -484,18 +719,256 @@ type registerPrinterRequest struct {
 	PrivPassphrase string `json:"priv_passphrase"`
 }
 
+type registerPrinterResult struct {
+	Device                 repository.Device
+	CredentialID           string
+	EndpointID             string
+	ProfileID              string
+	CounterDefinitionCount int
+	PollJobID              string
+	PollStatus             string
+}
+
+func (s *Server) registerPrinterInternal(ctx context.Context, input registerPrinterRequest) (*registerPrinterResult, error) {
+	store, ok := s.store.(RegistrationStore)
+	if !ok || s.secretBox == nil {
+		return nil, fmt.Errorf("printer registration is not configured")
+	}
+
+	address := strings.TrimSpace(input.Address)
+	if address == "" {
+		return nil, fmt.Errorf("address is required")
+	}
+
+	displayName := strings.TrimSpace(input.DisplayName)
+	if displayName == "" {
+		displayName = strings.TrimSpace(input.Manufacturer + " " + input.Model)
+		if displayName == "" {
+			displayName = "Máy in (" + address + ")"
+		}
+	}
+	if len(displayName) > 200 {
+		displayName = displayName[:200]
+	}
+
+	port := input.Port
+	if port == 0 {
+		port = 161
+	}
+	if port < 1 || port > 65535 {
+		return nil, fmt.Errorf("port must be between 1 and 65535")
+	}
+
+	version := strings.TrimSpace(input.Version)
+	if version == "" {
+		version = "2c"
+	}
+	community := input.Community
+	if version == "2c" && community == "" {
+		community = "public"
+	}
+
+	secret := security.SNMPSecret{
+		Version:        version,
+		Community:      community,
+		Username:       strings.TrimSpace(input.Username),
+		AuthProtocol:   strings.TrimSpace(input.AuthProtocol),
+		AuthPassphrase: input.AuthPassphrase,
+		PrivProtocol:   strings.TrimSpace(input.PrivProtocol),
+		PrivPassphrase: input.PrivPassphrase,
+	}
+	encoded, err := security.EncodeSNMPSecret(secret)
+	if err != nil {
+		return nil, fmt.Errorf("invalid credential: %w", err)
+	}
+	ciphertext, err := s.secretBox.Encrypt(encoded)
+	if err != nil {
+		return nil, fmt.Errorf("could not encrypt credential: %w", err)
+	}
+
+	deviceID, credentialID, endpointID := newJobID(), newJobID(), newJobID()
+	registration := repository.PrinterRegistration{
+		Device: repository.Device{
+			ID:           deviceID,
+			AssetCode:    strings.TrimSpace(input.AssetCode),
+			DisplayName:  displayName,
+			Manufacturer: strings.TrimSpace(input.Manufacturer),
+			Model:        strings.TrimSpace(input.Model),
+			Serial:       strings.TrimSpace(input.Serial),
+			SysObjectID:  strings.TrimSpace(input.SysObjectID),
+			Department:   strings.TrimSpace(input.Department),
+			Address:      address,
+			Port:         uint16(port),
+			SNMPVersion:  secret.Version,
+			Status:       "unknown",
+		},
+		Credential: repository.SNMPCredential{
+			ID:                      credentialID,
+			Version:                 secret.Version,
+			EncryptedSecretMaterial: ciphertext,
+			SecurityMetadata:        fmt.Sprintf(`{"version":%q}`, secret.Version),
+		},
+		Endpoint: repository.DeviceEndpoint{
+			ID:           endpointID,
+			DeviceID:     deviceID,
+			Address:      address,
+			Protocol:     "snmp",
+			Port:         uint16(port),
+			CredentialID: credentialID,
+			IsPrimary:    true,
+		},
+	}
+
+	var discoveredInstance string
+	var probeMarkers []snmp.MarkerRow
+	if s.discovery != nil && (registration.Device.Manufacturer == "" || registration.Device.Model == "" || registration.Device.Serial == "" || registration.Device.SysObjectID == "" || registration.Device.Department == "") {
+		probeCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
+		probeRes, probeErr := s.discovery(probeCtx, snmp.Config{
+			Host:           address,
+			Port:           uint16(port),
+			Version:        snmp.Version(secret.Version),
+			Community:      secret.Community,
+			Username:       secret.Username,
+			AuthProtocol:   secret.AuthProtocol,
+			AuthPassphrase: secret.AuthPassphrase,
+			PrivProtocol:   secret.PrivProtocol,
+			PrivPassphrase: secret.PrivPassphrase,
+			TimeoutSeconds: 3,
+			Retries:        1,
+			MaxRepetitions: 25,
+		})
+		cancel()
+		if probeErr == nil {
+			if registration.Device.Manufacturer == "" {
+				registration.Device.Manufacturer = probeRes.Manufacturer
+			}
+			if registration.Device.Model == "" {
+				registration.Device.Model = probeRes.Model
+			}
+			if registration.Device.Serial == "" {
+				registration.Device.Serial = probeRes.Serial
+			}
+			if registration.Device.SysObjectID == "" {
+				registration.Device.SysObjectID = probeRes.SysObjectID
+			}
+			if registration.Device.Department == "" && probeRes.Location != "" {
+				registration.Device.Department = probeRes.Location
+			}
+			registration.Device.Status = "online"
+			now := time.Now().UTC()
+			registration.Device.FirstSeenAt = now
+			registration.Device.LastSeenAt = now
+			probeMarkers = probeRes.Markers
+			if len(probeMarkers) == 1 {
+				discoveredInstance = probeMarkers[0].Instance
+			}
+		}
+	}
+
+	if len(s.profiles) > 0 {
+		selected, resolveErr := (profile.Resolver{Profiles: s.profiles}).Resolve(profile.DeviceIdentity{
+			SysObjectID:  registration.Device.SysObjectID,
+			Manufacturer: registration.Device.Manufacturer,
+			Model:        registration.Device.Model,
+		}, strings.TrimSpace(input.ProfileID))
+		if resolveErr != nil {
+			return nil, fmt.Errorf("profile resolution failed: %w", resolveErr)
+		}
+		content, marshalErr := yaml.Marshal(selected)
+		if marshalErr != nil {
+			return nil, fmt.Errorf("could not serialize selected profile: %w", marshalErr)
+		}
+		digest := sha256.Sum256(content)
+		profileID := selected.ID + "@" + strconv.Itoa(selected.Version)
+		registration.Profile = &repository.SNMPProfile{
+			ID:                 profileID,
+			ProfileKey:         selected.ID,
+			Version:            selected.Version,
+			SchemaVersion:      selected.SchemaVersion,
+			Content:            string(content),
+			Checksum:           hex.EncodeToString(digest[:]),
+			VerificationStatus: string(selected.VerificationStatus),
+		}
+		registration.Device.ProfileKey = selected.ID
+		registration.ProfileExplicit = strings.TrimSpace(input.ProfileID) != ""
+		registration.CounterDefinitions = make([]repository.CounterDefinition, 0, len(selected.Counters))
+		for key, definition := range selected.Counters {
+			instance := ""
+			if definition.Mode == "walk" {
+				if discoveredInstance != "" {
+					instance = discoveredInstance
+				} else {
+					for _, m := range probeMarkers {
+						if m.UnitName == definition.Unit || snmp.CounterUnitName(m.Unit) == definition.Unit {
+							instance = m.Instance
+							break
+						}
+					}
+					if instance == "" && len(probeMarkers) > 0 {
+						instance = probeMarkers[0].Instance
+					}
+				}
+			}
+			registration.CounterDefinitions = append(registration.CounterDefinitions, repository.CounterDefinition{
+				ID:                    deviceID + ":" + key,
+				DeviceID:              deviceID,
+				Key:                   key,
+				SourceProtocol:        "snmp",
+				OID:                   definition.ValueColumn,
+				Instance:              instance,
+				Unit:                  definition.Unit,
+				SemanticType:          definition.SemanticType,
+				Scope:                 definition.Scope,
+				Mode:                  definition.Mode,
+				UnitOID:               definition.UnitColumn,
+				Selection:             definition.Selection,
+				Aggregation:           definition.Aggregation,
+				RequireUnitValidation: definition.RequireUnitValidation,
+				Verified:              selected.VerificationStatus == profile.VerificationVerified,
+			})
+		}
+	}
+
+	if err := store.RegisterPrinter(ctx, registration); err != nil {
+		return nil, fmt.Errorf("could not register printer: %w", err)
+	}
+
+	pollJobID := ""
+	pollStatus := "not_started"
+	if s.poller != nil {
+		if pollJobID, err = s.queuePoll(ctx, deviceID); err == nil {
+			pollStatus = "queued"
+		} else {
+			pollJobID = ""
+		}
+	}
+	profileID := ""
+	if registration.Profile != nil {
+		profileID = registration.Profile.ID
+	}
+
+	return &registerPrinterResult{
+		Device:                 registration.Device,
+		CredentialID:           credentialID,
+		EndpointID:             endpointID,
+		ProfileID:              profileID,
+		CounterDefinitionCount: len(registration.CounterDefinitions),
+		PollJobID:              pollJobID,
+		PollStatus:             pollStatus,
+	}, nil
+}
+
 func (s *Server) registerPrinter(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
 	if r.Method != http.MethodPost {
 		s.methodNotAllowed(w)
 		return
 	}
 	if !s.authorized(r) {
 		writeError(w, http.StatusUnauthorized, "unauthorized", "valid bearer token is required")
-		return
-	}
-	store, ok := s.store.(RegistrationStore)
-	if !ok || s.secretBox == nil {
-		writeError(w, http.StatusServiceUnavailable, "registration_unavailable", "printer registration is not configured")
 		return
 	}
 	var input registerPrinterRequest
@@ -505,37 +978,264 @@ func (s *Server) registerPrinter(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_json", "request body must be valid JSON")
 		return
 	}
-	if strings.TrimSpace(input.DisplayName) == "" || len(input.DisplayName) > 200 {
+
+	res, err := s.registerPrinterInternal(r.Context(), input)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "registration_failed", err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"printer":                  toPrinterResponse(res.Device),
+		"credential_id":            res.CredentialID,
+		"endpoint_id":              res.EndpointID,
+		"profile_id":               nullable(res.ProfileID),
+		"counter_definition_count": res.CounterDefinitionCount,
+		"poll_job_id":              nullable(res.PollJobID),
+		"poll_status":              res.PollStatus,
+	})
+}
+
+type bulkRegisterRequest struct {
+	Printers []registerPrinterRequest `json:"printers"`
+}
+
+type bulkRegisterItemResult struct {
+	Address  string `json:"address"`
+	Status   string `json:"status"`
+	DeviceID string `json:"device_id,omitempty"`
+	Error    string `json:"error,omitempty"`
+}
+
+func (s *Server) bulkRegisterPrinters(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if r.Method != http.MethodPost {
+		s.methodNotAllowed(w)
+		return
+	}
+	if !s.authorized(r) {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "valid bearer token is required")
+		return
+	}
+	var input bulkRegisterRequest
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 256<<10))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&input); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", "request body must be valid JSON: "+err.Error())
+		return
+	}
+	if len(input.Printers) == 0 {
+		writeError(w, http.StatusBadRequest, "empty_list", "printers list cannot be empty")
+		return
+	}
+
+	results := make([]bulkRegisterItemResult, 0, len(input.Printers))
+	registeredCount := 0
+	failedCount := 0
+
+	for _, p := range input.Printers {
+		res, err := s.registerPrinterInternal(r.Context(), p)
+		if err != nil {
+			failedCount++
+			results = append(results, bulkRegisterItemResult{
+				Address: p.Address,
+				Status:  "error",
+				Error:   err.Error(),
+			})
+		} else {
+			registeredCount++
+			results = append(results, bulkRegisterItemResult{
+				Address:  p.Address,
+				Status:   "success",
+				DeviceID: res.Device.ID,
+			})
+		}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"registered_count": registeredCount,
+		"failed_count":     failedCount,
+		"results":          results,
+	})
+}
+
+type updatePrinterRequest struct {
+	DisplayName    string `json:"display_name"`
+	AssetCode      string `json:"asset_code"`
+	Manufacturer   string `json:"manufacturer"`
+	Model          string `json:"model"`
+	Serial         string `json:"serial"`
+	SysObjectID    string `json:"sys_object_id"`
+	Department     string `json:"department"`
+	ProfileID      string `json:"profile_id"`
+	Address        string `json:"address"`
+	Port           int    `json:"port"`
+	Version        string `json:"version"`
+	Community      string `json:"community"`
+	Username       string `json:"username"`
+	AuthProtocol   string `json:"auth_protocol"`
+	AuthPassphrase string `json:"auth_passphrase"`
+	PrivProtocol   string `json:"priv_protocol"`
+	PrivPassphrase string `json:"priv_passphrase"`
+}
+
+func (s *Server) updatePrinter(w http.ResponseWriter, r *http.Request, deviceID string) {
+	if !s.authorized(r) {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "valid bearer token is required")
+		return
+	}
+	store, ok := s.store.(PrinterManagementStore)
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "printer_update_unavailable", "printer update is not configured")
+		return
+	}
+	existing, err := s.store.GetDevice(r.Context(), deviceID)
+	if errors.Is(err, sql.ErrNoRows) {
+		writeError(w, http.StatusNotFound, "not_found", "printer was not found")
+		return
+	} else if err != nil {
+		writeError(w, http.StatusInternalServerError, "device_get_failed", "could not get printer")
+		return
+	}
+	var input updatePrinterRequest
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 32<<10))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&input); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", "request body must be valid JSON")
+		return
+	}
+	displayName := strings.TrimSpace(input.DisplayName)
+	if displayName == "" || len(displayName) > 200 {
 		writeError(w, http.StatusBadRequest, "invalid_display_name", "display_name is required and must be at most 200 characters")
 		return
 	}
+	address := strings.TrimSpace(input.Address)
 	port := input.Port
 	if port == 0 {
-		port = 161
+		if existing.Port > 0 {
+			port = int(existing.Port)
+		} else {
+			port = 161
+		}
 	}
 	if port < 1 || port > 65535 {
 		writeError(w, http.StatusBadRequest, "invalid_endpoint", "port must be between 1 and 65535")
 		return
 	}
-	secret := security.SNMPSecret{Version: strings.TrimSpace(input.Version), Community: input.Community, Username: strings.TrimSpace(input.Username), AuthProtocol: strings.TrimSpace(input.AuthProtocol), AuthPassphrase: input.AuthPassphrase, PrivProtocol: strings.TrimSpace(input.PrivProtocol), PrivPassphrase: input.PrivPassphrase}
-	encoded, err := security.EncodeSNMPSecret(secret)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_credential", err.Error())
-		return
+
+	var updatedCred *repository.SNMPCredential
+	hasNewCred := strings.TrimSpace(input.Community) != "" || strings.TrimSpace(input.Username) != ""
+	var secret security.SNMPSecret
+	if hasNewCred {
+		if s.secretBox == nil {
+			writeError(w, http.StatusServiceUnavailable, "credential_store_unavailable", "credential storage is not configured")
+			return
+		}
+		version := strings.TrimSpace(input.Version)
+		if version == "" {
+			if existing.SNMPVersion != "" {
+				version = existing.SNMPVersion
+			} else {
+				version = "2c"
+			}
+		}
+		secret = security.SNMPSecret{
+			Version:        version,
+			Community:      input.Community,
+			Username:       strings.TrimSpace(input.Username),
+			AuthProtocol:   strings.TrimSpace(input.AuthProtocol),
+			AuthPassphrase: input.AuthPassphrase,
+			PrivProtocol:   strings.TrimSpace(input.PrivProtocol),
+			PrivPassphrase: input.PrivPassphrase,
+		}
+		encoded, encErr := security.EncodeSNMPSecret(secret)
+		if encErr != nil {
+			writeError(w, http.StatusBadRequest, "invalid_credential", encErr.Error())
+			return
+		}
+		ciphertext, encErr := s.secretBox.Encrypt(encoded)
+		if encErr != nil {
+			writeError(w, http.StatusInternalServerError, "credential_encryption_failed", "could not encrypt credential")
+			return
+		}
+		updatedCred = &repository.SNMPCredential{
+			ID:                      newJobID(),
+			Version:                 secret.Version,
+			EncryptedSecretMaterial: ciphertext,
+			SecurityMetadata:        fmt.Sprintf(`{"version":%q}`, secret.Version),
+		}
 	}
-	ciphertext, err := s.secretBox.Encrypt(encoded)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "credential_encryption_failed", "could not encrypt credential")
-		return
+
+	update := repository.PrinterUpdate{
+		Device: repository.Device{
+			ID:           deviceID,
+			AssetCode:    strings.TrimSpace(input.AssetCode),
+			DisplayName:  displayName,
+			Manufacturer: strings.TrimSpace(input.Manufacturer),
+			Model:        strings.TrimSpace(input.Model),
+			Serial:       strings.TrimSpace(input.Serial),
+			SysObjectID:  strings.TrimSpace(input.SysObjectID),
+			Department:   strings.TrimSpace(input.Department),
+			Status:       existing.Status,
+		},
+		EndpointAddress: address,
+		EndpointPort:    uint16(port),
+		NewEndpointID:   newJobID(),
+		Credential:      updatedCred,
 	}
-	deviceID, credentialID, endpointID := newJobID(), newJobID(), newJobID()
-	registration := repository.PrinterRegistration{
-		Device:     repository.Device{ID: deviceID, AssetCode: strings.TrimSpace(input.AssetCode), DisplayName: strings.TrimSpace(input.DisplayName), Manufacturer: strings.TrimSpace(input.Manufacturer), Model: strings.TrimSpace(input.Model), Serial: strings.TrimSpace(input.Serial), SysObjectID: strings.TrimSpace(input.SysObjectID), Department: strings.TrimSpace(input.Department), Status: "unknown"},
-		Credential: repository.SNMPCredential{ID: credentialID, Version: secret.Version, EncryptedSecretMaterial: ciphertext, SecurityMetadata: fmt.Sprintf(`{"version":%q}`, secret.Version)},
-		Endpoint:   repository.DeviceEndpoint{ID: endpointID, DeviceID: deviceID, Address: strings.TrimSpace(input.Address), Protocol: "snmp", Port: uint16(port), CredentialID: credentialID, IsPrimary: true},
+
+	var discoveredInstance string
+	var probeMarkers []snmp.MarkerRow
+	probeHost := address
+	if probeHost == "" {
+		probeHost = existing.Address
 	}
+	if s.discovery != nil && hasNewCred && probeHost != "" && (update.Device.Manufacturer == "" || update.Device.Model == "" || update.Device.Serial == "" || update.Device.SysObjectID == "") {
+		probeCtx, cancel := context.WithTimeout(r.Context(), 4*time.Second)
+		probeRes, probeErr := s.discovery(probeCtx, snmp.Config{
+			Host:           probeHost,
+			Port:           uint16(port),
+			Version:        snmp.Version(secret.Version),
+			Community:      secret.Community,
+			Username:       secret.Username,
+			AuthProtocol:   secret.AuthProtocol,
+			AuthPassphrase: secret.AuthPassphrase,
+			PrivProtocol:   secret.PrivProtocol,
+			PrivPassphrase: secret.PrivPassphrase,
+			TimeoutSeconds: 3,
+			Retries:        1,
+			MaxRepetitions: 25,
+		})
+		cancel()
+		if probeErr == nil {
+			if update.Device.Manufacturer == "" {
+				update.Device.Manufacturer = probeRes.Manufacturer
+			}
+			if update.Device.Model == "" {
+				update.Device.Model = probeRes.Model
+			}
+			if update.Device.Serial == "" {
+				update.Device.Serial = probeRes.Serial
+			}
+			if update.Device.SysObjectID == "" {
+				update.Device.SysObjectID = probeRes.SysObjectID
+			}
+			probeMarkers = probeRes.Markers
+			if len(probeMarkers) == 1 {
+				discoveredInstance = probeMarkers[0].Instance
+			}
+		}
+	}
+
 	if len(s.profiles) > 0 {
-		selected, resolveErr := (profile.Resolver{Profiles: s.profiles}).Resolve(profile.DeviceIdentity{SysObjectID: registration.Device.SysObjectID, Manufacturer: registration.Device.Manufacturer, Model: registration.Device.Model}, strings.TrimSpace(input.ProfileID))
+		selected, resolveErr := (profile.Resolver{Profiles: s.profiles}).Resolve(profile.DeviceIdentity{
+			SysObjectID:  update.Device.SysObjectID,
+			Manufacturer: update.Device.Manufacturer,
+			Model:        update.Device.Model,
+		}, strings.TrimSpace(input.ProfileID))
 		if resolveErr != nil {
 			writeError(w, http.StatusBadRequest, "profile_resolution_failed", resolveErr.Error())
 			return
@@ -547,31 +1247,88 @@ func (s *Server) registerPrinter(w http.ResponseWriter, r *http.Request) {
 		}
 		digest := sha256.Sum256(content)
 		profileID := selected.ID + "@" + strconv.Itoa(selected.Version)
-		registration.Profile = &repository.SNMPProfile{ID: profileID, ProfileKey: selected.ID, Version: selected.Version, SchemaVersion: selected.SchemaVersion, Content: string(content), Checksum: hex.EncodeToString(digest[:]), VerificationStatus: string(selected.VerificationStatus)}
-		registration.ProfileExplicit = strings.TrimSpace(input.ProfileID) != ""
-		registration.CounterDefinitions = make([]repository.CounterDefinition, 0, len(selected.Counters))
+		update.Profile = &repository.SNMPProfile{
+			ID:                 profileID,
+			ProfileKey:         selected.ID,
+			Version:            selected.Version,
+			SchemaVersion:      selected.SchemaVersion,
+			Content:            string(content),
+			Checksum:           hex.EncodeToString(digest[:]),
+			VerificationStatus: string(selected.VerificationStatus),
+		}
+		update.ProfileExplicit = strings.TrimSpace(input.ProfileID) != ""
+		update.CounterDefinitions = make([]repository.CounterDefinition, 0, len(selected.Counters))
 		for key, definition := range selected.Counters {
-			registration.CounterDefinitions = append(registration.CounterDefinitions, repository.CounterDefinition{ID: deviceID + ":" + key, DeviceID: deviceID, Key: key, SourceProtocol: "snmp", OID: definition.ValueColumn, Unit: definition.Unit, SemanticType: definition.SemanticType, Scope: definition.Scope, Mode: definition.Mode, UnitOID: definition.UnitColumn, Selection: definition.Selection, Aggregation: definition.Aggregation, RequireUnitValidation: definition.RequireUnitValidation, Verified: selected.VerificationStatus == profile.VerificationVerified})
+			instance := ""
+			if definition.Mode == "walk" {
+				if discoveredInstance != "" {
+					instance = discoveredInstance
+				} else {
+					for _, m := range probeMarkers {
+						if m.UnitName == definition.Unit || snmp.CounterUnitName(m.Unit) == definition.Unit {
+							instance = m.Instance
+							break
+						}
+					}
+					if instance == "" && len(probeMarkers) > 0 {
+						instance = probeMarkers[0].Instance
+					}
+				}
+			}
+			update.CounterDefinitions = append(update.CounterDefinitions, repository.CounterDefinition{
+				ID:                    deviceID + ":" + key,
+				DeviceID:              deviceID,
+				Key:                   key,
+				SourceProtocol:        "snmp",
+				OID:                   definition.ValueColumn,
+				Instance:              instance,
+				Unit:                  definition.Unit,
+				SemanticType:          definition.SemanticType,
+				Scope:                 definition.Scope,
+				Mode:                  definition.Mode,
+				UnitOID:               definition.UnitColumn,
+				Selection:             definition.Selection,
+				Aggregation:           definition.Aggregation,
+				RequireUnitValidation: definition.RequireUnitValidation,
+				Verified:              selected.VerificationStatus == profile.VerificationVerified,
+			})
 		}
 	}
-	if err := store.RegisterPrinter(r.Context(), registration); err != nil {
-		writeError(w, http.StatusConflict, "registration_failed", "could not register printer and endpoint")
+
+	if err := store.UpdatePrinter(r.Context(), update); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeError(w, http.StatusNotFound, "not_found", "printer was not found")
+			return
+		}
+		writeError(w, http.StatusConflict, "printer_update_failed", "could not update printer")
 		return
 	}
-	pollJobID := ""
-	pollStatus := "not_started"
-	if s.poller != nil {
-		if pollJobID, err = s.queuePoll(r.Context(), deviceID); err == nil {
-			pollStatus = "queued"
-		} else {
-			pollJobID = ""
+	updated, err := s.store.GetDevice(r.Context(), deviceID)
+	if err != nil {
+		updated = update.Device
+	}
+	writeJSON(w, http.StatusOK, toPrinterResponse(updated))
+}
+
+func (s *Server) deletePrinter(w http.ResponseWriter, r *http.Request, deviceID string) {
+	if !s.authorized(r) {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "valid bearer token is required")
+		return
+	}
+	store, ok := s.store.(PrinterManagementStore)
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "printer_delete_unavailable", "printer deletion is not configured")
+		return
+	}
+	if err := store.SoftDeleteDevice(r.Context(), deviceID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeError(w, http.StatusNotFound, "not_found", "printer was not found")
+			return
 		}
+		writeError(w, http.StatusInternalServerError, "printer_delete_failed", "could not delete printer")
+		return
 	}
-	profileID := ""
-	if registration.Profile != nil {
-		profileID = registration.Profile.ID
-	}
-	writeJSON(w, http.StatusCreated, map[string]any{"printer": toPrinterResponse(registration.Device), "credential_id": credentialID, "endpoint_id": endpointID, "profile_id": nullable(profileID), "counter_definition_count": len(registration.CounterDefinitions), "poll_job_id": nullable(pollJobID), "poll_status": pollStatus})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted", "id": deviceID})
 }
 
 type createEndpointRequest struct {
@@ -883,7 +1640,12 @@ type printerResponse struct {
 	Manufacturer *string `json:"manufacturer,omitempty"`
 	Model        *string `json:"model,omitempty"`
 	Serial       *string `json:"serial,omitempty"`
+	SysObjectID  *string `json:"sys_object_id,omitempty"`
 	Department   *string `json:"department,omitempty"`
+	Address      *string `json:"address,omitempty"`
+	Port         *int    `json:"port,omitempty"`
+	SNMPVersion  *string `json:"snmp_version,omitempty"`
+	ProfileID    *string `json:"profile_id,omitempty"`
 	Status       string  `json:"status"`
 	LastSeenAt   *string `json:"last_seen_at,omitempty"`
 }
@@ -927,11 +1689,18 @@ type pollingRunResponse struct {
 }
 
 func toPrinterResponse(device repository.Device) printerResponse {
+	var port *int
+	if device.Port > 0 {
+		p := int(device.Port)
+		port = &p
+	}
 	return printerResponse{
 		ID: device.ID, AssetCode: nullable(device.AssetCode), DisplayName: device.DisplayName,
 		Manufacturer: nullable(device.Manufacturer), Model: nullable(device.Model), Serial: nullable(device.Serial),
-		Department: nullable(device.Department),
-		Status:     device.Status, LastSeenAt: nullableTime(device.LastSeenAt),
+		SysObjectID: nullable(device.SysObjectID),
+		Department:  nullable(device.Department),
+		Address:     nullable(device.Address), Port: port, SNMPVersion: nullable(device.SNMPVersion), ProfileID: nullable(device.ProfileKey),
+		Status:      device.Status, LastSeenAt: nullableTime(device.LastSeenAt),
 	}
 }
 

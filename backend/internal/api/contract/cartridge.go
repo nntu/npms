@@ -169,12 +169,16 @@ type DiscoveryInput struct {
 }
 type DiscoveryOutput struct {
 	Body struct {
-		Address     string            `json:"address" format:"ipv4"`
-		Name        string            `json:"name"`
-		Description string            `json:"description"`
-		SysObjectID string            `json:"sys_object_id"`
-		Serial      string            `json:"serial"`
-		Markers     []DiscoveryMarker `json:"markers,omitempty"`
+		Address          string            `json:"address" format:"ipv4"`
+		Name             string            `json:"name"`
+		Description      string            `json:"description"`
+		SysObjectID      string            `json:"sys_object_id"`
+		Serial           string            `json:"serial"`
+		Location         string            `json:"location,omitempty"`
+		Manufacturer     string            `json:"manufacturer,omitempty"`
+		Model            string            `json:"model,omitempty"`
+		MatchedProfileID string            `json:"matched_profile_id,omitempty"`
+		Markers          []DiscoveryMarker `json:"markers,omitempty"`
 	}
 }
 
@@ -182,6 +186,47 @@ type DiscoveryMarker struct {
 	Instance string `json:"instance"`
 	Life     int64  `json:"life_count" minimum:"0"`
 	Unit     int64  `json:"counter_unit" minimum:"0"`
+	UnitName string `json:"counter_unit_name,omitempty"`
+}
+
+type SubnetScanInput struct {
+	Body struct {
+		CIDR           string `json:"cidr,omitempty" example:"192.168.1.0/24"`
+		StartIP        string `json:"start_ip,omitempty" format:"ipv4" example:"192.168.1.1"`
+		EndIP          string `json:"end_ip,omitempty" format:"ipv4" example:"192.168.1.254"`
+		Port           int    `json:"port,omitempty" minimum:"1" maximum:"65535" default:"161"`
+		Version        string `json:"version" enum:"2c,3" default:"2c"`
+		Community      string `json:"community,omitempty" writeOnly:"true"`
+		Username       string `json:"username,omitempty" writeOnly:"true"`
+		AuthProtocol   string `json:"auth_protocol,omitempty" enum:"MD5,SHA"`
+		AuthPassphrase string `json:"auth_passphrase,omitempty" writeOnly:"true"`
+		PrivProtocol   string `json:"priv_protocol,omitempty" enum:"DES,AES,AES128"`
+		PrivPassphrase string `json:"priv_passphrase,omitempty" writeOnly:"true"`
+		TimeoutMS      int    `json:"timeout_ms,omitempty" minimum:"200" maximum:"5000" default:"1000"`
+		Concurrency    int    `json:"concurrency,omitempty" minimum:"1" maximum:"50" default:"25"`
+	}
+}
+
+type DiscoveredDevice struct {
+	Address           string            `json:"address" format:"ipv4"`
+	Port              int               `json:"port"`
+	Name              string            `json:"name"`
+	Description       string            `json:"description"`
+	SysObjectID       string            `json:"sys_object_id"`
+	Serial            string            `json:"serial"`
+	Location          string            `json:"location,omitempty"`
+	Manufacturer      string            `json:"manufacturer,omitempty"`
+	Model             string            `json:"model,omitempty"`
+	MatchedProfileID  string            `json:"matched_profile_id,omitempty"`
+	Markers           []DiscoveryMarker `json:"markers,omitempty"`
+	AlreadyRegistered bool              `json:"already_registered"`
+}
+
+type SubnetScanOutput struct {
+	Body struct {
+		ScannedCount       int                `json:"scanned_count"`
+		DiscoveredPrinters []DiscoveredDevice `json:"discovered_printers"`
+	}
 }
 
 func NewCartridgeAPI() (http.Handler, *huma.OpenAPI) {
@@ -193,6 +238,7 @@ func NewCartridgeAPI() (http.Handler, *huma.OpenAPI) {
 	huma.Get(api, "/api/v1/health/ready", func(context.Context, *struct{}) (*HealthOutput, error) { return &HealthOutput{}, nil })
 	huma.Get(api, "/api/v1/snmp/profiles", func(context.Context, *struct{}) (*ProfileListOutput, error) { return &ProfileListOutput{}, nil })
 	huma.Post(api, "/api/v1/discovery/probe", func(context.Context, *DiscoveryInput) (*DiscoveryOutput, error) { return &DiscoveryOutput{}, nil })
+	huma.Post(api, "/api/v1/discovery/scan", func(context.Context, *SubnetScanInput) (*SubnetScanOutput, error) { return &SubnetScanOutput{}, nil })
 	registerPrinterContracts(api)
 
 	huma.Get(api, "/api/v1/cartridges", func(context.Context, *CartridgeListInput) (*CartridgeListOutput, error) {

@@ -6,17 +6,16 @@ that its counter semantics are correct.
 
 ## Current matrix
 
-| Model/profile | Fixture | Real device | Current status |
+| Model/profile | Fixture (`backend/testdata/printer-mib/`) | Real device | Current status |
 | --- | --- | --- | --- |
-| HP LaserJet Pro M402dn | Missing | Not tested | `experimental` |
-| HP LaserJet Enterprise M501dn | Missing | Not tested | `experimental` |
-| Brother HL-L5100DN/T | Missing | Not tested | `experimental` |
-| Brother HL-L6210 | Missing | Not tested | `experimental` |
-| Generic Printer-MIB | Synthetic join tests only | Not tested | `unverified` |
+| HP LaserJet Pro M402dn | `hp-laserjet-pro-m402dn.json` (synthetic) | Not tested | `experimental` |
+| HP LaserJet Enterprise M501dn | `hp-laserjet-enterprise-m501dn.json` (synthetic) | Not tested | `experimental` |
+| Brother HL-L5100DN/T | `brother-hl-l5100dn.json` (synthetic) | Not tested | `experimental` |
+| Brother HL-L6210 | `brother-hl-l6210dw.json` (synthetic) | Not tested | `experimental` |
+| Ricoh IM 2702 (multi-marker) | `ricoh-im-2702-multi-marker.json` (synthetic) | Not tested | `unverified` |
+| Generic Printer-MIB | Synthetic join & replay tests | Not tested | `unverified` |
 
-The repository currently has profile-load and exact-instance WALK join tests,
-but no captured printer export. Do not add guessed vendor OIDs or promote a
-profile based only on a model-name match.
+The repository includes synthetic `Printer-MIB.yaml` fixtures (`synthetic_fixture: true`) for automated offline replay (`FixtureClient`), OID resolution, and fast-path polling tests. Do not promote a profile to `verified` until an anonymized capture from real hardware is compared against the printer panel or configuration page.
 
 ## Fixture contract
 

@@ -18,6 +18,7 @@ import (
 	"npms/backend/internal/discovery"
 	"npms/backend/internal/ingestion"
 	"npms/backend/internal/logging"
+	"npms/backend/internal/polling"
 	"npms/backend/internal/profile"
 	"npms/backend/internal/repository"
 	"npms/backend/internal/runtime"
@@ -83,7 +84,7 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
-	server, err := api.NewServer(store, cfg.Server.APIToken, cfg.Server.AllowedOrigin)
+	server, err := api.NewServer(store, "", cfg.Server.AllowedOrigin)
 	if err != nil {
 		fail(err)
 	}
@@ -102,16 +103,64 @@ func main() {
 	server.SetDiscoveryProbe(func(ctx context.Context, config snmp.Config) (discovery.Result, error) {
 		return discovery.Probe(ctx, config, ingestion.ConnectSNMP)
 	})
+	server.SetSubnetScanner(func(ctx context.Context, config discovery.SubnetScanConfig) ([]discovery.Result, error) {
+		return discovery.ScanSubnet(ctx, config, ingestion.ConnectSNMP)
+	})
 	poller, err := ingestion.NewStatusPoller(store, ingestion.ConfigResolver{Store: store, Box: box}, ingestion.ConnectSNMP)
 	if err != nil {
 		fail(err)
 	}
-	server.SetStatusPoller(poller)
 	counterPoller, err := ingestion.NewCounterPoller(ingestion.ConfigResolver{Store: store, Box: box}, ingestion.ConnectSNMP)
 	if err != nil {
 		fail(err)
 	}
 	server.SetCounterSnapshotter(counterPoller)
+
+	statusInterval, err := cfg.StatusInterval()
+	if err != nil {
+		fail(err)
+	}
+	counterInterval, err := cfg.CounterInterval()
+	if err != nil {
+		fail(err)
+	}
+	cleanupInterval, err := cfg.CleanupInterval()
+	if err != nil {
+		fail(err)
+	}
+	reportLocation, err := time.LoadLocation(cfg.Report.Timezone)
+	if err != nil {
+		fail(fmt.Errorf("load report timezone: %w", err))
+	}
+	scheduler, err := polling.NewScheduler(polling.Config{Concurrency: cfg.Polling.Concurrency, MaxAttempts: 2, RetryDelay: time.Second})
+	if err != nil {
+		fail(err)
+	}
+	counterService, err := polling.NewService(scheduler, store)
+	if err != nil {
+		fail(err)
+	}
+	now := time.Now().UTC()
+	retentionPolicy := repository.CleanupPolicy{
+		PollingRunsBefore:   now.AddDate(0, 0, -cfg.Retention.PollingRunsDays),
+		CounterEventsBefore: now.AddDate(0, 0, -cfg.Retention.CounterEventsDays),
+		JobsBefore:          now.AddDate(0, 0, -cfg.Retention.JobsDays),
+	}
+	runner, err := runtime.NewRunner(store, poller, counterPoller, scheduler, counterService, retentionPolicy, reportLocation)
+	if err != nil {
+		fail(err)
+	}
+	server.SetStatusPoller(runner)
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	go func() {
+		slog.Info("background polling worker started", "status_interval", statusInterval, "counter_interval", counterInterval, "cleanup_interval", cleanupInterval)
+		if err := runtime.RunLoop(ctx, runner, statusInterval, counterInterval, cleanupInterval); err != nil && !errors.Is(err, context.Canceled) {
+			slog.Error("background worker stopped", "error", err)
+		}
+	}()
 
 	shouldOpenBrowser := (*openBrowserFlag || cfg.Server.OpenBrowser) && !*noBrowserFlag
 	if shouldOpenBrowser {
@@ -126,8 +175,6 @@ func main() {
 	}
 
 	httpServer := &http.Server{Addr: cfg.Server.Listen, Handler: server.Handler(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 60 * time.Second}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	go func() {
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

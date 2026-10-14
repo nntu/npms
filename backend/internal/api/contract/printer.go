@@ -14,7 +14,12 @@ type Printer struct {
 	Manufacturer *string `json:"manufacturer,omitempty"`
 	Model        *string `json:"model,omitempty"`
 	Serial       *string `json:"serial,omitempty"`
+	SysObjectID  *string `json:"sys_object_id,omitempty"`
 	Department   *string `json:"department,omitempty"`
+	Address      *string `json:"address,omitempty"`
+	Port         *int    `json:"port,omitempty"`
+	SNMPVersion  *string `json:"snmp_version,omitempty"`
+	ProfileID    *string `json:"profile_id,omitempty"`
 	Status       string  `json:"status" enum:"online,offline,unknown,unavailable"`
 	LastSeenAt   *string `json:"last_seen_at,omitempty" format:"date-time"`
 }
@@ -51,6 +56,36 @@ type CreatePrinterInput struct {
 
 type CreatePrinterOutput struct{ Body Printer }
 
+type UpdatePrinterInput struct {
+	ID   string `path:"id"`
+	Body struct {
+		DisplayName    string `json:"display_name" minLength:"1" maxLength:"200"`
+		AssetCode      string `json:"asset_code,omitempty" maxLength:"200"`
+		Manufacturer   string `json:"manufacturer,omitempty" maxLength:"200"`
+		Model          string `json:"model,omitempty" maxLength:"200"`
+		Serial         string `json:"serial,omitempty" maxLength:"200"`
+		SysObjectID    string `json:"sys_object_id,omitempty" maxLength:"200"`
+		Department     string `json:"department,omitempty" maxLength:"200"`
+		ProfileID      string `json:"profile_id,omitempty"`
+		Address        string `json:"address,omitempty" maxLength:"253"`
+		Port           int    `json:"port,omitempty" minimum:"1" maximum:"65535"`
+		Version        string `json:"version,omitempty" enum:"2c,3"`
+		Community      string `json:"community,omitempty" writeOnly:"true"`
+		Username       string `json:"username,omitempty" writeOnly:"true"`
+		AuthProtocol   string `json:"auth_protocol,omitempty" enum:"MD5,SHA"`
+		AuthPassphrase string `json:"auth_passphrase,omitempty" writeOnly:"true"`
+		PrivProtocol   string `json:"priv_protocol,omitempty" enum:"DES,AES,AES128"`
+		PrivPassphrase string `json:"priv_passphrase,omitempty" writeOnly:"true"`
+	}
+}
+
+type DeletePrinterOutput struct {
+	Body struct {
+		Status string `json:"status"`
+		ID     string `json:"id"`
+	}
+}
+
 type RegisterPrinterInput struct {
 	Body struct {
 		DisplayName    string `json:"display_name" minLength:"1" maxLength:"200"`
@@ -82,6 +117,47 @@ type RegistrationOutput struct {
 		PollStatus             string  `json:"poll_status" enum:"queued,not_started"`
 		ProfileID              *string `json:"profile_id,omitempty"`
 		CounterDefinitionCount int     `json:"counter_definition_count" minimum:"0"`
+	}
+}
+
+type BulkRegisterPrinterItem struct {
+	DisplayName    string `json:"display_name" minLength:"1" maxLength:"200"`
+	AssetCode      string `json:"asset_code,omitempty" maxLength:"200"`
+	Manufacturer   string `json:"manufacturer,omitempty" maxLength:"200"`
+	Model          string `json:"model,omitempty" maxLength:"200"`
+	Serial         string `json:"serial,omitempty" maxLength:"200"`
+	SysObjectID    string `json:"sys_object_id,omitempty" maxLength:"200"`
+	Department     string `json:"department,omitempty" maxLength:"200"`
+	ProfileID      string `json:"profile_id,omitempty"`
+	Address        string `json:"address" minLength:"1" maxLength:"253"`
+	Port           int    `json:"port,omitempty" minimum:"1" maximum:"65535" default:"161"`
+	Version        string `json:"version" enum:"2c,3"`
+	Community      string `json:"community,omitempty" writeOnly:"true"`
+	Username       string `json:"username,omitempty" writeOnly:"true"`
+	AuthProtocol   string `json:"auth_protocol,omitempty" enum:"MD5,SHA"`
+	AuthPassphrase string `json:"auth_passphrase,omitempty" writeOnly:"true"`
+	PrivProtocol   string `json:"priv_protocol,omitempty" enum:"DES,AES,AES128"`
+	PrivPassphrase string `json:"priv_passphrase,omitempty" writeOnly:"true"`
+}
+
+type BulkRegisterInput struct {
+	Body struct {
+		Printers []BulkRegisterPrinterItem `json:"printers"`
+	}
+}
+
+type BulkRegisterItemResult struct {
+	Address  string `json:"address"`
+	Status   string `json:"status" enum:"success,error"`
+	DeviceID string `json:"device_id,omitempty"`
+	Error    string `json:"error,omitempty"`
+}
+
+type BulkRegisterOutput struct {
+	Body struct {
+		RegisteredCount int                      `json:"registered_count"`
+		FailedCount     int                      `json:"failed_count"`
+		Results         []BulkRegisterItemResult `json:"results"`
 	}
 }
 
@@ -228,12 +304,21 @@ func registerPrinterContracts(api huma.API) {
 	huma.Post(api, "/api/v1/printers/register", func(context.Context, *RegisterPrinterInput) (*RegistrationOutput, error) {
 		return &RegistrationOutput{}, nil
 	}, func(op *huma.Operation) { op.DefaultStatus = http.StatusCreated })
+	huma.Post(api, "/api/v1/printers/bulk-register", func(context.Context, *BulkRegisterInput) (*BulkRegisterOutput, error) {
+		return &BulkRegisterOutput{}, nil
+	}, func(op *huma.Operation) { op.DefaultStatus = http.StatusOK })
 	huma.Post(api, "/api/v1/printers", func(context.Context, *CreatePrinterInput) (*CreatePrinterOutput, error) {
 		return &CreatePrinterOutput{}, nil
 	}, func(op *huma.Operation) { op.DefaultStatus = http.StatusCreated })
 	huma.Get(api, "/api/v1/printers", func(context.Context, *PrinterListInput) (*PrinterPageOutput, error) { return &PrinterPageOutput{}, nil })
 	huma.Get(api, "/api/v1/printers/{id}", func(context.Context, *PrinterIDInput) (*CreatePrinterOutput, error) {
 		return &CreatePrinterOutput{}, nil
+	})
+	huma.Put(api, "/api/v1/printers/{id}", func(context.Context, *UpdatePrinterInput) (*CreatePrinterOutput, error) {
+		return &CreatePrinterOutput{}, nil
+	})
+	huma.Delete(api, "/api/v1/printers/{id}", func(context.Context, *PrinterIDInput) (*DeletePrinterOutput, error) {
+		return &DeletePrinterOutput{}, nil
 	})
 	huma.Get(api, "/api/v1/printers/{id}/counters", func(context.Context, *CounterListInput) (*CounterPageOutput, error) { return &CounterPageOutput{}, nil })
 	huma.Get(api, "/api/v1/printers/{id}/usage", func(context.Context, *UsageInput) (*UsagePageOutput, error) { return &UsagePageOutput{}, nil })

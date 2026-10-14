@@ -1,0 +1,146 @@
+{
+  "schema_version": 1,
+  "synthetic_fixture": true,
+  "model": "Ricoh IM 2702",
+  "manufacturer": "Ricoh",
+  "verification_status": "unverified",
+  "host": "192.0.2.14",
+  "name": "RICOH-IM2702-VP",
+  "printer_name": "RICOH IM 2702",
+  "description": "RICOH IM 2702 1.04 / RICOH Network Printer C model",
+  "sys_object_id": "1.3.6.1.4.1.367.1.1",
+  "serial": "REDACTED-RICOH-005",
+  "default_marker_index": 1,
+  "markers": [
+    {
+      "instance": "1.1",
+      "life_count": 128400,
+      "counter_unit": 7,
+      "unit_name": "impressions",
+      "power_on_count": 620,
+      "mark_tech": 4,
+      "status": 0
+    },
+    {
+      "instance": "1.2",
+      "life_count": 96300,
+      "counter_unit": 8,
+      "unit_name": "sheets",
+      "power_on_count": 480,
+      "mark_tech": 4,
+      "status": 0
+    }
+  ],
+  "supplies": [
+    {
+      "instance": "1.1",
+      "description": "Black Toner",
+      "class": 3,
+      "type": 3,
+      "supply_unit": 19,
+      "max_capacity": 100,
+      "level": 30,
+      "percent": 30
+    }
+  ],
+  "decoded_oids": [
+    {
+      "oid": "1.3.6.1.2.1.1.1.0",
+      "symbol": "sysDescr",
+      "type": "OctetString",
+      "value": "RICOH IM 2702 1.04 / RICOH Network Printer C model"
+    },
+    {
+      "oid": "1.3.6.1.2.1.1.2.0",
+      "symbol": "sysObjectID",
+      "type": "ObjectIdentifier",
+      "value": "1.3.6.1.4.1.367.1.1"
+    },
+    {
+      "oid": "1.3.6.1.2.1.1.5.0",
+      "symbol": "sysName",
+      "type": "OctetString",
+      "value": ""
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.5.1.1.8.1",
+      "symbol": "prtMarkerDefaultIndex",
+      "table": "prtGeneralTable",
+      "instance": "1",
+      "type": "Integer",
+      "value": 1
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.5.1.1.16.1",
+      "symbol": "prtGeneralPrinterName",
+      "table": "prtGeneralTable",
+      "instance": "1",
+      "type": "OctetString",
+      "value": "RICOH-IM2702-VP"
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.5.1.1.17.1",
+      "symbol": "prtGeneralSerialNumber",
+      "table": "prtGeneralTable",
+      "instance": "1",
+      "type": "OctetString",
+      "value": "REDACTED-RICOH-005"
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.10.2.1.3.1.1",
+      "symbol": "prtMarkerCounterUnit",
+      "table": "prtMarkerTable",
+      "instance": "1.1",
+      "type": "Integer",
+      "value": 7
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.10.2.1.3.1.2",
+      "symbol": "prtMarkerCounterUnit",
+      "table": "prtMarkerTable",
+      "instance": "1.2",
+      "type": "Integer",
+      "value": 8
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.10.2.1.4.1.1",
+      "symbol": "prtMarkerLifeCount",
+      "table": "prtMarkerTable",
+      "instance": "1.1",
+      "type": "Counter32",
+      "value": 128400
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.10.2.1.4.1.2",
+      "symbol": "prtMarkerLifeCount",
+      "table": "prtMarkerTable",
+      "instance": "1.2",
+      "type": "Counter32",
+      "value": 96300
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.11.1.1.6.1.1",
+      "symbol": "prtMarkerSuppliesDescription",
+      "table": "prtMarkerSuppliesTable",
+      "instance": "1.1",
+      "type": "OctetString",
+      "value": "Black Toner"
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.11.1.1.8.1.1",
+      "symbol": "prtMarkerSuppliesMaxCapacity",
+      "table": "prtMarkerSuppliesTable",
+      "instance": "1.1",
+      "type": "Integer",
+      "value": 100
+    },
+    {
+      "oid": "1.3.6.1.2.1.43.11.1.1.9.1.1",
+      "symbol": "prtMarkerSuppliesLevel",
+      "table": "prtMarkerSuppliesTable",
+      "instance": "1.1",
+      "type": "Integer",
+      "value": 30
+    }
+  ]
+}

@@ -85,10 +85,19 @@ func (c *GoSNMPClient) Walk(ctx context.Context, oid string) ([]VarBind, error) 
 	}
 	defer clearDeadline()
 	var variables []gosnmp.SnmpPDU
-	if err := c.client.Walk(oid, func(pdu gosnmp.SnmpPDU) error {
+	walkFn := func(pdu gosnmp.SnmpPDU) error {
 		variables = append(variables, pdu)
 		return nil
-	}); err != nil {
+	}
+	if (c.client.Version == gosnmp.Version2c || c.client.Version == gosnmp.Version3) && c.client.MaxRepetitions > 0 {
+		if err := c.client.BulkWalk(oid, walkFn); err == nil {
+			return convertPDUs(variables), nil
+		} else if len(variables) > 0 {
+			return nil, fmt.Errorf("SNMP WALK %s: %w", oid, err)
+		}
+		variables = nil
+	}
+	if err := c.client.Walk(oid, walkFn); err != nil {
 		return nil, fmt.Errorf("SNMP WALK %s: %w", oid, err)
 	}
 	return convertPDUs(variables), nil
@@ -124,12 +133,7 @@ func convertPDUs(pdus []gosnmp.SnmpPDU) []VarBind {
 }
 
 func jsonValue(value any) any {
-	switch value := value.(type) {
-	case []byte:
-		return fmt.Sprintf("0x%x", value)
-	default:
-		return value
-	}
+	return NormalizeVarBindValue(value)
 }
 
 func authProtocol(name string) (gosnmp.SnmpV3AuthProtocol, error) {

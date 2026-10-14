@@ -76,26 +76,16 @@ func InitConfig(opts InitOptions) (*InitResult, error) {
 			content = replaceOrAppendYAMLKey(content, "encryption_key", encKey)
 		}
 
-		if apiToken == "" && (strings.Contains(content, `api_token: ""`) || strings.Contains(content, "api_token: replace-with-a-random-api-token")) {
-			apiToken, err = security.GenerateAPIToken()
-			if err != nil {
-				return nil, fmt.Errorf("failed to generate API token: %w", err)
-			}
-		}
 		if apiToken != "" {
 			content = strings.ReplaceAll(content, `api_token: ""`, fmt.Sprintf(`api_token: %q`, apiToken))
 			content = strings.ReplaceAll(content, "api_token: replace-with-a-random-api-token", fmt.Sprintf(`api_token: %q`, apiToken))
+		} else {
+			content = strings.ReplaceAll(content, "api_token: replace-with-a-random-api-token", `api_token: ""`)
 		}
 		fileContent = content
 	} else {
 		cfg := Defaults()
 		cfg.Security.EncryptionKey = encKey
-		if apiToken == "" {
-			apiToken, err = security.GenerateAPIToken()
-			if err != nil {
-				return nil, fmt.Errorf("failed to generate API token: %w", err)
-			}
-		}
 		cfg.Server.APIToken = apiToken
 		out, err := yaml.Marshal(cfg)
 		if err != nil {
