@@ -102,13 +102,13 @@ var wellKnownVendorPageCounterOIDs = []struct {
 
 // Vendor subtrees to walk if sysObjectID or vendor matches
 var vendorSubtrees = map[string][]string{
-	"11":    {"1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2"},             // HP
+	"11":    {"1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2"},                                 // HP
 	"367":   {"1.3.6.1.4.1.367.3.2.1.2.19.1", "1.3.6.1.4.1.367.3.2.1.2.19.5.1.9"}, // Ricoh
-	"2435":  {"1.3.6.1.4.1.2435.2.3.9.4.2.1.5.5"},           // Brother
-	"1602":  {"1.3.6.1.4.1.1602.1.11.1.3.1.4"},               // Canon
-	"253":   {"1.3.6.1.4.1.253.8.53.13.2.1.6.1"},             // Xerox
-	"1347":  {"1.3.6.1.4.1.1347.42.2.1.1.1.6"},               // Kyocera
-	"18334": {"1.3.6.1.4.1.18334.1.1.1.5.7.2.2.1.5"},         // Konica Minolta
+	"2435":  {"1.3.6.1.4.1.2435.2.3.9.4.2.1.5.5"},                                 // Brother
+	"1602":  {"1.3.6.1.4.1.1602.1.11.1.3.1.4"},                                    // Canon
+	"253":   {"1.3.6.1.4.1.253.8.53.13.2.1.6.1"},                                  // Xerox
+	"1347":  {"1.3.6.1.4.1.1347.42.2.1.1.1.6"},                                    // Kyocera
+	"18334": {"1.3.6.1.4.1.18334.1.1.1.5.7.2.2.1.5"},                              // Konica Minolta
 }
 
 // DumpPrinterCounters queries an individual printer via SNMP and extracts all page counter information.

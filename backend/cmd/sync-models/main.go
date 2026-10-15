@@ -23,17 +23,18 @@ import (
 )
 
 type DeviceRecord struct {
-	IP           string
-	Model        string
-	Manufacturer string
-	DisplayName  string
-	Serial       string
-	MAC          string
-	Location     string
-	Category     string
-	ProfileKey   string
-	SysObjectID  string
-	SysDescr     string
+	IP             string
+	Model          string
+	Manufacturer   string
+	DisplayName    string
+	Serial         string
+	MAC            string
+	Location       string
+	Category       string
+	ProfileKey     string
+	SysObjectID    string
+	SysDescr       string
+	InitialReading int64
 }
 
 func main() {
@@ -204,7 +205,7 @@ func main() {
 		// Profile selection
 		switch {
 		case strings.Contains(d.Model, "ADS-"):
-			d.ProfileKey = "brother-nc"
+			d.ProfileKey = "brother-ads"
 		case strings.Contains(d.Model, "HL-L5100DN"):
 			d.ProfileKey = "brother-hl-l5100dn"
 		case strings.Contains(d.Model, "HL-L6210"):
@@ -225,6 +226,20 @@ func main() {
 			d.ProfileKey = "ricoh-generic"
 		default:
 			d.ProfileKey = "generic-printer-mib"
+		}
+
+		// Extract initial counter reading from dump
+		if candidates, ok := raw["candidate_counters"].([]any); ok {
+			for _, item := range candidates {
+				if cMap, ok := item.(map[string]any); ok {
+					oid, _ := cMap["oid"].(string)
+					valNum, _ := cMap["value"].(float64)
+					if (strings.Contains(oid, "43.10.2.1.4") || strings.Contains(oid, "2435.2.3.9.4.2.1.5.5.54.2.2.1.3.3")) && valNum > 0 {
+						d.InitialReading = int64(valNum)
+						break
+					}
+				}
+			}
 		}
 
 		// Update dump JSON file content
@@ -482,6 +497,29 @@ func syncDatabase(dbPath string, devices map[string]*DeviceRecord, box *security
 				VALUES (?, ?, 'marker_life', 'snmp', '1.3.6.1.2.1.43.10.2.1.4', '1.1', 'impressions', 'marker_life', 'engine', 1, 'walk', '1.3.6.1.2.1.43.10.2.1.3', 'validated_marker_rows', 'none', 0)
 				ON CONFLICT(id) DO NOTHING
 			`, cDefID, deviceID)
+		}
+
+		// If initial reading was extracted from dump, insert snapshot reading & daily usage
+		if d.InitialReading > 0 {
+			runID := uuid.NewString()
+			_, _ = db.ExecContext(ctx, `
+				INSERT INTO polling_runs(id, device_id, job_kind, started_at, ended_at, result)
+				VALUES (?, ?, 'counter', ?, ?, 'success')
+				ON CONFLICT(id) DO NOTHING
+			`, runID, deviceID, now, now)
+
+			_, _ = db.ExecContext(ctx, `
+				INSERT INTO counter_readings(poll_run_id, counter_definition_id, raw_value, collected_at, quality)
+				VALUES (?, ?, ?, ?, 'valid')
+				ON CONFLICT(poll_run_id, counter_definition_id) DO UPDATE SET raw_value=excluded.raw_value
+			`, runID, cDefID, d.InitialReading, now)
+
+			today := time.Now().Format("2006-01-02")
+			_, _ = db.ExecContext(ctx, `
+				INSERT INTO daily_counter_usage(device_id, counter_definition_id, local_date, delta, quality, computed_at)
+				VALUES (?, ?, ?, ?, 'valid', ?)
+				ON CONFLICT(device_id, counter_definition_id, local_date) DO UPDATE SET delta=excluded.delta
+			`, deviceID, cDefID, today, d.InitialReading, now)
 		}
 	}
 

@@ -70,6 +70,11 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
+	if warnings := profile.LintProfiles(profiles); len(warnings) > 0 {
+		for _, w := range warnings {
+			slog.Warn("profile lint warning", "warning", w)
+		}
+	}
 	slog.Info("profiles loaded", "directory", cfg.Profiles.Path, "count", len(profiles))
 
 	db, err := database.OpenSQLite(cfg.Database.Path)
@@ -90,6 +95,7 @@ func main() {
 	}
 	server.SetFrontendFS(web.Assets())
 	server.SetProfiles(profiles)
+	server.SetDatabaseBackupManager(db)
 
 	key, err := security.ParseKey(cfg.Security.EncryptionKey)
 	if err != nil {
@@ -115,6 +121,11 @@ func main() {
 		fail(err)
 	}
 	server.SetCounterSnapshotter(counterPoller)
+	profileTester, err := ingestion.NewProfileTester(ingestion.ConfigResolver{Store: store, Box: box}, ingestion.ConnectSNMP)
+	if err != nil {
+		fail(err)
+	}
+	server.SetProfileTester(profileTester)
 
 	statusInterval, err := cfg.StatusInterval()
 	if err != nil {

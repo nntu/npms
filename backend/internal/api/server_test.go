@@ -13,6 +13,7 @@ import (
 
 	"npms/backend/internal/counter"
 	"npms/backend/internal/discovery"
+	"npms/backend/internal/ingestion"
 	"npms/backend/internal/profile"
 	"npms/backend/internal/repository"
 	"npms/backend/internal/security"
@@ -109,6 +110,19 @@ func (fakeStore) ListCounterReadings(context.Context, string, int, int) ([]repos
 func (fakeStore) ListDailyCounterUsage(context.Context, string, string, string) ([]repository.DailyUsageRecord, error) {
 	return []repository.DailyUsageRecord{}, nil
 }
+func (fakeStore) GetPageUsageReport(context.Context, string, string, string) (*repository.PageUsageReport, error) {
+	return &repository.PageUsageReport{
+		TotalDepartments: 1,
+		TotalPrinters:    1,
+		TotalPrintPages:  1250,
+		Departments: []repository.DepartmentPageUsage{
+			{Department: "Kế toán", PrinterCount: 1, TotalPrintPages: 1250},
+		},
+		Printers: []repository.PrinterPageUsage{
+			{DeviceID: "d1", DisplayName: "HP M501dn", Department: "Kế toán", NormalizedPages: 1250, RawUnit: "impressions", ConversionFactor: 1.0},
+		},
+	}, nil
+}
 func (fakeStore) CountCounterReadings(context.Context, string) (int, error) { return 0, nil }
 func (fakeStore) ListPollingRuns(context.Context, string, int, int) ([]repository.PollingRunRecord, error) {
 	return []repository.PollingRunRecord{}, nil
@@ -145,7 +159,7 @@ func (f fakeStore) ListJobsWithDevice(_ context.Context, _, _ int, statusFilter 
 	}
 	return filtered, len(filtered), nil
 }
-func (fakeStore) CreateCartridge(context.Context, repository.Cartridge) error    { return nil }
+func (fakeStore) CreateCartridge(context.Context, repository.Cartridge) error { return nil }
 func (fakeStore) ListCartridges(context.Context) ([]repository.Cartridge, error) {
 	return []repository.Cartridge{{ID: "c1", SKUCode: "HP-26A", Name: "HP Toner", StockNew: 5, StockRefilled: 2, StockEmpty: 1}}, nil
 }
@@ -742,3 +756,111 @@ func TestListJobsEndpoint(t *testing.T) {
 	}
 }
 
+type fakeProfileTester struct {
+	report *ingestion.ProfileTestReport
+	err    error
+}
+
+func (f fakeProfileTester) TestProfileForDevice(_ context.Context, _ string, _ profile.Profile) (*ingestion.ProfileTestReport, error) {
+	return f.report, f.err
+}
+
+func (f fakeProfileTester) TestProfileWithConfig(_ context.Context, _ snmp.Config, _ profile.Profile) (*ingestion.ProfileTestReport, error) {
+	return f.report, f.err
+}
+
+func TestTestPrinterProfileEndpoint(t *testing.T) {
+	store := fakeStore{
+		devices: []repository.Device{
+			{ID: "d1", DisplayName: "HP M501dn", Model: "HP LaserJet Enterprise M501dn", Manufacturer: "HP", ProfileKey: "hp-laserjet-enterprise-m501dn"},
+		},
+	}
+	server, err := NewServer(store, "token", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.SetProfiles([]profile.Profile{
+		{ID: "hp-laserjet-enterprise-m501dn", Manufacturer: "HP"},
+	})
+
+	val := int64(45200)
+	server.SetProfileTester(fakeProfileTester{
+		report: &ingestion.ProfileTestReport{
+			ProfileID:    "hp-laserjet-enterprise-m501dn",
+			Compatible:   true,
+			FitnessScore: 100,
+			Message:      "Profile tương thích tốt",
+			Counters: []ingestion.CounterTestResult{
+				{Key: "marker_life", Status: "ok", Value: &val, ActualUnit: "impressions"},
+			},
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/printers/d1/test-profile", strings.NewReader(`{"profile_id":"hp-laserjet-enterprise-m501dn"}`))
+	req.Header.Set("Authorization", "Bearer token")
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d, body: %s", rec.Code, rec.Body.String())
+	}
+	if !containsAll(rec.Body.String(), `"compatible":true`, `"fitness_score":100`, `"marker_life"`, `45200`) {
+		t.Fatalf("unexpected body: %s", rec.Body.String())
+	}
+}
+
+func TestTestProfileConnectionEndpoint(t *testing.T) {
+	server, err := NewServer(fakeStore{}, "token", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.SetProfiles([]profile.Profile{
+		{ID: "brother-ads", Manufacturer: "Brother"},
+	})
+
+	val := int64(8842)
+	server.SetProfileTester(fakeProfileTester{
+		report: &ingestion.ProfileTestReport{
+			ProfileID:    "brother-ads",
+			Compatible:   true,
+			FitnessScore: 100,
+			Message:      "Profile tương thích tốt",
+			Counters: []ingestion.CounterTestResult{
+				{Key: "page_count", Status: "ok", Value: &val, ActualUnit: "pages"},
+			},
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/snmp/profiles/test", strings.NewReader(`{"address":"10.141.6.40","profile_id":"brother-ads"}`))
+	req.Header.Set("Authorization", "Bearer token")
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d, body: %s", rec.Code, rec.Body.String())
+	}
+	if !containsAll(rec.Body.String(), `"compatible":true`, `"brother-ads"`, `"page_count"`, `8842`) {
+		t.Fatalf("unexpected body: %s", rec.Body.String())
+	}
+}
+
+func TestGetPageUsageReportEndpoint(t *testing.T) {
+	server, err := NewServer(fakeStore{}, "token", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/reports/pages?from=2026-10-01&to=2026-10-14", nil)
+	req.Header.Set("Authorization", "Bearer token")
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d, body: %s", rec.Code, rec.Body.String())
+	}
+	if !containsAll(rec.Body.String(), `"total_departments":1`, `"Kế toán"`, `"total_print_pages":1250`, `"impressions"`) {
+		t.Fatalf("unexpected body: %s", rec.Body.String())
+	}
+}

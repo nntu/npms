@@ -17,10 +17,14 @@ const DiscoveryPage = lazy(() =>
 const ProfilesPage = lazy(() =>
   import('./features/profiles/ProfilesPage').then((module) => ({ default: module.ProfilesPage })),
 )
-const ReportsPage = lazy(() =>
-  import('./features/reports/ReportsPage').then((module) => ({ default: module.ReportsPage })),
+const PageUsageReportPage = lazy(() =>
+  import('./features/reports/PageUsageReportPage').then((module) => ({ default: module.PageUsageReportPage })),
+)
+const CartridgeReportPage = lazy(() =>
+  import('./features/reports/CartridgeReportPage').then((module) => ({ default: module.CartridgeReportPage })),
 )
 const JobsPage = lazy(() => import('./features/jobs/JobsPage').then((module) => ({ default: module.JobsPage })))
+const BackupPage = lazy(() => import('./features/backup/BackupPage').then((module) => ({ default: module.BackupPage })))
 
 function RouteLoading() {
   return (
@@ -43,8 +47,11 @@ export function App() {
             <Route path="/cartridges" element={<CartridgesPage />} />
             <Route path="/discovery" element={<DiscoveryPage />} />
             <Route path="/jobs" element={<JobsPage />} />
-            <Route path="/reports" element={<ReportsPage />} />
+            <Route path="/reports" element={<Navigate to="/reports/pages" replace />} />
+            <Route path="/reports/pages" element={<PageUsageReportPage />} />
+            <Route path="/reports/cartridges" element={<CartridgeReportPage />} />
             <Route path="/profiles" element={<ProfilesPage />} />
+            <Route path="/backup" element={<BackupPage />} />
           </Routes>
         </Suspense>
       </main>

@@ -186,3 +186,52 @@ export interface ListJobsResponse {
   limit: number
   offset: number
 }
+
+export interface PrinterBackupItem {
+  display_name: string
+  asset_code?: string
+  department?: string
+  manufacturer?: string
+  model?: string
+  serial?: string
+  sys_object_id?: string
+  profile_id?: string
+  address: string
+  port?: number
+  version?: '2c' | '3'
+  community?: string
+  username?: string
+  auth_protocol?: string
+  auth_passphrase?: string
+  priv_protocol?: string
+  priv_passphrase?: string
+}
+
+export interface PrintersBackupExport {
+  version: string
+  exported_at: string
+  count: number
+  printers: PrinterBackupItem[]
+}
+
+export interface PrinterRestoreItemResult {
+  address: string
+  display_name: string
+  status: 'created' | 'updated' | 'skipped' | 'failed'
+  device_id?: string
+  error?: string
+}
+
+export interface PrintersRestoreResponse {
+  total: number
+  created: number
+  updated: number
+  skipped: number
+  failed: number
+  results: PrinterRestoreItemResult[]
+}
+
+export interface DatabaseRestoreResponse {
+  status: string
+  message: string
+}

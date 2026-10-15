@@ -159,6 +159,16 @@ func (p Profile) Validate() error {
 		if counter.Mode == "walk" && counter.UnitColumn == "" && counter.RequireUnitValidation {
 			return fmt.Errorf("profile %q counter %q: unit_column is required when unit validation is enabled", p.ID, key)
 		}
+		cleanValOID := strings.TrimPrefix(counter.ValueColumn, ".")
+		if !regexp.MustCompile(`^[0-9]+(\.[0-9]+)+$`).MatchString(cleanValOID) {
+			return fmt.Errorf("profile %q counter %q: invalid value_column OID %q", p.ID, key, counter.ValueColumn)
+		}
+		if counter.UnitColumn != "" {
+			cleanUnitOID := strings.TrimPrefix(counter.UnitColumn, ".")
+			if !regexp.MustCompile(`^[0-9]+(\.[0-9]+)+$`).MatchString(cleanUnitOID) {
+				return fmt.Errorf("profile %q counter %q: invalid unit_column OID %q", p.ID, key, counter.UnitColumn)
+			}
+		}
 	}
 	for _, pattern := range append(append([]string{}, p.Match.SysObjectIDs...), append(p.Match.SysObjectIDPrefixes, p.Match.ModelPatterns...)...) {
 		if pattern == "" {
@@ -171,6 +181,28 @@ func (p Profile) Validate() error {
 		}
 	}
 	return nil
+}
+
+// LintProfiles inspects a collection of loaded profiles and returns warnings about potential conflicts or overlapping rules.
+func LintProfiles(profiles []Profile) []string {
+	var warnings []string
+	seenIDs := make(map[string]string)
+	seenSysOIDs := make(map[string]string)
+
+	for _, p := range profiles {
+		if prev, ok := seenIDs[p.ID]; ok {
+			warnings = append(warnings, fmt.Sprintf("trùng lặp profile id %q (xuất hiện ở cả hai nơi: %s và %s)", p.ID, prev, p.ID))
+		}
+		seenIDs[p.ID] = p.ID
+
+		for _, sysOID := range p.Match.SysObjectIDs {
+			if prev, ok := seenSysOIDs[sysOID]; ok && prev != p.ID {
+				warnings = append(warnings, fmt.Sprintf("xung đột sys_object_id %q: cả profile %q và %q đều khai báo", sysOID, prev, p.ID))
+			}
+			seenSysOIDs[sysOID] = p.ID
+		}
+	}
+	return warnings
 }
 
 func (r Resolver) Resolve(identity DeviceIdentity, explicitID string) (Profile, error) {

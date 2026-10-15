@@ -85,12 +85,12 @@ func runDumpFleet(args []string, stdout, stderr io.Writer) error {
 			if effectiveConfig == "" {
 				for _, d := range []string{"npms.db", "./data/npms.db", "../npms.db"} {
 					if _, err := os.Stat(d); err == nil {
-					effectiveDB = d
-					break
+						effectiveDB = d
+						break
+					}
 				}
 			}
 		}
-	}
 
 		var appCfg *config.Config
 		if effectiveConfig != "" {

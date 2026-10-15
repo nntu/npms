@@ -1454,3 +1454,120 @@ func boolInt(value bool) int {
 	}
 	return 0
 }
+
+type DeviceBackupRecord struct {
+	Device                  Device
+	Address                 string
+	Port                    uint16
+	ProfileKey              string
+	SNMPVersion             string
+	EncryptedSecretMaterial []byte
+}
+
+func (r *SQLiteRepository) ListDevicesForBackup(ctx context.Context) ([]DeviceBackupRecord, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT
+		d.id, d.asset_code, d.display_name, d.manufacturer, d.model, d.serial, d.sys_object_id, d.department, d.status,
+		COALESCE(de.address, ''),
+		COALESCE(de.port, 161),
+		COALESCE(sp.profile_key, ''),
+		COALESCE(sc.version, '2c'),
+		sc.encrypted_secret_material
+		FROM devices d
+		LEFT JOIN device_endpoints de ON de.device_id = d.id AND de.is_primary = 1
+		LEFT JOIN snmp_credentials sc ON sc.id = de.credential_id
+		LEFT JOIN device_profile_assignments dpa ON dpa.device_id = d.id
+		LEFT JOIN snmp_profiles sp ON sp.id = dpa.profile_id
+		WHERE d.deleted_at IS NULL
+		ORDER BY d.created_at ASC, d.id ASC`)
+	if err != nil {
+		return nil, fmt.Errorf("list devices for backup: %w", err)
+	}
+	defer rows.Close()
+
+	var records []DeviceBackupRecord
+	for rows.Next() {
+		var rec DeviceBackupRecord
+		var asset, manufacturer, model, serial, objectID, department sql.NullString
+		var address, profileKey, snmpVersion string
+		var port int
+		var secretMaterial []byte
+
+		if err := rows.Scan(
+			&rec.Device.ID, &asset, &rec.Device.DisplayName, &manufacturer, &model, &serial, &objectID, &department, &rec.Device.Status,
+			&address, &port, &profileKey, &snmpVersion, &secretMaterial,
+		); err != nil {
+			return nil, fmt.Errorf("scan device backup record: %w", err)
+		}
+
+		rec.Device.AssetCode = nullString(asset)
+		rec.Device.Manufacturer = nullString(manufacturer)
+		rec.Device.Model = nullString(model)
+		rec.Device.Serial = nullString(serial)
+		rec.Device.SysObjectID = nullString(objectID)
+		rec.Device.Department = nullString(department)
+		rec.Address = address
+		if port > 0 && port <= 65535 {
+			rec.Port = uint16(port)
+		} else {
+			rec.Port = 161
+		}
+		rec.ProfileKey = profileKey
+		rec.SNMPVersion = snmpVersion
+		rec.EncryptedSecretMaterial = secretMaterial
+
+		records = append(records, rec)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate device backup records: %w", err)
+	}
+	return records, nil
+}
+
+func (r *SQLiteRepository) FindDeviceByAddressOrAsset(ctx context.Context, address, assetCode string) (*Device, error) {
+	address = strings.TrimSpace(address)
+	assetCode = strings.TrimSpace(assetCode)
+	if address == "" && assetCode == "" {
+		return nil, nil
+	}
+
+	var d Device
+	var asset, manufacturer, model, serial, objectID, department, firstSeen, lastSeen sql.NullString
+	var createdAt, updatedAt, epAddress, snmpVersion, profileKey sql.NullString
+	var port sql.NullInt64
+
+	query := `SELECT
+		d.id, d.asset_code, d.display_name, d.manufacturer, d.model, d.serial, d.sys_object_id, d.department, d.status, d.first_seen_at, d.last_seen_at, d.created_at, d.updated_at,
+		de.address, de.port, sc.version, sp.profile_key
+		FROM devices d
+		LEFT JOIN device_endpoints de ON de.device_id = d.id AND de.is_primary = 1
+		LEFT JOIN snmp_credentials sc ON sc.id = de.credential_id
+		LEFT JOIN device_profile_assignments dpa ON dpa.device_id = d.id
+		LEFT JOIN snmp_profiles sp ON sp.id = dpa.profile_id
+		WHERE d.deleted_at IS NULL AND (
+			(de.address = ? AND ? != '') OR
+			(d.asset_code = ? AND ? != '')
+		)
+		ORDER BY d.created_at DESC LIMIT 1`
+
+	err := r.db.QueryRowContext(ctx, query, address, address, assetCode, assetCode).Scan(
+		&d.ID, &asset, &d.DisplayName, &manufacturer, &model, &serial, &objectID, &department, &d.Status, &firstSeen, &lastSeen, &createdAt, &updatedAt,
+		&epAddress, &port, &snmpVersion, &profileKey,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("find device by address or asset: %w", err)
+	}
+
+	d.AssetCode, d.Manufacturer, d.Model, d.Serial, d.SysObjectID, d.Department = nullString(asset), nullString(manufacturer), nullString(model), nullString(serial), nullString(objectID), nullString(department)
+	d.Address, d.SNMPVersion, d.ProfileKey = nullString(epAddress), nullString(snmpVersion), nullString(profileKey)
+	if port.Valid && port.Int64 > 0 && port.Int64 <= 65535 {
+		d.Port = uint16(port.Int64)
+	}
+	d.FirstSeenAt = parseTime(firstSeen)
+	d.LastSeenAt = parseTime(lastSeen)
+	d.CreatedAt, d.UpdatedAt = parseTime(createdAt), parseTime(updatedAt)
+
+	return &d, nil
+}

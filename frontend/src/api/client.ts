@@ -6,6 +6,7 @@ import type {
   CreatePrinterInput,
   CreateSNMPCredentialInput,
   DailyUsage,
+  DatabaseRestoreResponse,
   DiscoveryProbeInput,
   DiscoveryResult,
   Paginated,
@@ -13,6 +14,7 @@ import type {
   PollJob,
   Printer,
   PrinterProfile,
+  PrintersRestoreResponse,
   RegisterPrinterInput,
   RegisterPrinterResult,
   UpdatePrinterInput,
@@ -268,4 +270,162 @@ export async function listJobs(status?: string, limit = 100, offset = 0): Promis
   if (limit) params.set('limit', String(limit))
   if (offset) params.set('offset', String(offset))
   return request<import('./types').ListJobsResponse>(`/jobs?${params.toString()}`)
+}
+
+export interface PageUsageReport {
+  from?: string
+  to?: string
+  total_departments: number
+  total_printers: number
+  total_print_pages: number
+  total_scan_pages: number
+  total_current_life: number
+  departments: DepartmentPageUsage[]
+  printers: PrinterPageUsage[]
+}
+
+export interface DepartmentPageUsage {
+  department: string
+  printer_count: number
+  total_print_pages: number
+  total_scan_pages: number
+  total_current_life: number
+  printers: PrinterPageUsage[]
+}
+
+export interface PrinterPageUsage {
+  device_id: string
+  display_name: string
+  model: string
+  manufacturer: string
+  address: string
+  serial: string
+  department: string
+  category: 'printer' | 'scanner'
+  status: string
+  counter_key: string
+  raw_unit: string
+  current_reading?: number
+  period_usage: number
+  conversion_factor: number
+  normalized_pages: number
+  conversion_note: string
+}
+
+export async function getPageUsageReport(params?: {
+  from?: string
+  to?: string
+  department?: string
+}): Promise<PageUsageReport> {
+  const query = new URLSearchParams()
+  if (params?.from) query.set('from', params.from)
+  if (params?.to) query.set('to', params.to)
+  if (params?.department && params.department !== 'all') query.set('department', params.department)
+  const qs = query.toString()
+  return request<PageUsageReport>(`/reports/pages${qs ? `?${qs}` : ''}`)
+}
+
+export async function downloadPrintersBackup(): Promise<void> {
+  const response = await fetch(`${apiBase}/backup/printers`, {
+    headers: {
+      ...(configuredApiToken ? { Authorization: `Bearer ${configuredApiToken}` } : {}),
+    },
+  })
+  if (!response.ok) {
+    throw new ApiError(`Không thể tải bản sao lưu máy in (${response.status})`, response.status)
+  }
+  const blob = await response.blob()
+  const contentDisposition = response.headers.get('content-disposition')
+  let filename = 'npms-printers-backup.json'
+  if (contentDisposition) {
+    const match = /filename="?([^"]+)"?/.exec(contentDisposition)
+    if (match?.[1]) filename = match[1]
+  }
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+export async function restorePrintersBackup(file: File, overwrite = true): Promise<PrintersRestoreResponse> {
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('overwrite', String(overwrite))
+
+  const response = await fetch(`${apiBase}/backup/printers/restore`, {
+    method: 'POST',
+    body: formData,
+    headers: {
+      Accept: 'application/json',
+      ...(configuredApiToken ? { Authorization: `Bearer ${configuredApiToken}` } : {}),
+    },
+  })
+  if (!response.ok) {
+    let message = `Khôi phục máy in thất bại (${response.status})`
+    try {
+      const err = (await response.json()) as { message?: string; error?: { message?: string } }
+      if (err.message) message = err.message
+      else if (err.error?.message) message = err.error.message
+    } catch {
+      // ignore
+    }
+    throw new ApiError(message, response.status)
+  }
+  return response.json()
+}
+
+export async function downloadDatabaseBackup(): Promise<void> {
+  const response = await fetch(`${apiBase}/backup/database`, {
+    headers: {
+      ...(configuredApiToken ? { Authorization: `Bearer ${configuredApiToken}` } : {}),
+    },
+  })
+  if (!response.ok) {
+    throw new ApiError(`Không thể tải bản sao lưu cơ sở dữ liệu (${response.status})`, response.status)
+  }
+  const blob = await response.blob()
+  const contentDisposition = response.headers.get('content-disposition')
+  let filename = 'npms-database-backup.db'
+  if (contentDisposition) {
+    const match = /filename="?([^"]+)"?/.exec(contentDisposition)
+    if (match?.[1]) filename = match[1]
+  }
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+export async function restoreDatabaseBackup(file: File): Promise<DatabaseRestoreResponse> {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const response = await fetch(`${apiBase}/backup/database/restore`, {
+    method: 'POST',
+    body: formData,
+    headers: {
+      Accept: 'application/json',
+      ...(configuredApiToken ? { Authorization: `Bearer ${configuredApiToken}` } : {}),
+    },
+  })
+  if (!response.ok) {
+    let message = `Khôi phục cơ sở dữ liệu thất bại (${response.status})`
+    try {
+      const err = (await response.json()) as { message?: string; error?: { message?: string } }
+      if (err.message) message = err.message
+      else if (err.error?.message) message = err.error.message
+    } catch {
+      // ignore
+    }
+    throw new ApiError(message, response.status)
+  }
+  return response.json()
 }

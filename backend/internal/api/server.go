@@ -25,6 +25,7 @@ import (
 
 	"npms/backend/internal/counter"
 	"npms/backend/internal/discovery"
+	"npms/backend/internal/ingestion"
 	"npms/backend/internal/profile"
 	"npms/backend/internal/repository"
 	"npms/backend/internal/security"
@@ -39,6 +40,7 @@ type DeviceStore interface {
 	ListCounterReadings(context.Context, string, int, int) ([]repository.CounterReadingRecord, error)
 	CountCounterReadings(context.Context, string) (int, error)
 	ListDailyCounterUsage(context.Context, string, string, string) ([]repository.DailyUsageRecord, error)
+	GetPageUsageReport(context.Context, string, string, string) (*repository.PageUsageReport, error)
 	ListPollingRuns(context.Context, string, int, int) ([]repository.PollingRunRecord, error)
 	CountPollingRuns(context.Context, string) (int, error)
 	CreatePollingRun(context.Context, repository.PollingRun) error
@@ -90,6 +92,11 @@ type CounterSnapshotter interface {
 	ReadDevice(context.Context, string) (counter.Reading, repository.CounterDefinition, error)
 }
 
+type ProfileTester interface {
+	TestProfileForDevice(ctx context.Context, deviceID string, prof profile.Profile) (*ingestion.ProfileTestReport, error)
+	TestProfileWithConfig(ctx context.Context, cfg snmp.Config, prof profile.Profile) (*ingestion.ProfileTestReport, error)
+}
+
 type DiscoveryProbe func(context.Context, snmp.Config) (discovery.Result, error)
 type SubnetScanner func(context.Context, discovery.SubnetScanConfig) ([]discovery.Result, error)
 
@@ -104,6 +111,8 @@ type Server struct {
 	discovery          DiscoveryProbe
 	subnetScanner      SubnetScanner
 	counterSnapshotter CounterSnapshotter
+	profileTester      ProfileTester
+	backupManager      DatabaseBackupManager
 	pollTimeout        time.Duration
 }
 
@@ -135,6 +144,14 @@ func (s *Server) SetCounterSnapshotter(snapshotter CounterSnapshotter) {
 	s.counterSnapshotter = snapshotter
 }
 
+func (s *Server) SetProfileTester(tester ProfileTester) {
+	s.profileTester = tester
+}
+
+func (s *Server) SetDatabaseBackupManager(mgr DatabaseBackupManager) {
+	s.backupManager = mgr
+}
+
 func (s *Server) SetPollTimeout(timeout time.Duration) {
 	if timeout > 0 {
 		s.pollTimeout = timeout
@@ -147,6 +164,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("/api/v1/health/live", s.healthHandler())
 	mux.Handle("/api/v1/health/ready", s.healthHandler())
 	mux.Handle("/api/v1/snmp/profiles", s.profileHandler())
+	mux.HandleFunc("/api/v1/snmp/profiles/test", s.testProfileConnection)
 	mux.HandleFunc("/api/v1/discovery/probe", s.probeDiscovery)
 	mux.HandleFunc("/api/v1/discovery/scan", s.scanSubnet)
 	mux.HandleFunc("/api/v1/printers/register", s.registerPrinter)
@@ -157,6 +175,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/v1/printers/", s.getPrinter)
 	mux.HandleFunc("/api/v1/jobs", s.handleJobs)
 	mux.HandleFunc("/api/v1/jobs/", s.handleJobs)
+	mux.HandleFunc("/api/v1/reports/pages", s.getPageUsageReport)
 	mux.Handle("/api/v1/cartridges", s.cartridgeListHandler())
 	mux.Handle("/api/v1/cartridges/stock", s.cartridgeStockHandler())
 	mux.Handle("/api/v1/cartridges/stock/refill-bottles", s.cartridgeStockHandler())
@@ -165,6 +184,10 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("/api/v1/cartridges/refill", cartridgeActionHandler)
 	mux.Handle("/api/v1/cartridges/refill-printer", cartridgeActionHandler)
 	mux.Handle("/api/v1/cartridges/logs", s.cartridgeLogsHandler())
+	mux.HandleFunc("/api/v1/backup/printers", s.handlePrintersBackup)
+	mux.HandleFunc("/api/v1/backup/printers/restore", s.handlePrintersRestore)
+	mux.HandleFunc("/api/v1/backup/database", s.handleDatabaseBackup)
+	mux.HandleFunc("/api/v1/backup/database/restore", s.handleDatabaseRestore)
 	var static http.Handler
 	if s.frontendFS != nil {
 		fileServer := http.FileServer(http.FS(s.frontendFS))
@@ -226,6 +249,109 @@ func (s *Server) listProfiles(w http.ResponseWriter, r *http.Request) {
 		data = append(data, profileResponse{ID: item.ID, Version: item.Version, Manufacturer: item.Manufacturer, VerificationStatus: string(item.VerificationStatus), CounterKeys: keys})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"data": data, "total": len(data)})
+}
+
+type testProfileConnectionRequest struct {
+	Address        string `json:"address"`
+	Port           int    `json:"port"`
+	Version        string `json:"version"`
+	Community      string `json:"community"`
+	Username       string `json:"username"`
+	AuthProtocol   string `json:"auth_protocol"`
+	AuthPassphrase string `json:"auth_passphrase"`
+	PrivProtocol   string `json:"priv_protocol"`
+	PrivPassphrase string `json:"priv_passphrase"`
+	ProfileID      string `json:"profile_id"`
+}
+
+func (s *Server) testProfileConnection(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodOptions {
+		w.Header().Set("Access-Control-Allow-Origin", s.allowedOrigin)
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if r.Method != http.MethodPost {
+		s.methodNotAllowed(w)
+		return
+	}
+	if !s.authorized(r) {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "valid bearer token is required")
+		return
+	}
+	if s.profileTester == nil {
+		writeError(w, http.StatusServiceUnavailable, "tester_unavailable", "profile tester is not configured")
+		return
+	}
+
+	var input testProfileConnectionRequest
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", "request body must be valid JSON: "+err.Error())
+		return
+	}
+
+	address := strings.TrimSpace(input.Address)
+	if address == "" {
+		writeError(w, http.StatusBadRequest, "invalid_address", "address is required")
+		return
+	}
+
+	profileID := strings.TrimSpace(input.ProfileID)
+	if profileID == "" {
+		writeError(w, http.StatusBadRequest, "invalid_profile_id", "profile_id is required")
+		return
+	}
+
+	var selectedProfile profile.Profile
+	found := false
+	for _, p := range s.profiles {
+		if p.ID == profileID {
+			selectedProfile = p
+			found = true
+			break
+		}
+	}
+	if !found {
+		writeError(w, http.StatusBadRequest, "profile_not_found", fmt.Sprintf("profile %q was not found", profileID))
+		return
+	}
+
+	port := input.Port
+	if port == 0 {
+		port = 161
+	}
+	version := strings.TrimSpace(input.Version)
+	if version == "" {
+		version = "2c"
+	}
+	community := input.Community
+	if version == "2c" && community == "" {
+		community = "public"
+	}
+
+	cfg := snmp.Config{
+		Host:           address,
+		Port:           uint16(port),
+		Version:        snmp.Version(version),
+		Community:      community,
+		Username:       strings.TrimSpace(input.Username),
+		AuthProtocol:   strings.TrimSpace(input.AuthProtocol),
+		AuthPassphrase: input.AuthPassphrase,
+		PrivProtocol:   strings.TrimSpace(input.PrivProtocol),
+		PrivPassphrase: input.PrivPassphrase,
+		TimeoutSeconds: 4,
+		Retries:        1,
+		MaxRepetitions: 25,
+	}
+
+	report, err := s.profileTester.TestProfileWithConfig(r.Context(), cfg, selectedProfile)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "test_failed", err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, report)
 }
 
 type discoveryProbeRequest struct {
@@ -611,6 +737,25 @@ func (s *Server) getPrinter(w http.ResponseWriter, r *http.Request) {
 		s.listPollingRuns(w, r, strings.TrimSuffix(id, "/polling-runs"))
 		return
 	}
+	if strings.HasSuffix(id, "/test-profile") {
+		if r.Method == http.MethodOptions {
+			w.Header().Set("Access-Control-Allow-Origin", s.allowedOrigin)
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		if r.Method != http.MethodPost {
+			s.methodNotAllowed(w)
+			return
+		}
+		if !s.authorized(r) {
+			writeError(w, http.StatusUnauthorized, "unauthorized", "valid bearer token is required")
+			return
+		}
+		s.testPrinterProfile(w, r, strings.TrimSuffix(id, "/test-profile"))
+		return
+	}
 	if id == "" || strings.Contains(id, "/") {
 		writeError(w, http.StatusNotFound, "not_found", "printer was not found")
 		return
@@ -638,6 +783,76 @@ func (s *Server) getPrinter(w http.ResponseWriter, r *http.Request) {
 	default:
 		s.methodNotAllowed(w)
 	}
+}
+
+type testProfileRequest struct {
+	ProfileID string `json:"profile_id"`
+}
+
+func (s *Server) testPrinterProfile(w http.ResponseWriter, r *http.Request, printerID string) {
+	if s.profileTester == nil {
+		writeError(w, http.StatusServiceUnavailable, "tester_unavailable", "profile tester is not configured")
+		return
+	}
+
+	var input testProfileRequest
+	if r.Body != nil {
+		_ = json.NewDecoder(r.Body).Decode(&input)
+	}
+
+	var selectedProfile profile.Profile
+	profileID := strings.TrimSpace(input.ProfileID)
+
+	if profileID != "" {
+		found := false
+		for _, p := range s.profiles {
+			if p.ID == profileID {
+				selectedProfile = p
+				found = true
+				break
+			}
+		}
+		if !found {
+			writeError(w, http.StatusBadRequest, "profile_not_found", fmt.Sprintf("profile %q was not found", profileID))
+			return
+		}
+	} else {
+		device, err := s.store.GetDevice(r.Context(), printerID)
+		if err != nil {
+			writeError(w, http.StatusNotFound, "printer_not_found", "printer was not found")
+			return
+		}
+		if device.ProfileKey != "" {
+			for _, p := range s.profiles {
+				if p.ID == device.ProfileKey {
+					selectedProfile = p
+					break
+				}
+			}
+		}
+		if selectedProfile.ID == "" && len(s.profiles) > 0 {
+			res, err := (profile.Resolver{Profiles: s.profiles}).Resolve(profile.DeviceIdentity{
+				SysObjectID:  device.SysObjectID,
+				Manufacturer: device.Manufacturer,
+				Model:        device.Model,
+			}, "")
+			if err == nil {
+				selectedProfile = res
+			}
+		}
+		if selectedProfile.ID == "" {
+			writeError(w, http.StatusBadRequest, "profile_not_resolved", "could not determine profile for printer; please specify profile_id")
+			return
+		}
+	}
+
+	report, err := s.profileTester.TestProfileForDevice(r.Context(), printerID, selectedProfile)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "test_failed", err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, report)
 }
 
 type createCredentialRequest struct {
@@ -1633,6 +1848,50 @@ func usageDateRange(r *http.Request) (string, string, error) {
 	return from, to, nil
 }
 
+func (s *Server) getPageUsageReport(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodOptions {
+		w.Header().Set("Access-Control-Allow-Origin", s.allowedOrigin)
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if r.Method != http.MethodGet {
+		s.methodNotAllowed(w)
+		return
+	}
+	if !s.authorized(r) {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "valid bearer token is required")
+		return
+	}
+
+	from := strings.TrimSpace(r.URL.Query().Get("from"))
+	to := strings.TrimSpace(r.URL.Query().Get("to"))
+	department := strings.TrimSpace(r.URL.Query().Get("department"))
+
+	for name, value := range map[string]string{"from": from, "to": to} {
+		if value == "" {
+			continue
+		}
+		if _, err := time.Parse("2006-01-02", value); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_date_format", fmt.Sprintf("%s must be in YYYY-MM-DD format", name))
+			return
+		}
+	}
+	if from != "" && to != "" && from > to {
+		writeError(w, http.StatusBadRequest, "invalid_date_range", "from must not be after to")
+		return
+	}
+
+	report, err := s.store.GetPageUsageReport(r.Context(), from, to, department)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "report_generation_failed", err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, report)
+}
+
 func (s *Server) listPollingRuns(w http.ResponseWriter, r *http.Request, deviceID string) {
 	if deviceID == "" || strings.Contains(deviceID, "/") {
 		writeError(w, http.StatusNotFound, "not_found", "printer was not found")
@@ -1727,7 +1986,7 @@ func toPrinterResponse(device repository.Device) printerResponse {
 		SysObjectID: nullable(device.SysObjectID),
 		Department:  nullable(device.Department),
 		Address:     nullable(device.Address), Port: port, SNMPVersion: nullable(device.SNMPVersion), ProfileID: nullable(device.ProfileKey),
-		Status:      device.Status, LastSeenAt: nullableTime(device.LastSeenAt),
+		Status: device.Status, LastSeenAt: nullableTime(device.LastSeenAt),
 	}
 }
 

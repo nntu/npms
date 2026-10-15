@@ -748,5 +748,3 @@ func TestListJobsWithDevice(t *testing.T) {
 		t.Errorf("expected error_code snmp_timeout, got: %v", failedJobs[0].ErrorCode)
 	}
 }
-
-

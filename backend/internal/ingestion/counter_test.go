@@ -140,8 +140,8 @@ type fallbackMockClient struct {
 	walkFunc func(ctx context.Context, oid string) ([]snmp.VarBind, error)
 }
 
-func (m *fallbackMockClient) Connect() error                                         { return nil }
-func (m *fallbackMockClient) Close() error                                           { return nil }
+func (m *fallbackMockClient) Connect() error { return nil }
+func (m *fallbackMockClient) Close() error   { return nil }
 func (m *fallbackMockClient) Get(ctx context.Context, oids []string) ([]snmp.VarBind, error) {
 	if m.getFunc != nil {
 		return m.getFunc(ctx, oids)

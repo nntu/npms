@@ -11,8 +11,8 @@ type mockSNMPClient struct {
 	walkFunc func(ctx context.Context, rootOID string) ([]VarBind, error)
 }
 
-func (m *mockSNMPClient) Connect() error                                         { return nil }
-func (m *mockSNMPClient) Close() error                                           { return nil }
+func (m *mockSNMPClient) Connect() error { return nil }
+func (m *mockSNMPClient) Close() error   { return nil }
 func (m *mockSNMPClient) Get(ctx context.Context, oids []string) ([]VarBind, error) {
 	if m.getFunc != nil {
 		return m.getFunc(ctx, oids)
