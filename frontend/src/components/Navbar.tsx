@@ -10,6 +10,7 @@ import {
   Recycle,
 } from '@phosphor-icons/react'
 import { NavLink } from 'react-router-dom'
+import { VersionBadge } from './VersionBadge'
 
 export function Navbar() {
   const navItems = [
@@ -62,9 +63,10 @@ export function Navbar() {
           })}
         </nav>
 
-        {/* Right Environment Status */}
-        <div className="hidden lg:flex items-center gap-3">
-          <div className="flex items-center gap-2 text-xs font-semibold text-slate-300 bg-slate-800/80 border border-slate-700/60 px-3 py-1.5 rounded-full">
+        {/* Right Environment Status & Version */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          <VersionBadge />
+          <div className="hidden lg:flex items-center gap-2 text-xs font-semibold text-slate-300 bg-slate-800/80 border border-slate-700/60 px-3 py-1.5 rounded-full">
             <Pulse size={14} className="text-emerald-400 animate-pulse" />
             <span>Mạng LAN độc lập</span>
           </div>

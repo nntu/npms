@@ -15,9 +15,24 @@ taskkill //F //IM npms-api.exe 2>/dev/null || true
 taskkill //F //IM npms-worker.exe 2>/dev/null || true
 taskkill //F //IM npms-init.exe 2>/dev/null || true
 
+# 0.5 Version and build metadata
+VERSION_FILE="$ROOT_DIR/VERSION"
+if [ -f "$VERSION_FILE" ]; then
+    VERSION="$(tr -d ' \r\n' < "$VERSION_FILE")"
+else
+    VERSION="1.0.0"
+fi
+GIT_COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo "")"
+BUILD_TIME="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+
+echo "Building NPMS version: $VERSION (commit: $GIT_COMMIT, time: $BUILD_TIME)"
+
 # 1. Build frontend assets
 
 cd "$ROOT_DIR/frontend"
+export VITE_APP_VERSION="$VERSION"
+export VITE_APP_COMMIT="$GIT_COMMIT"
+export VITE_APP_BUILD_TIME="$BUILD_TIME"
 pnpm install --frozen-lockfile
 pnpm run build
 
@@ -36,11 +51,13 @@ if command -v git >/dev/null 2>&1 && [ -d "$ROOT_DIR/.git" ]; then
     git -C "$ROOT_DIR" diff --exit-code -- docs/openapi.huma.generated.yaml
 fi
 
-go build -trimpath -ldflags="-s -w" -o "$DIST_DIR/bin/npms-api" ./cmd/api
-go build -trimpath -ldflags="-s -w" -o "$DIST_DIR/bin/npms-worker" ./cmd/worker
-go build -trimpath -ldflags="-s -w" -o "$DIST_DIR/bin/npms-db-migrate" ./cmd/db-migrate
-go build -trimpath -ldflags="-s -w" -o "$DIST_DIR/bin/npms-snmp-debug" ./cmd/snmp-debug
-go build -trimpath -ldflags="-s -w" -o "$DIST_DIR/bin/npms-init" ./cmd/init
+LDFLAGS="-s -w -X 'npms/backend/internal/version.Version=$VERSION' -X 'npms/backend/internal/version.GitCommit=$GIT_COMMIT' -X 'npms/backend/internal/version.BuildDate=$BUILD_TIME'"
+
+go build -trimpath -ldflags="$LDFLAGS" -o "$DIST_DIR/bin/npms-api" ./cmd/api
+go build -trimpath -ldflags="$LDFLAGS" -o "$DIST_DIR/bin/npms-worker" ./cmd/worker
+go build -trimpath -ldflags="$LDFLAGS" -o "$DIST_DIR/bin/npms-db-migrate" ./cmd/db-migrate
+go build -trimpath -ldflags="$LDFLAGS" -o "$DIST_DIR/bin/npms-snmp-debug" ./cmd/snmp-debug
+go build -trimpath -ldflags="$LDFLAGS" -o "$DIST_DIR/bin/npms-init" ./cmd/init
 
 
 cp "$DIST_DIR/bin/"* "$ROOT_DIR/bin/"

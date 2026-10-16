@@ -163,6 +163,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("/api/v1/health", s.healthHandler())
 	mux.Handle("/api/v1/health/live", s.healthHandler())
 	mux.Handle("/api/v1/health/ready", s.healthHandler())
+	mux.Handle("/api/v1/version", s.healthHandler())
 	mux.Handle("/api/v1/snmp/profiles", s.profileHandler())
 	mux.HandleFunc("/api/v1/snmp/profiles/test", s.testProfileConnection)
 	mux.HandleFunc("/api/v1/discovery/probe", s.probeDiscovery)

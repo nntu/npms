@@ -844,11 +844,17 @@ components:
           format: uri
           readOnly: true
           type: string
+        build_date:
+          type: string
+        git_commit:
+          type: string
         status:
           const: ok
           type: string
         time:
           format: date-time
+          type: string
+        version:
           type: string
       required:
         - status
@@ -1573,6 +1579,31 @@ components:
         - data
         - total
         - timezone
+      type: object
+    VersionOutputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/VersionOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        build_date:
+          examples:
+            - "2026-10-16T05:48:00Z"
+          type: string
+        git_commit:
+          examples:
+            - f6e5b34
+          type: string
+        version:
+          examples:
+            - 1.0.0
+          type: string
+      required:
+        - version
       type: object
   securitySchemes:
     bearerAuth:
@@ -2347,3 +2378,20 @@ paths:
       security:
         - bearerAuth: []
       summary: Get API v1 snmp profiles
+  /api/v1/version:
+    get:
+      operationId: get-api-v1-version
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VersionOutputBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Get API v1 version

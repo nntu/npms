@@ -9,6 +9,7 @@ import (
 	"github.com/danielgtaylor/huma/v2/adapters/humago"
 
 	"npms/backend/internal/api/contract"
+	"npms/backend/internal/version"
 )
 
 // healthHandler is the first production endpoint migrated to the typed Huma
@@ -16,7 +17,8 @@ import (
 // middleware until their group is migrated and contract-tested.
 func (s *Server) healthHandler() http.Handler {
 	mux := http.NewServeMux()
-	api := humago.New(mux, huma.DefaultConfig("NPMS API", "1.0.0"))
+	info := version.Get()
+	api := humago.New(mux, huma.DefaultConfig("NPMS API", info.Version))
 	huma.Get(api, "/api/v1/health", func(context.Context, *struct{}) (*contract.HealthOutput, error) {
 		return healthOutput(), nil
 	})
@@ -27,12 +29,28 @@ func (s *Server) healthHandler() http.Handler {
 		}
 		return healthOutput(), nil
 	})
+	huma.Get(api, "/api/v1/version", func(context.Context, *struct{}) (*contract.VersionOutput, error) {
+		return versionOutput(), nil
+	})
 	return mux
 }
 
 func healthOutput() *contract.HealthOutput {
+	info := version.Get()
 	output := &contract.HealthOutput{}
 	output.Body.Status = "ok"
 	output.Body.Time = time.Now().UTC().Format(time.RFC3339Nano)
+	output.Body.Version = info.Version
+	output.Body.GitCommit = info.GitCommit
+	output.Body.BuildDate = info.BuildDate
+	return output
+}
+
+func versionOutput() *contract.VersionOutput {
+	info := version.Get()
+	output := &contract.VersionOutput{}
+	output.Body.Version = info.Version
+	output.Body.GitCommit = info.GitCommit
+	output.Body.BuildDate = info.BuildDate
 	return output
 }

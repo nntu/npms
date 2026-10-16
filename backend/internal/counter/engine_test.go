@@ -127,4 +127,3 @@ func TestAggregateDailyIgnoresLeadingZeroReadings(t *testing.T) {
 		t.Fatalf("expected only true delta 25, got: %#v, %v", usage, err)
 	}
 }
-

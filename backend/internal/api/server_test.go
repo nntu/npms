@@ -47,19 +47,35 @@ func TestHealthUsesTypedRuntimeContract(t *testing.T) {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
 	}
 	var response struct {
-		Status string `json:"status"`
-		Time   string `json:"time"`
+		Status  string `json:"status"`
+		Time    string `json:"time"`
+		Version string `json:"version"`
 	}
 	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
 		t.Fatal(err)
 	}
-	if response.Status != "ok" || response.Time == "" {
+	if response.Status != "ok" || response.Time == "" || response.Version == "" {
 		t.Fatalf("unexpected health response: %+v", response)
 	}
 	ready := httptest.NewRecorder()
 	server.Handler().ServeHTTP(ready, httptest.NewRequest(http.MethodGet, "/api/v1/health/ready", nil))
 	if ready.Code != http.StatusOK {
 		t.Fatalf("readiness status = %d, want %d", ready.Code, http.StatusOK)
+	}
+
+	versionRec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(versionRec, httptest.NewRequest(http.MethodGet, "/api/v1/version", nil))
+	if versionRec.Code != http.StatusOK {
+		t.Fatalf("version status = %d, want %d", versionRec.Code, http.StatusOK)
+	}
+	var versionResp struct {
+		Version string `json:"version"`
+	}
+	if err := json.Unmarshal(versionRec.Body.Bytes(), &versionResp); err != nil {
+		t.Fatal(err)
+	}
+	if versionResp.Version == "" {
+		t.Fatalf("expected non-empty version, got: %+v", versionResp)
 	}
 }
 
@@ -893,4 +909,3 @@ func TestRelocatePrinterIPEndpoint(t *testing.T) {
 		t.Fatalf("unexpected body: %s", rec.Body.String())
 	}
 }
-

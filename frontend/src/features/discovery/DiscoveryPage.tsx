@@ -610,7 +610,9 @@ export function DiscoveryPage() {
                             </td>
                             <td className="p-4 text-slate-300 font-mono text-xs">
                               {printer.serial ? <span className="block font-semibold">{printer.serial}</span> : '—'}
-                              {printer.mac ? <span className="text-[10px] text-slate-500 font-mono block">MAC: {printer.mac}</span> : null}
+                              {printer.mac ? (
+                                <span className="text-[10px] text-slate-500 font-mono block">MAC: {printer.mac}</span>
+                              ) : null}
                             </td>
                             <td className="p-4">
                               <span className="text-xs font-mono bg-slate-900 border border-slate-800 text-cyan-300 px-2 py-0.5 rounded-lg">

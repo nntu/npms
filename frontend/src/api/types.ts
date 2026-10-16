@@ -243,3 +243,5 @@ export interface DatabaseRestoreResponse {
   status: string
   message: string
 }
+
+export type VersionInfo = components['schemas']['VersionOutputBody']

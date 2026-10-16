@@ -11,11 +11,22 @@ foreach ($name in $processNames) {
     Get-Process -Name $name -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 }
 
+# 0.5 Version and build metadata
+$versionFile = Join-Path $root "VERSION"
+$version = if (Test-Path $versionFile) { (Get-Content $versionFile -Raw).Trim() } else { "1.0.0" }
+$gitCommit = try { (git rev-parse --short HEAD 2>$null).Trim() } catch { "" }
+$buildTime = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+
+Write-Host "Building NPMS version: $version (commit: $gitCommit, time: $buildTime)"
+
 # 1. Build frontend assets
 $frontendDir = Join-Path $root "frontend"
 $frontendDist = Join-Path $frontendDir "dist"
 if (-not $SkipFrontend -or -not (Test-Path (Join-Path $frontendDist "index.html"))) {
     Set-Location $frontendDir
+    $env:VITE_APP_VERSION = $version
+    $env:VITE_APP_COMMIT = $gitCommit
+    $env:VITE_APP_BUILD_TIME = $buildTime
     pnpm install --frozen-lockfile
     pnpm run build
 }
@@ -53,11 +64,13 @@ if ($beforeHash -ne $afterHash) {
     throw "Generated OpenAPI was out of date and has been updated. Run 'pnpm run api:generate' in frontend/ and rebuild."
 }
 
-go build -trimpath -ldflags="-s -w" -o (Join-Path $distBinDir "npms-api.exe") .\cmd\api
-go build -trimpath -ldflags="-s -w" -o (Join-Path $distBinDir "npms-worker.exe") .\cmd\worker
-go build -trimpath -ldflags="-s -w" -o (Join-Path $distBinDir "npms-db-migrate.exe") .\cmd\db-migrate
-go build -trimpath -ldflags="-s -w" -o (Join-Path $distBinDir "npms-snmp-debug.exe") .\cmd\snmp-debug
-go build -trimpath -ldflags="-s -w" -o (Join-Path $distBinDir "npms-init.exe") .\cmd\init
+$ldflags = "-s -w -X npms/backend/internal/version.Version=$version -X npms/backend/internal/version.GitCommit=$gitCommit -X npms/backend/internal/version.BuildDate=$buildTime"
+
+go build -trimpath -ldflags "$ldflags" -o (Join-Path $distBinDir "npms-api.exe") .\cmd\api
+go build -trimpath -ldflags "$ldflags" -o (Join-Path $distBinDir "npms-worker.exe") .\cmd\worker
+go build -trimpath -ldflags "$ldflags" -o (Join-Path $distBinDir "npms-db-migrate.exe") .\cmd\db-migrate
+go build -trimpath -ldflags "$ldflags" -o (Join-Path $distBinDir "npms-snmp-debug.exe") .\cmd\snmp-debug
+go build -trimpath -ldflags "$ldflags" -o (Join-Path $distBinDir "npms-init.exe") .\cmd\init
 
 
 Copy-Item (Join-Path $distBinDir "*") $rootBinDir -Force

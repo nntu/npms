@@ -9,6 +9,8 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humago"
+
+	"npms/backend/internal/version"
 )
 
 type Cartridge struct {
@@ -134,8 +136,19 @@ type LogsOutput struct {
 
 type HealthOutput struct {
 	Body struct {
-		Status string `json:"status" const:"ok"`
-		Time   string `json:"time" format:"date-time"`
+		Status    string `json:"status" const:"ok"`
+		Time      string `json:"time" format:"date-time"`
+		Version   string `json:"version,omitempty"`
+		GitCommit string `json:"git_commit,omitempty"`
+		BuildDate string `json:"build_date,omitempty"`
+	}
+}
+
+type VersionOutput struct {
+	Body struct {
+		Version   string `json:"version" example:"1.0.0"`
+		GitCommit string `json:"git_commit,omitempty" example:"f6e5b34"`
+		BuildDate string `json:"build_date,omitempty" example:"2026-10-16T05:48:00Z"`
 	}
 }
 
@@ -231,11 +244,12 @@ type SubnetScanOutput struct {
 
 func NewCartridgeAPI() (http.Handler, *huma.OpenAPI) {
 	mux := http.NewServeMux()
-	api := humago.New(mux, huma.DefaultConfig("NPMS API", "1.0.0"))
+	api := humago.New(mux, huma.DefaultConfig("NPMS API", version.Get().Version))
 	noop := func(context.Context) (*StatusOutput, error) { return &StatusOutput{}, nil }
 	huma.Get(api, "/api/v1/health", func(context.Context, *struct{}) (*HealthOutput, error) { return &HealthOutput{}, nil })
 	huma.Get(api, "/api/v1/health/live", func(context.Context, *struct{}) (*HealthOutput, error) { return &HealthOutput{}, nil })
 	huma.Get(api, "/api/v1/health/ready", func(context.Context, *struct{}) (*HealthOutput, error) { return &HealthOutput{}, nil })
+	huma.Get(api, "/api/v1/version", func(context.Context, *struct{}) (*VersionOutput, error) { return &VersionOutput{}, nil })
 	huma.Get(api, "/api/v1/snmp/profiles", func(context.Context, *struct{}) (*ProfileListOutput, error) { return &ProfileListOutput{}, nil })
 	huma.Post(api, "/api/v1/discovery/probe", func(context.Context, *DiscoveryInput) (*DiscoveryOutput, error) { return &DiscoveryOutput{}, nil })
 	huma.Post(api, "/api/v1/discovery/scan", func(context.Context, *SubnetScanInput) (*SubnetScanOutput, error) { return &SubnetScanOutput{}, nil })
@@ -270,7 +284,7 @@ func configureContractSecurity(api huma.API) {
 		"bearerAuth": {Type: "http", Scheme: "bearer"},
 	}
 	for path, item := range openapi.Paths {
-		if path == "/api/v1/health" || path == "/api/v1/health/live" || path == "/api/v1/health/ready" {
+		if path == "/api/v1/health" || path == "/api/v1/health/live" || path == "/api/v1/health/ready" || path == "/api/v1/version" {
 			continue
 		}
 		for _, operation := range []*huma.Operation{item.Get, item.Post, item.Put, item.Patch, item.Delete} {

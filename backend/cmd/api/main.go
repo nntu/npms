@@ -24,6 +24,7 @@ import (
 	"npms/backend/internal/runtime"
 	"npms/backend/internal/security"
 	"npms/backend/internal/snmp"
+	"npms/backend/internal/version"
 	"npms/backend/web"
 )
 
@@ -55,7 +56,16 @@ func main() {
 	openBrowserFlag := flag.Bool("open-browser", false, "Force open web browser on startup")
 	flag.BoolVar(openBrowserFlag, "b", false, "Force open web browser on startup (shorthand)")
 	noBrowserFlag := flag.Bool("no-browser", false, "Disable automatic browser opening")
+	showVersionFlag := flag.Bool("version", false, "Show version and build info")
+	flag.BoolVar(showVersionFlag, "v", false, "Show version and build info (shorthand)")
 	flag.Parse()
+
+	if *showVersionFlag {
+		info := version.Get()
+		fmt.Printf("NPMS v%s (commit: %s, built: %s)\n", info.Version, info.GitCommit, info.BuildDate)
+		return
+	}
+
 	cfg, err := config.Load(*configPath)
 	if err != nil {
 		fail(err)
@@ -66,6 +76,9 @@ func main() {
 		fail(fmt.Errorf("setup error log: %w", err))
 	}
 	defer func() { _ = closeLog() }()
+
+	appInfo := version.Get()
+	slog.Info("npms starting", "version", appInfo.Version, "commit", appInfo.GitCommit, "build_date", appInfo.BuildDate)
 	profiles, err := profile.LoadDir(cfg.Profiles.Path)
 	if err != nil {
 		fail(err)

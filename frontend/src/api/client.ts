@@ -18,6 +18,7 @@ import type {
   RegisterPrinterInput,
   RegisterPrinterResult,
   UpdatePrinterInput,
+  VersionInfo,
 } from './types'
 
 const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '/api/v1'
@@ -447,3 +448,6 @@ export async function relocatePrinterIP(
   )
 }
 
+export async function getVersion(): Promise<VersionInfo> {
+  return request<VersionInfo>('/version')
+}

@@ -23,6 +23,7 @@ import (
 	"npms/backend/internal/profile"
 	"npms/backend/internal/repository"
 	"npms/backend/internal/security"
+	"npms/backend/internal/version"
 	workerapp "npms/backend/internal/worker"
 )
 
@@ -199,7 +200,16 @@ func (r registryRunner) RunCleanup(ctx context.Context) error {
 func main() {
 	configPath := flag.String("config", "./config.yaml", "YAML configuration path")
 	once := flag.Bool("once", false, "run one registry cycle and exit")
+	showVersionFlag := flag.Bool("version", false, "Show version and build info")
+	flag.BoolVar(showVersionFlag, "v", false, "Show version and build info (shorthand)")
 	flag.Parse()
+
+	if *showVersionFlag {
+		info := version.Get()
+		fmt.Printf("NPMS Worker v%s (commit: %s, built: %s)\n", info.Version, info.GitCommit, info.BuildDate)
+		return
+	}
+
 	cfg, err := config.Load(*configPath)
 	if err != nil {
 		fail(err)
@@ -209,6 +219,9 @@ func main() {
 		fail(fmt.Errorf("setup error log: %w", err))
 	}
 	defer func() { _ = closeLog() }()
+
+	appInfo := version.Get()
+	slog.Info("npms worker starting", "version", appInfo.Version, "commit", appInfo.GitCommit, "build_date", appInfo.BuildDate)
 	profiles, err := profile.LoadDir(cfg.Profiles.Path)
 	if err != nil {
 		fail(err)

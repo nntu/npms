@@ -175,4 +175,3 @@ func TestGetPageUsageReport(t *testing.T) {
 		t.Fatalf("expected 0 period usage on first non-zero baseline, got period: %d, normalized: %d", newPrinterItem.PeriodUsage, newPrinterItem.NormalizedPages)
 	}
 }
-

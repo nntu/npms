@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
+import { Footer } from './components/Footer'
 import { Navbar } from './components/Navbar'
 
 const CartridgesPage = lazy(() =>
@@ -55,6 +56,7 @@ export function App() {
           </Routes>
         </Suspense>
       </main>
+      <Footer />
     </div>
   )
 }
