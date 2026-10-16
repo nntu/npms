@@ -416,6 +416,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/version": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get API v1 version */
+        get: operations["get-api-v1-version"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -829,10 +846,13 @@ export interface components {
              * @example https://example.com/schemas/HealthOutputBody.json
              */
             readonly $schema?: string;
+            build_date?: string;
+            git_commit?: string;
             /** @constant */
             status: "ok";
             /** Format: date-time */
             time: string;
+            version?: string;
         };
         JobAcceptedOutputBody: {
             /**
@@ -1180,6 +1200,20 @@ export interface components {
             timezone: string;
             /** Format: int64 */
             total: number;
+        };
+        VersionOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/VersionOutputBody.json
+             */
+            readonly $schema?: string;
+            /** @example 2026-10-16T05:48:00Z */
+            build_date?: string;
+            /** @example f6e5b34 */
+            git_commit?: string;
+            /** @example 1.0.0 */
+            version: string;
         };
     };
     responses: never;
@@ -2083,6 +2117,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProfileListOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-api-v1-version": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VersionOutputBody"];
                 };
             };
             /** @description Error */
