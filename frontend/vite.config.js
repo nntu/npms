@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 var __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -13,6 +14,6 @@ if (!process.env.VITE_APP_BUILD_TIME) {
     process.env.VITE_APP_BUILD_TIME = new Date().toISOString();
 }
 export default defineConfig({
-    plugins: [react()],
+    plugins: [react(), tailwindcss()],
     server: { port: 5173 },
 });

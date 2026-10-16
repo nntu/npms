@@ -29,7 +29,7 @@ const BackupPage = lazy(() => import('./features/backup/BackupPage').then((modul
 
 function RouteLoading() {
   return (
-    <div className="flex min-h-64 items-center justify-center text-sm text-slate-400" role="status">
+    <div className="flex min-h-64 items-center justify-center text-sm text-slate-500" role="status">
       Đang tải dữ liệu…
     </div>
   )
@@ -37,7 +37,7 @@ function RouteLoading() {
 
 export function App() {
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
       <Navbar />
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Suspense fallback={<RouteLoading />}>

@@ -85,19 +85,21 @@ export function PrinterDetailPage() {
         id: 'definition_key',
         accessorKey: 'definition_key',
         header: 'Bộ đếm',
-        cell: ({ row }) => <span className="font-semibold text-slate-200">{row.original.definition_key}</span>,
+        cell: ({ row }) => <span className="font-semibold text-slate-800">{row.original.definition_key}</span>,
       },
       {
         id: 'raw_value',
         accessorKey: 'raw_value',
         header: 'Giá trị gốc',
-        cell: ({ row }) => <span className="font-bold text-cyan-400">{row.original.raw_value.toLocaleString()}</span>,
+        cell: ({ row }) => (
+          <span className="font-bold text-cyan-700 font-mono">{row.original.raw_value.toLocaleString()}</span>
+        ),
       },
       {
         id: 'unit',
         accessorKey: 'unit',
         header: 'Đơn vị',
-        cell: ({ row }) => <span className="text-slate-300">{row.original.unit}</span>,
+        cell: ({ row }) => <span className="text-slate-600">{row.original.unit}</span>,
       },
       {
         id: 'quality',
@@ -112,7 +114,7 @@ export function PrinterDetailPage() {
         accessorKey: 'collected_at',
         header: 'Thời gian thu thập',
         cell: ({ row }) => (
-          <span className="text-slate-400">{new Date(row.original.collected_at).toLocaleString('vi-VN')}</span>
+          <span className="text-slate-500">{new Date(row.original.collected_at).toLocaleString('vi-VN')}</span>
         ),
       },
     ],
@@ -125,20 +127,20 @@ export function PrinterDetailPage() {
         id: 'month',
         accessorKey: 'month',
         header: 'Tháng',
-        cell: ({ row }) => <span className="font-bold text-slate-200">{row.original.month}</span>,
+        cell: ({ row }) => <span className="font-bold text-slate-800">{row.original.month}</span>,
       },
       {
         id: 'definition_key',
         accessorKey: 'definition_key',
         header: 'Bộ đếm',
-        cell: ({ row }) => <span className="text-slate-300">{row.original.definition_key}</span>,
+        cell: ({ row }) => <span className="text-slate-600">{row.original.definition_key}</span>,
       },
       {
         id: 'delta',
         accessorKey: 'delta',
         header: 'Lưu lượng in',
         cell: ({ row }) => (
-          <span className="font-bold text-emerald-400">
+          <span className="font-bold text-emerald-700 font-mono">
             {row.original.delta.toLocaleString()} {row.original.unit}
           </span>
         ),
@@ -310,16 +312,16 @@ export function PrinterDetailPage() {
 
   if (query.isError || !query.data) {
     return (
-      <div className="glass-panel p-10 text-center my-8 border-rose-900/50">
-        <Warning size={48} className="text-rose-400 mx-auto mb-3" />
-        <h3 className="text-xl font-bold text-slate-100 mb-2">Không thể tải thông tin máy in</h3>
-        <p className="text-slate-400 text-sm max-w-md mx-auto mb-6">
+      <div className="glass-panel p-10 text-center my-8 border-rose-200">
+        <Warning size={48} className="text-rose-600 mx-auto mb-3" />
+        <h3 className="text-xl font-bold text-slate-900 mb-2">Không thể tải thông tin máy in</h3>
+        <p className="text-slate-600 text-sm max-w-md mx-auto mb-6">
           {query.error instanceof Error ? query.error.message : 'Thiết bị không tồn tại hoặc đã bị xóa khỏi hệ thống.'}
         </p>
         <button
           type="button"
           onClick={() => navigate('/printers')}
-          className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold px-5 py-2.5 rounded-xl text-sm transition-all"
+          className="bg-white hover:bg-slate-50 text-slate-700 font-semibold px-5 py-2.5 rounded-xl text-sm border border-slate-200 transition-all cursor-pointer shadow-2xs"
         >
           Trở về danh sách
         </button>
@@ -363,23 +365,23 @@ export function PrinterDetailPage() {
         <button
           type="button"
           onClick={() => navigate('/printers')}
-          className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-cyan-400 hover:text-cyan-300 transition-colors mb-4 cursor-pointer"
+          className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-cyan-700 hover:text-cyan-800 transition-colors mb-4 cursor-pointer"
         >
           <ArrowLeft size={16} weight="bold" /> Trở về danh sách máy in
         </button>
 
-        <div className="flex flex-wrap items-center justify-between gap-6 pb-6 border-b border-slate-800">
+        <div className="flex flex-wrap items-center justify-between gap-6 pb-6 border-b border-slate-200">
           <div>
             <div className="flex items-center gap-3 mb-1">
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-100">{printer.display_name}</h1>
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900">{printer.display_name}</h1>
               <StatusBadge status={printer.status} />
             </div>
-            <p className="text-slate-400 text-sm">
-              Mã tài sản: <strong className="text-slate-200">{printer.asset_code ?? 'Chưa gán'}</strong>
+            <p className="text-slate-600 text-sm">
+              Mã tài sản: <strong className="text-slate-800">{printer.asset_code ?? 'Chưa gán'}</strong>
               {printer.address ? (
                 <span className="ml-3">
                   · Địa chỉ IP:{' '}
-                  <strong className="text-cyan-400 font-mono">
+                  <strong className="text-cyan-700 font-mono">
                     {printer.address}
                     {printer.port && printer.port !== 161 ? `:${printer.port}` : ''}
                   </strong>
@@ -392,7 +394,7 @@ export function PrinterDetailPage() {
             <button
               type="button"
               onClick={openEditModal}
-              className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold px-3.5 py-2.5 rounded-xl text-sm border border-slate-700 transition-all flex items-center gap-2 cursor-pointer"
+              className="bg-white hover:bg-slate-50 text-slate-700 font-semibold px-3.5 py-2.5 rounded-xl text-sm border border-slate-200 transition-all flex items-center gap-2 cursor-pointer shadow-2xs"
             >
               <PencilSimple size={18} weight="bold" />
               <span>Sửa</span>
@@ -401,7 +403,7 @@ export function PrinterDetailPage() {
               type="button"
               onClick={() => void handleDelete()}
               disabled={deleteMut.isPending}
-              className="bg-rose-950/70 hover:bg-rose-900/80 text-rose-200 font-semibold px-3.5 py-2.5 rounded-xl text-sm border border-rose-800/70 transition-all flex items-center gap-2 cursor-pointer"
+              className="bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold px-3.5 py-2.5 rounded-xl text-sm border border-rose-200 transition-all flex items-center gap-2 cursor-pointer"
             >
               <Trash size={18} weight="bold" />
               <span>Xóa</span>
@@ -409,7 +411,7 @@ export function PrinterDetailPage() {
             <button
               type="button"
               onClick={() => setShowReplaceModal(true)}
-              className="bg-amber-600 hover:bg-amber-500 text-white font-semibold px-4 py-2.5 rounded-xl text-sm transition-all flex items-center gap-2 shadow-lg shadow-amber-950/50 cursor-pointer"
+              className="bg-amber-600 hover:bg-amber-500 text-white font-semibold px-4 py-2.5 rounded-xl text-sm transition-all flex items-center gap-2 shadow-xs cursor-pointer"
             >
               <Drop size={18} weight="bold" />
               <span>Thay mực máy in</span>
@@ -418,7 +420,7 @@ export function PrinterDetailPage() {
               type="button"
               disabled={poll.isPending || job.data?.status === 'queued'}
               onClick={handleManualPoll}
-              className="bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-all flex items-center gap-2 shadow-lg shadow-cyan-950/50 cursor-pointer"
+              className="bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-all flex items-center gap-2 shadow-xs cursor-pointer"
             >
               <ArrowClockwise size={18} className={poll.isPending ? 'animate-spin' : ''} />
               <span>{poll.isPending ? 'Đang gửi...' : 'Thu thập ngay'}</span>
@@ -431,10 +433,10 @@ export function PrinterDetailPage() {
           <div
             className={`mt-4 p-3.5 rounded-xl text-xs font-semibold flex items-center justify-between border ${
               job.data.status === 'queued'
-                ? 'bg-cyan-950/50 text-cyan-300 border-cyan-800/60'
+                ? 'bg-cyan-50 text-cyan-800 border-cyan-200'
                 : job.data.status === 'success'
-                  ? 'bg-emerald-950/50 text-emerald-300 border-emerald-800/60'
-                  : 'bg-rose-950/50 text-rose-300 border-rose-800/60'
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                  : 'bg-rose-50 text-rose-800 border-rose-200'
             }`}
           >
             <div className="flex items-center gap-2">
@@ -458,31 +460,31 @@ export function PrinterDetailPage() {
 
         {/* Specifications Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mt-6">
-          <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800/60">
-            <dt className="text-[11px] uppercase font-bold text-slate-400">Phòng ban</dt>
-            <dd className="text-sm font-semibold text-cyan-400 mt-1">{printer.department ?? '—'}</dd>
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <dt className="text-[11px] uppercase font-bold text-slate-500">Phòng ban</dt>
+            <dd className="text-sm font-semibold text-cyan-700 mt-1">{printer.department ?? '—'}</dd>
           </div>
-          <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800/60">
-            <dt className="text-[11px] uppercase font-bold text-slate-400">Nhà sản xuất</dt>
-            <dd className="text-sm font-semibold text-slate-200 mt-1">{printer.manufacturer ?? '—'}</dd>
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <dt className="text-[11px] uppercase font-bold text-slate-500">Nhà sản xuất</dt>
+            <dd className="text-sm font-semibold text-slate-800 mt-1">{printer.manufacturer ?? '—'}</dd>
           </div>
-          <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800/60">
-            <dt className="text-[11px] uppercase font-bold text-slate-400">Dòng máy (Model)</dt>
-            <dd className="text-sm font-semibold text-slate-200 mt-1">{printer.model ?? '—'}</dd>
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <dt className="text-[11px] uppercase font-bold text-slate-500">Dòng máy (Model)</dt>
+            <dd className="text-sm font-semibold text-slate-800 mt-1">{printer.model ?? '—'}</dd>
           </div>
-          <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800/60">
-            <dt className="text-[11px] uppercase font-bold text-slate-400">Số sê-ri (Serial)</dt>
-            <dd className="text-sm font-semibold text-slate-200 mt-1">{printer.serial ?? '—'}</dd>
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <dt className="text-[11px] uppercase font-bold text-slate-500">Số sê-ri (Serial)</dt>
+            <dd className="text-sm font-semibold text-slate-800 mt-1">{printer.serial ?? '—'}</dd>
           </div>
-          <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800/60">
-            <dt className="text-[11px] uppercase font-bold text-slate-400">Profile SNMP</dt>
-            <dd className="text-xs font-mono font-semibold text-cyan-300 mt-1 truncate">
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <dt className="text-[11px] uppercase font-bold text-slate-500">Profile SNMP</dt>
+            <dd className="text-xs font-mono font-semibold text-cyan-700 mt-1 truncate">
               {printer.profile_id ?? 'generic-printer-mib'}
             </dd>
           </div>
-          <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800/60">
-            <dt className="text-[11px] uppercase font-bold text-slate-400">Lần cuối thấy</dt>
-            <dd className="text-xs font-semibold text-slate-200 mt-1">
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <dt className="text-[11px] uppercase font-bold text-slate-500">Lần cuối thấy</dt>
+            <dd className="text-xs font-semibold text-slate-800 mt-1">
               {printer.last_seen_at ? new Date(printer.last_seen_at).toLocaleString('vi-VN') : 'Chưa thu thập'}
             </dd>
           </div>
@@ -492,20 +494,20 @@ export function PrinterDetailPage() {
         {(() => {
           const latestReading = counters.data?.data?.[0]
           return (
-            <div className="mt-6 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-cyan-950/40 via-slate-900/60 to-slate-950/60 border border-cyan-800/40 flex flex-wrap items-center justify-between gap-4">
+            <div className="mt-6 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-cyan-50 via-white to-slate-50 border border-cyan-200 flex flex-wrap items-center justify-between gap-4 shadow-xs">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-cyan-950/80 border border-cyan-700/60 flex items-center justify-center text-cyan-400 shrink-0">
+                <div className="w-12 h-12 rounded-xl bg-cyan-100 border border-cyan-200 flex items-center justify-center text-cyan-700 shrink-0">
                   <PrinterIcon size={24} weight="bold" />
                 </div>
                 <div>
-                  <span className="text-xs uppercase font-bold tracking-wider text-cyan-400">
+                  <span className="text-xs uppercase font-bold tracking-wider text-cyan-700">
                     Tổng số trang in (Bộ đếm hiện tại)
                   </span>
                   <div className="flex items-baseline gap-2 mt-0.5">
-                    <span className="text-2xl sm:text-3xl font-extrabold text-slate-100">
+                    <span className="text-2xl sm:text-3xl font-extrabold text-slate-900">
                       {latestReading ? latestReading.raw_value.toLocaleString('vi-VN') : '—'}
                     </span>
-                    <span className="text-xs font-semibold text-slate-400">
+                    <span className="text-xs font-semibold text-slate-500">
                       {latestReading
                         ? latestReading.unit === 'impressions'
                           ? 'trang (impressions)'
@@ -517,22 +519,22 @@ export function PrinterDetailPage() {
               </div>
               {latestReading ? (
                 <div className="text-left sm:text-right">
-                  <span className="text-[11px] text-slate-400 block">
+                  <span className="text-[11px] text-slate-500 block">
                     Thu thập lúc: {new Date(latestReading.collected_at).toLocaleString('vi-VN')}
                   </span>
                   <span
                     className={`inline-block mt-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${
                       latestReading.quality === 'valid'
-                        ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800/60'
-                        : 'bg-amber-950/80 text-amber-300 border border-amber-800/60'
+                        ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                        : 'bg-amber-50 text-amber-800 border border-amber-200'
                     }`}
                   >
                     {latestReading.quality === 'valid' ? 'Dữ liệu chuẩn' : 'Chưa kiểm chứng'}
                   </span>
                 </div>
               ) : (
-                <div className="text-xs text-slate-400">
-                  Bấm nút <strong className="text-cyan-400">"Thu thập ngay"</strong> ở góc trên để quét chỉ số bộ đếm
+                <div className="text-xs text-slate-500">
+                  Bấm nút <strong className="text-cyan-700">"Thu thập ngay"</strong> ở góc trên để quét chỉ số bộ đếm
                   tức thì từ máy in qua SNMP.
                 </div>
               )}
@@ -554,16 +556,16 @@ export function PrinterDetailPage() {
       <div className="glass-panel p-6 sm:p-8 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-4 pb-1">
           <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-cyan-400">Dữ liệu gốc bất biến</p>
-            <h3 className="text-lg font-bold text-slate-100">Lịch sử bộ đếm (Counter Readings)</h3>
+            <p className="text-xs font-bold uppercase tracking-wider text-cyan-700">Dữ liệu gốc bất biến</p>
+            <h3 className="text-lg font-bold text-slate-900">Lịch sử bộ đếm (Counter Readings)</h3>
           </div>
-          <span className="text-xs font-semibold bg-slate-800 text-slate-300 px-3 py-1 rounded-full">
+          <span className="text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200 px-3 py-1 rounded-full">
             {counters.data?.total ?? 0} bản ghi
           </span>
         </div>
 
         {counters.isLoading ? (
-          <div className="p-8 text-center text-slate-400 text-sm">Đang tải lịch sử chỉ số bộ đếm...</div>
+          <div className="p-8 text-center text-slate-500 text-sm">Đang tải lịch sử chỉ số bộ đếm...</div>
         ) : (
           <DataTable
             columns={counterColumns}
@@ -580,10 +582,10 @@ export function PrinterDetailPage() {
       <div className="glass-panel p-6 sm:p-8 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-4 pb-1">
           <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-emerald-400">Tổng hợp theo tháng</p>
-            <h3 className="text-lg font-bold text-slate-100">Sản lượng in hàng tháng</h3>
+            <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">Tổng hợp theo tháng</p>
+            <h3 className="text-lg font-bold text-slate-900">Sản lượng in hàng tháng</h3>
           </div>
-          <span className="text-xs font-semibold bg-slate-800 text-slate-300 px-3 py-1 rounded-full">
+          <span className="text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200 px-3 py-1 rounded-full">
             {monthlyUsage.length} tháng
           </span>
         </div>
@@ -600,21 +602,21 @@ export function PrinterDetailPage() {
 
       {/* Modal Edit Printer */}
       {showEditModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="glass-panel p-6 w-full max-w-3xl space-y-5 border-cyan-800/60 my-8">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="glass-panel p-6 w-full max-w-3xl space-y-5 border-slate-200 shadow-xl my-8">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
               <div>
-                <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-                  <PencilSimple size={20} className="text-cyan-400" /> Chỉnh sửa máy in: {printer.display_name}
+                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <PencilSimple size={20} className="text-cyan-600" /> Chỉnh sửa máy in: {printer.display_name}
                 </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
+                <p className="text-xs text-slate-500 mt-0.5">
                   Cập nhật thông tin định danh, địa chỉ IP, cấu hình SNMP và Profile thu thập bộ đếm.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setShowEditModal(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 cursor-pointer"
+                className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 cursor-pointer"
               >
                 <X size={18} />
               </button>
@@ -627,9 +629,9 @@ export function PrinterDetailPage() {
               }}
               className="space-y-4"
             >
-              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end bg-slate-950/60 p-4 rounded-xl border border-slate-800">
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end bg-slate-50 p-4 rounded-xl border border-slate-200">
                 <div className="sm:col-span-4">
-                  <label htmlFor="detail-edit-address" className="block text-xs font-bold text-slate-300 mb-1">
+                  <label htmlFor="detail-edit-address" className="block text-xs font-bold text-slate-700 mb-1">
                     Địa chỉ IP
                   </label>
                   <input
@@ -637,11 +639,11 @@ export function PrinterDetailPage() {
                     value={editAddress}
                     onChange={(e) => setEditAddress(e.target.value)}
                     placeholder="vd: 192.168.1.50"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-100"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 shadow-2xs"
                   />
                 </div>
                 <div className="sm:col-span-2">
-                  <label htmlFor="detail-edit-port" className="block text-xs font-bold text-slate-300 mb-1">
+                  <label htmlFor="detail-edit-port" className="block text-xs font-bold text-slate-700 mb-1">
                     Cổng SNMP
                   </label>
                   <input
@@ -651,11 +653,11 @@ export function PrinterDetailPage() {
                     max={65535}
                     value={editPort}
                     onChange={(e) => setEditPort(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-100"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 shadow-2xs"
                   />
                 </div>
                 <div className="sm:col-span-3">
-                  <label htmlFor="detail-edit-community" className="block text-xs font-bold text-slate-300 mb-1">
+                  <label htmlFor="detail-edit-community" className="block text-xs font-bold text-slate-700 mb-1">
                     Community mới (nếu đổi)
                   </label>
                   <input
@@ -664,7 +666,7 @@ export function PrinterDetailPage() {
                     value={editCommunity}
                     onChange={(e) => setEditCommunity(e.target.value)}
                     placeholder="Để trống nếu giữ nguyên"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-100"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 shadow-2xs"
                   />
                 </div>
                 <div className="sm:col-span-3">
@@ -672,7 +674,7 @@ export function PrinterDetailPage() {
                     type="button"
                     disabled={probeEditMutation.isPending || !editAddress.trim()}
                     onClick={() => probeEditMutation.mutate()}
-                    className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold px-3 py-2 rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                    className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold px-3 py-2 rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
                   >
                     <MagnifyingGlass size={15} className={probeEditMutation.isPending ? 'animate-spin' : ''} />
                     <span>{probeEditMutation.isPending ? 'Đang đọc...' : 'Kiểm tra SNMP'}</span>
@@ -681,13 +683,13 @@ export function PrinterDetailPage() {
               </div>
 
               {editProbePreview && (
-                <div className="bg-emerald-950/30 border border-emerald-800/60 rounded-xl p-3 text-xs text-emerald-200 flex flex-wrap items-center justify-between gap-2">
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-800 flex flex-wrap items-center justify-between gap-2">
                   <span>
                     ✔ Phản hồi SNMP: <strong>{editProbePreview.manufacturer}</strong>{' '}
                     <strong>{editProbePreview.model || editProbePreview.name}</strong> (SN:{' '}
                     {editProbePreview.serial || '—'})
                   </span>
-                  <span className="font-mono bg-emerald-900/60 px-2 py-0.5 rounded">
+                  <span className="font-mono bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded border border-emerald-200">
                     Profile: {editProbePreview.matched_profile_id || 'generic-printer-mib'}
                   </span>
                 </div>
@@ -695,48 +697,48 @@ export function PrinterDetailPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="detail-edit-display-name" className="block text-xs font-bold text-slate-300 mb-1">
-                    Tên hiển thị <span className="text-rose-400">*</span>
+                  <label htmlFor="detail-edit-display-name" className="block text-xs font-bold text-slate-700 mb-1">
+                    Tên hiển thị <span className="text-rose-500">*</span>
                   </label>
                   <input
                     id="detail-edit-display-name"
                     value={editDisplayName}
                     onChange={(e) => setEditDisplayName(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-900 shadow-2xs"
                     required
                   />
                 </div>
                 <div>
-                  <label htmlFor="detail-edit-asset-code" className="block text-xs font-bold text-slate-300 mb-1">
+                  <label htmlFor="detail-edit-asset-code" className="block text-xs font-bold text-slate-700 mb-1">
                     Mã tài sản
                   </label>
                   <input
                     id="detail-edit-asset-code"
                     value={editAssetCode}
                     onChange={(e) => setEditAssetCode(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-900 shadow-2xs"
                   />
                 </div>
                 <div>
-                  <label htmlFor="detail-edit-department" className="block text-xs font-bold text-slate-300 mb-1">
+                  <label htmlFor="detail-edit-department" className="block text-xs font-bold text-slate-700 mb-1">
                     Phòng ban
                   </label>
                   <input
                     id="detail-edit-department"
                     value={editDepartment}
                     onChange={(e) => setEditDepartment(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-900 shadow-2xs"
                   />
                 </div>
                 <div>
-                  <label htmlFor="detail-edit-profile" className="block text-xs font-bold text-slate-300 mb-1">
+                  <label htmlFor="detail-edit-profile" className="block text-xs font-bold text-slate-700 mb-1">
                     Profile SNMP
                   </label>
                   <select
                     id="detail-edit-profile"
                     value={editProfileId}
                     onChange={(e) => setEditProfileId(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-900 shadow-2xs"
                   >
                     <option value="">-- Tự động nhận diện theo dòng máy --</option>
                     {availableProfiles.map((p) => (
@@ -747,63 +749,63 @@ export function PrinterDetailPage() {
                   </select>
                 </div>
                 <div>
-                  <label htmlFor="detail-edit-manufacturer" className="block text-xs font-bold text-slate-300 mb-1">
+                  <label htmlFor="detail-edit-manufacturer" className="block text-xs font-bold text-slate-700 mb-1">
                     Nhà sản xuất
                   </label>
                   <input
                     id="detail-edit-manufacturer"
                     value={editManufacturer}
                     onChange={(e) => setEditManufacturer(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-900 shadow-2xs"
                   />
                 </div>
                 <div>
-                  <label htmlFor="detail-edit-model" className="block text-xs font-bold text-slate-300 mb-1">
+                  <label htmlFor="detail-edit-model" className="block text-xs font-bold text-slate-700 mb-1">
                     Dòng máy (Model)
                   </label>
                   <input
                     id="detail-edit-model"
                     value={editModel}
                     onChange={(e) => setEditModel(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-900 shadow-2xs"
                   />
                 </div>
                 <div>
-                  <label htmlFor="detail-edit-serial" className="block text-xs font-bold text-slate-300 mb-1">
+                  <label htmlFor="detail-edit-serial" className="block text-xs font-bold text-slate-700 mb-1">
                     Số Serial
                   </label>
                   <input
                     id="detail-edit-serial"
                     value={editSerial}
                     onChange={(e) => setEditSerial(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-900 shadow-2xs"
                   />
                 </div>
                 <div>
-                  <label htmlFor="detail-edit-sysoid" className="block text-xs font-bold text-slate-300 mb-1">
+                  <label htmlFor="detail-edit-sysoid" className="block text-xs font-bold text-slate-700 mb-1">
                     sysObjectID
                   </label>
                   <input
                     id="detail-edit-sysoid"
                     value={editSysObjectId}
                     onChange={(e) => setEditSysObjectId(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm font-mono text-slate-100"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-sm font-mono text-slate-900 shadow-2xs"
                   />
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => setShowEditModal(false)}
-                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold px-4 py-2 rounded-xl text-sm cursor-pointer"
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-4 py-2 rounded-xl text-sm border border-slate-200 cursor-pointer"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
                   disabled={updateMut.isPending}
-                  className="bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white font-semibold px-5 py-2 rounded-xl text-sm cursor-pointer"
+                  className="bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white font-semibold px-5 py-2 rounded-xl text-sm cursor-pointer shadow-xs"
                 >
                   {updateMut.isPending ? 'Đang lưu...' : 'Lưu thay đổi'}
                 </button>
@@ -815,21 +817,21 @@ export function PrinterDetailPage() {
 
       {/* Modal Replace Toner */}
       {showReplaceModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="glass-panel p-6 w-full max-w-md space-y-4 border-amber-800">
-            <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-              <Drop size={20} className="text-amber-400" /> Thay mực cho máy in {printer.display_name}
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="glass-panel p-6 w-full max-w-md space-y-4 border-amber-200 shadow-xl">
+            <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <Drop size={20} className="text-amber-600" /> Thay mực cho máy in {printer.display_name}
             </h3>
             <div className="space-y-3">
               <div>
-                <label htmlFor="cartridge-select" className="block text-xs font-bold text-slate-300 mb-1">
+                <label htmlFor="cartridge-select" className="block text-xs font-bold text-slate-700 mb-1">
                   Chọn chủng loại mực
                 </label>
                 <select
                   id="cartridge-select"
                   value={selectedCartridgeId}
                   onChange={(e) => setSelectedCartridgeId(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-900 shadow-2xs"
                 >
                   <option value="">-- Chọn loại mực --</option>
                   {(cartridgesQuery.data?.data ?? []).map((c) => (
@@ -841,27 +843,27 @@ export function PrinterDetailPage() {
               </div>
 
               <div>
-                <span className="block text-xs font-bold text-slate-300 mb-1">Loại mực sử dụng</span>
+                <span className="block text-xs font-bold text-slate-700 mb-1">Loại mực sử dụng</span>
                 <div className="flex items-center gap-4 pt-1">
-                  <label className="inline-flex items-center gap-2 cursor-pointer text-sm text-slate-200">
+                  <label className="inline-flex items-center gap-2 cursor-pointer text-sm text-slate-700">
                     <input
                       type="radio"
                       name="sourceType"
                       value="new"
                       checked={sourceType === 'new'}
                       onChange={() => setSourceType('new')}
-                      className="text-amber-500 focus:ring-amber-500"
+                      className="text-amber-600 focus:ring-amber-500"
                     />
                     <span>🟢 Bình MỚI 100%</span>
                   </label>
-                  <label className="inline-flex items-center gap-2 cursor-pointer text-sm text-slate-200">
+                  <label className="inline-flex items-center gap-2 cursor-pointer text-sm text-slate-700">
                     <input
                       type="radio"
                       name="sourceType"
                       value="refilled"
                       checked={sourceType === 'refilled'}
                       onChange={() => setSourceType('refilled')}
-                      className="text-amber-500 focus:ring-amber-500"
+                      className="text-amber-600 focus:ring-amber-500"
                     />
                     <span>🔵 Bình ĐÃ BƠM</span>
                   </label>
@@ -869,7 +871,7 @@ export function PrinterDetailPage() {
               </div>
 
               <div>
-                <label htmlFor="replace-notes" className="block text-xs font-bold text-slate-300 mb-1">
+                <label htmlFor="replace-notes" className="block text-xs font-bold text-slate-700 mb-1">
                   Ghi chú thay mực
                 </label>
                 <input
@@ -877,7 +879,7 @@ export function PrinterDetailPage() {
                   value={replaceNotes}
                   onChange={(e) => setReplaceNotes(e.target.value)}
                   placeholder="vd: Kỹ thuật viên Nguyễn Văn A thay mực"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-900 shadow-2xs"
                 />
               </div>
             </div>
@@ -886,7 +888,7 @@ export function PrinterDetailPage() {
               <button
                 type="button"
                 onClick={() => setShowReplaceModal(false)}
-                className="bg-slate-800 text-slate-300 px-4 py-2 rounded-xl text-sm"
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-sm border border-slate-200 cursor-pointer"
               >
                 Hủy
               </button>
@@ -894,7 +896,7 @@ export function PrinterDetailPage() {
                 type="button"
                 disabled={replaceMutation.isPending || !selectedCartridgeId}
                 onClick={() => replaceMutation.mutate()}
-                className="bg-amber-600 hover:bg-amber-500 text-white font-semibold px-4 py-2 rounded-xl text-sm cursor-pointer"
+                className="bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-semibold px-4 py-2 rounded-xl text-sm cursor-pointer shadow-xs"
               >
                 {replaceMutation.isPending ? 'Đang thực hiện...' : 'Xác nhận thay mực'}
               </button>

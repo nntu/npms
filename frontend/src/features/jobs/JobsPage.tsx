@@ -38,9 +38,9 @@ function formatDateTime(iso: string | null | undefined): string {
 }
 
 const kindLabels: Record<string, { label: string; color: string }> = {
-  status: { label: 'Đồng bộ trạng thái', color: 'bg-sky-500/10 text-sky-400 border-sky-500/30' },
-  counter: { label: 'Đọc số trang in', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' },
-  discovery: { label: 'Dò quét mạng', color: 'bg-violet-500/10 text-violet-400 border-violet-500/30' },
+  status: { label: 'Đồng bộ trạng thái', color: 'bg-sky-50 text-sky-800 border-sky-200' },
+  counter: { label: 'Đọc số trang in', color: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
+  discovery: { label: 'Dò quét mạng', color: 'bg-purple-50 text-purple-800 border-purple-200' },
 }
 
 export function JobsPage() {
@@ -77,7 +77,7 @@ export function JobsPage() {
         header: 'Mã Job',
         cell: ({ row }) => (
           <span
-            className="font-mono text-xs px-2 py-1 rounded bg-slate-900/60 border border-slate-700/50 text-slate-300"
+            className="font-mono text-xs px-2 py-1 rounded bg-slate-100 border border-slate-200 text-slate-700"
             title={row.original.id}
           >
             {row.original.id.slice(0, 8)}…
@@ -94,15 +94,15 @@ export function JobsPage() {
               {item.device_id ? (
                 <Link
                   to={`/printers/${item.device_id}`}
-                  className="font-medium text-emerald-400 hover:text-emerald-300 hover:underline flex items-center gap-1.5"
+                  className="font-medium text-cyan-700 hover:text-cyan-800 hover:underline flex items-center gap-1.5"
                 >
                   <PrinterIcon size={14} />
                   {item.device_name || 'Thiết bị không tên'}
                 </Link>
               ) : (
-                <span className="font-medium text-slate-300">{item.device_name || 'Hệ thống'}</span>
+                <span className="font-medium text-slate-800">{item.device_name || 'Hệ thống'}</span>
               )}
-              {item.device_ip && <span className="font-mono text-xs text-slate-400">{item.device_ip}</span>}
+              {item.device_ip && <span className="font-mono text-xs text-slate-500">{item.device_ip}</span>}
             </div>
           )
         },
@@ -113,7 +113,7 @@ export function JobsPage() {
         cell: ({ row }) => {
           const k = kindLabels[row.original.kind] || {
             label: row.original.kind,
-            color: 'bg-slate-800 text-slate-300 border-slate-700',
+            color: 'bg-slate-100 text-slate-700 border-slate-200',
           }
           return (
             <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${k.color}`}>
@@ -129,15 +129,15 @@ export function JobsPage() {
           const status = row.original.status
           if (status === 'running') {
             return (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-sky-500/15 text-sky-400 border border-sky-500/30 animate-pulse">
-                <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-ping" />
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-sky-50 text-sky-800 border border-sky-200 animate-pulse">
+                <span className="w-1.5 h-1.5 rounded-full bg-sky-600 animate-ping" />
                 Đang chạy
               </span>
             )
           }
           if (status === 'failed') {
             return (
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-500/15 text-rose-400 border border-rose-500/30">
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-800 border border-rose-200">
                 <XCircle size={14} weight="fill" />
                 Lỗi / Ngừng
               </span>
@@ -145,14 +145,14 @@ export function JobsPage() {
           }
           if (status === 'success') {
             return (
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
                 <CheckCircle size={14} weight="fill" />
                 Hoàn tất
               </span>
             )
           }
           return (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30">
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
               <Clock size={14} />
               Đang chờ
             </span>
@@ -166,7 +166,7 @@ export function JobsPage() {
           const err = row.original.error_code
           if (!err) return <span className="text-slate-400">—</span>
           return (
-            <div className="flex items-center gap-1 text-rose-400 font-mono text-xs max-w-xs truncate" title={err}>
+            <div className="flex items-center gap-1 text-rose-700 font-mono text-xs max-w-xs truncate" title={err}>
               <Warning size={14} className="shrink-0" />
               <span className="truncate">{err}</span>
             </div>
@@ -177,13 +177,13 @@ export function JobsPage() {
         accessorKey: 'duration_ms',
         header: 'Thời lượng',
         cell: ({ row }) => (
-          <span className="font-mono text-xs text-slate-300">{formatDuration(row.original.duration_ms)}</span>
+          <span className="font-mono text-xs text-slate-700">{formatDuration(row.original.duration_ms)}</span>
         ),
       },
       {
         accessorKey: 'created_at',
         header: 'Thời điểm tạo',
-        cell: ({ row }) => <span className="text-xs text-slate-400">{formatDateTime(row.original.created_at)}</span>,
+        cell: ({ row }) => <span className="text-xs text-slate-500">{formatDateTime(row.original.created_at)}</span>,
       },
     ],
     [],
@@ -194,22 +194,22 @@ export function JobsPage() {
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-            <Cpu size={28} className="text-cyan-400" />
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
+            <Cpu size={28} className="text-cyan-600" />
             Theo dõi Tiến trình Polling (Jobs)
           </h1>
-          <p className="text-sm text-slate-400 mt-1">
+          <p className="text-sm text-slate-600 mt-1">
             Quản lý và giám sát các tiến trình đọc counter, thăm dò SNMP và phát hiện thiết bị.
           </p>
         </div>
 
         <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 text-xs font-medium text-slate-300 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700/60 cursor-pointer select-none">
+          <label className="flex items-center gap-2 text-xs font-medium text-slate-700 bg-white px-3 py-1.5 rounded-lg border border-slate-200 cursor-pointer select-none shadow-2xs">
             <input
               type="checkbox"
               checked={autoRefresh}
               onChange={(e) => setAutoRefresh(e.target.checked)}
-              className="rounded bg-slate-900 border-slate-700 text-cyan-500 focus:ring-0"
+              className="rounded border-slate-300 text-cyan-600 focus:ring-0"
             />
             Tự động làm mới (4s)
           </label>
@@ -217,7 +217,7 @@ export function JobsPage() {
           <button
             onClick={() => refetch()}
             disabled={isLoading || isRefetching}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-cyan-600/20 text-cyan-400 border border-cyan-500/40 hover:bg-cyan-600/30 transition-all disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-cyan-50 text-cyan-800 border border-cyan-200 hover:bg-cyan-100 transition-all disabled:opacity-50 shadow-2xs cursor-pointer"
           >
             <ArrowClockwise size={14} className={isRefetching ? 'animate-spin' : ''} />
             Làm mới
@@ -227,38 +227,38 @@ export function JobsPage() {
 
       {/* Metrics overview */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="glass-panel p-4 rounded-xl border border-slate-700/50 flex flex-col">
-          <span className="text-xs font-medium text-slate-400">Tổng số Jobs</span>
-          <span className="text-2xl font-bold text-white mt-1">{metrics.total}</span>
+        <div className="glass-panel p-4 rounded-xl border border-slate-200 flex flex-col shadow-2xs">
+          <span className="text-xs font-medium text-slate-500">Tổng số Jobs</span>
+          <span className="text-2xl font-bold text-slate-900 mt-1">{metrics.total}</span>
         </div>
 
-        <div className="glass-panel p-4 rounded-xl border border-sky-500/30 bg-sky-500/5 flex flex-col">
-          <span className="text-xs font-medium text-sky-400 flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-sky-400 animate-ping" />
+        <div className="glass-panel p-4 rounded-xl border border-sky-200 bg-sky-50/70 flex flex-col shadow-2xs">
+          <span className="text-xs font-medium text-sky-800 flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-sky-600 animate-ping" />
             Đang chạy
           </span>
-          <span className="text-2xl font-bold text-sky-400 mt-1">{metrics.running}</span>
+          <span className="text-2xl font-bold text-sky-800 mt-1">{metrics.running}</span>
         </div>
 
-        <div className="glass-panel p-4 rounded-xl border border-rose-500/30 bg-rose-500/5 flex flex-col">
-          <span className="text-xs font-medium text-rose-400 flex items-center gap-1.5">
+        <div className="glass-panel p-4 rounded-xl border border-rose-200 bg-rose-50/70 flex flex-col shadow-2xs">
+          <span className="text-xs font-medium text-rose-800 flex items-center gap-1.5">
             <Warning size={14} />
             Lỗi / Bị gián đoạn
           </span>
-          <span className="text-2xl font-bold text-rose-400 mt-1">{metrics.failed}</span>
+          <span className="text-2xl font-bold text-rose-800 mt-1">{metrics.failed}</span>
         </div>
 
-        <div className="glass-panel p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/5 flex flex-col">
-          <span className="text-xs font-medium text-emerald-400 flex items-center gap-1.5">
+        <div className="glass-panel p-4 rounded-xl border border-emerald-200 bg-emerald-50/70 flex flex-col shadow-2xs">
+          <span className="text-xs font-medium text-emerald-800 flex items-center gap-1.5">
             <CheckCircle size={14} />
             Thành công
           </span>
-          <span className="text-2xl font-bold text-emerald-400 mt-1">{metrics.success}</span>
+          <span className="text-2xl font-bold text-emerald-800 mt-1">{metrics.success}</span>
         </div>
       </div>
 
       {/* Main Table */}
-      <div className="glass-panel rounded-xl border border-slate-700/50 p-6">
+      <div className="glass-panel rounded-xl border border-slate-200 p-6 shadow-2xs">
         <DataTable
           columns={columns}
           data={jobs}
@@ -276,10 +276,10 @@ export function JobsPage() {
                 <button
                   key={f.id}
                   onClick={() => setStatusFilter(f.id)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer shadow-2xs ${
                     statusFilter === f.id
-                      ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 shadow-sm shadow-cyan-500/10'
-                      : 'bg-slate-800/60 text-slate-400 border border-slate-700/40 hover:bg-slate-800 hover:text-slate-200'
+                      ? 'bg-cyan-50 text-cyan-800 border border-cyan-300 font-semibold'
+                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 hover:text-slate-900'
                   }`}
                 >
                   {f.label}

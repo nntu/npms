@@ -573,16 +573,16 @@ export function CartridgeReportPage() {
   return (
     <div className="space-y-6 pb-12">
       {/* Top Banner */}
-      <div className="glass-panel p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 relative overflow-hidden">
+      <div className="glass-panel p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 relative overflow-hidden bg-white border border-slate-200 shadow-2xs">
         <div className="space-y-2 max-w-2xl z-10">
-          <div className="flex items-center gap-2 text-cyan-400 text-xs uppercase font-extrabold tracking-widest">
+          <div className="flex items-center gap-2 text-cyan-700 text-xs uppercase font-extrabold tracking-widest">
             <Drop size={16} weight="bold" />
             <span>Quản lý tiêu thụ vật tư in</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-100 tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
             Báo cáo sử dụng & tiêu thụ bình mực
           </h1>
-          <p className="text-slate-400 text-sm leading-relaxed">
+          <p className="text-slate-600 text-sm leading-relaxed">
             Phân tích số lượng bình mực mới và bình đã bơm, tỷ lệ tiết kiệm tái sử dụng, hiệu suất trang in trung bình
             trên mỗi bình mực (Yield) và nhật ký thay thế vật tư toàn diện.
           </p>
@@ -592,7 +592,7 @@ export function CartridgeReportPage() {
         <div className="flex flex-wrap items-center gap-2.5 z-10 w-full sm:w-auto">
           <Link
             to="/reports/pages"
-            className="flex-1 sm:flex-none bg-slate-800/80 hover:bg-slate-700 text-emerald-300 font-semibold px-4 py-2.5 rounded-xl text-xs sm:text-sm border border-emerald-800/60 transition-all flex items-center justify-center gap-2"
+            className="flex-1 sm:flex-none bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-semibold px-4 py-2.5 rounded-xl text-xs sm:text-sm border border-emerald-200 transition-all flex items-center justify-center gap-2 shadow-2xs"
           >
             <ChartBar size={18} weight="bold" />
             <span>Xem Báo cáo trang in</span>
@@ -601,7 +601,7 @@ export function CartridgeReportPage() {
             type="button"
             disabled={isExporting}
             onClick={() => void handleExportExcel()}
-            className="flex-1 sm:flex-none bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white font-semibold px-4 py-2.5 rounded-xl text-xs sm:text-sm shadow-lg shadow-cyan-950/50 transition-all flex items-center justify-center gap-2 cursor-pointer"
+            className="flex-1 sm:flex-none bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white font-semibold px-4 py-2.5 rounded-xl text-xs sm:text-sm shadow-2xs transition-all flex items-center justify-center gap-2 cursor-pointer"
           >
             <FileXls size={18} weight="bold" />
             <span>{isExporting ? 'Đang tạo Excel...' : 'Xuất Excel bình mực'}</span>
@@ -609,7 +609,7 @@ export function CartridgeReportPage() {
           <button
             type="button"
             onClick={handlePrint}
-            className="flex-1 sm:flex-none bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold px-4 py-2.5 rounded-xl text-xs sm:text-sm border border-slate-700 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm shadow-slate-950"
+            className="flex-1 sm:flex-none bg-white hover:bg-slate-50 text-slate-700 font-semibold px-4 py-2.5 rounded-xl text-xs sm:text-sm border border-slate-200 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
           >
             <DownloadSimple size={18} />
             <span>In báo cáo</span>
@@ -620,34 +620,34 @@ export function CartridgeReportPage() {
       {/* KPI Overview Cards for Cartridges */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 print:grid-cols-4">
         {/* Total Cartridges Used */}
-        <div className="glass-card p-5 border-l-4 border-l-cyan-500 flex flex-col justify-between">
+        <div className="glass-card p-5 border-l-4 border-l-cyan-600 bg-white border border-slate-200 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Tổng bình mực đã dùng</p>
-              <h3 className="text-2xl font-black text-slate-100 mt-1">{kpis.grandTotalCartridges} bình</h3>
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Tổng bình mực đã dùng</p>
+              <h3 className="text-2xl font-black text-slate-900 mt-1">{kpis.grandTotalCartridges} bình</h3>
             </div>
-            <div className="w-12 h-12 rounded-2xl bg-cyan-950/80 border border-cyan-800/60 text-cyan-400 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-2xl bg-cyan-50 border border-cyan-200 text-cyan-600 flex items-center justify-center">
               <Drop size={26} />
             </div>
           </div>
-          <div className="mt-3 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs">
-            <span className="text-emerald-400 font-semibold">🟢 Mới: {kpis.grandTotalNew}</span>
-            <span className="text-cyan-400 font-semibold">🔵 Bơm: {kpis.grandTotalRefilled}</span>
+          <div className="mt-3 pt-3 border-t border-slate-200 flex items-center justify-between text-xs">
+            <span className="text-emerald-700 font-semibold">🟢 Mới: {kpis.grandTotalNew}</span>
+            <span className="text-cyan-700 font-semibold">🔵 Bơm: {kpis.grandTotalRefilled}</span>
           </div>
         </div>
 
         {/* Refill Saving Rate */}
-        <div className="glass-card p-5 border-l-4 border-l-emerald-500 flex flex-col justify-between">
+        <div className="glass-card p-5 border-l-4 border-l-emerald-600 bg-white border border-slate-200 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Tỷ lệ tái sử dụng (Bơm)</p>
-              <h3 className="text-2xl font-black text-emerald-400 mt-1">{kpis.overallRefillRate}%</h3>
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Tỷ lệ tái sử dụng (Bơm)</p>
+              <h3 className="text-2xl font-black text-emerald-700 mt-1">{kpis.overallRefillRate}%</h3>
             </div>
-            <div className="w-12 h-12 rounded-2xl bg-emerald-950/80 border border-emerald-800/60 text-emerald-400 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center">
               <Recycle size={26} />
             </div>
           </div>
-          <p className="text-xs text-slate-400 mt-3 pt-3 border-t border-slate-800/80">
+          <p className="text-xs text-slate-600 mt-3 pt-3 border-t border-slate-200">
             {kpis.overallRefillRate > 50
               ? 'Tiết kiệm chi phí vật tư rất tốt nhờ tái sử dụng vỏ bình'
               : 'Nên ưu tiên bơm mực tái sử dụng để tối ưu ngân sách'}
@@ -655,28 +655,28 @@ export function CartridgeReportPage() {
         </div>
 
         {/* Total Pages Printed */}
-        <div className="glass-card p-5 border-l-4 border-l-purple-500 flex flex-col justify-between">
+        <div className="glass-card p-5 border-l-4 border-l-purple-600 bg-white border border-slate-200 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Sản lượng in ghi nhận</p>
-              <h3 className="text-2xl font-black text-purple-400 mt-1">
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Sản lượng in ghi nhận</p>
+              <h3 className="text-2xl font-black text-purple-700 mt-1">
                 {kpis.grandTotalPages.toLocaleString('vi-VN')} trang
               </h3>
             </div>
-            <div className="w-12 h-12 rounded-2xl bg-purple-950/80 border border-purple-800/60 text-purple-400 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-2xl bg-purple-50 border border-purple-200 text-purple-600 flex items-center justify-center">
               <Sparkle size={26} />
             </div>
           </div>
-          <div className="mt-3 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
+          <div className="mt-3 pt-3 border-t border-slate-200 flex items-center justify-between text-xs text-slate-600">
             <span>
               TB Bình Mới:{' '}
-              <strong className="text-emerald-400">
+              <strong className="text-emerald-700">
                 {kpis.avgYieldNew ? `${kpis.avgYieldNew.toLocaleString('vi-VN')} trg` : '—'}
               </strong>
             </span>
             <span>
               TB Bình Bơm:{' '}
-              <strong className="text-cyan-400">
+              <strong className="text-cyan-700">
                 {kpis.avgYieldRefilled ? `${kpis.avgYieldRefilled.toLocaleString('vi-VN')} trg` : '—'}
               </strong>
             </span>
@@ -684,25 +684,25 @@ export function CartridgeReportPage() {
         </div>
 
         {/* Top Department */}
-        <div className="glass-card p-5 border-l-4 border-l-amber-500 flex flex-col justify-between">
+        <div className="glass-card p-5 border-l-4 border-l-amber-500 bg-white border border-slate-200 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Phòng dùng nhiều nhất</p>
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Phòng dùng nhiều nhất</p>
               <h3
-                className="text-lg font-black text-amber-400 mt-1 truncate max-w-[170px]"
+                className="text-lg font-black text-amber-700 mt-1 truncate max-w-[170px]"
                 title={kpis.topDept?.department || '—'}
               >
                 {kpis.topDept ? kpis.topDept.department : 'Chưa có'}
               </h3>
             </div>
-            <div className="w-12 h-12 rounded-2xl bg-amber-950/80 border border-amber-800/60 text-amber-400 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center">
               <Buildings size={26} />
             </div>
           </div>
-          <p className="text-xs text-slate-400 mt-3 pt-3 border-t border-slate-800/80">
+          <p className="text-xs text-slate-600 mt-3 pt-3 border-t border-slate-200">
             {kpis.topDept ? (
               <span>
-                Đã dùng <strong className="text-slate-200">{kpis.topDept.totalCartridges}</strong> bình mực (
+                Đã dùng <strong className="text-slate-900">{kpis.topDept.totalCartridges}</strong> bình mực (
                 {kpis.grandTotalCartridges > 0
                   ? Math.round((kpis.topDept.totalCartridges / kpis.grandTotalCartridges) * 100)
                   : 0}
@@ -716,17 +716,15 @@ export function CartridgeReportPage() {
       </div>
 
       {/* Filter and Control Toolbar */}
-      <div className="glass-panel p-5 bg-slate-900/60 border border-slate-800 space-y-4 print:hidden">
+      <div className="glass-panel p-5 bg-white border border-slate-200 space-y-4 shadow-2xs print:hidden">
         <div className="flex flex-wrap items-center justify-between gap-4">
           {/* Navigation Tabs */}
-          <div className="flex items-center bg-slate-950/80 p-1 rounded-xl border border-slate-800">
+          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
             <button
               type="button"
               onClick={() => setActiveTab('department')}
               className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                activeTab === 'department'
-                  ? 'bg-cyan-600 text-white shadow-md shadow-cyan-950'
-                  : 'text-slate-400 hover:text-slate-200'
+                activeTab === 'department' ? 'bg-cyan-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <Buildings size={16} weight="bold" />
@@ -736,9 +734,7 @@ export function CartridgeReportPage() {
               type="button"
               onClick={() => setActiveTab('printer')}
               className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                activeTab === 'printer'
-                  ? 'bg-cyan-600 text-white shadow-md shadow-cyan-950'
-                  : 'text-slate-400 hover:text-slate-200'
+                activeTab === 'printer' ? 'bg-cyan-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <PrinterIcon size={16} weight="bold" />
@@ -748,9 +744,7 @@ export function CartridgeReportPage() {
               type="button"
               onClick={() => setActiveTab('logs')}
               className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                activeTab === 'logs'
-                  ? 'bg-cyan-600 text-white shadow-md shadow-cyan-950'
-                  : 'text-slate-400 hover:text-slate-200'
+                activeTab === 'logs' ? 'bg-cyan-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <Drop size={16} weight="bold" />
@@ -760,63 +754,63 @@ export function CartridgeReportPage() {
 
           {/* Quick Search */}
           <div className="relative flex-1 sm:max-w-xs">
-            <MagnifyingGlass size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+            <MagnifyingGlass size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Tìm theo máy, phòng, SKU..."
-              className="w-full bg-slate-950/80 border border-slate-800 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-cyan-500 transition-all"
+              className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-cyan-500 transition-all shadow-2xs"
             />
           </div>
         </div>
 
         {/* Filter Controls Row */}
-        <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-800/80 text-xs">
+        <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-200 text-xs">
           {/* Time range selector */}
-          <div className="flex items-center gap-1.5 bg-slate-950/80 px-3 py-1.5 rounded-xl border border-slate-800">
-            <CalendarBlank size={16} className="text-cyan-400" />
-            <span className="text-slate-400 font-medium">Thời gian:</span>
+          <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+            <CalendarBlank size={16} className="text-cyan-600" />
+            <span className="text-slate-600 font-medium">Thời gian:</span>
             <select
               value={timeRange}
               onChange={(e) => setTimeRange(e.target.value as TimeRangeOption)}
-              className="bg-transparent text-slate-200 font-semibold focus:outline-none cursor-pointer"
+              className="bg-transparent text-slate-800 font-semibold focus:outline-none cursor-pointer"
             >
-              <option value="all" className="bg-slate-900">
+              <option value="all" className="bg-white text-slate-800">
                 Toàn bộ lịch sử
               </option>
-              <option value="7d" className="bg-slate-900">
+              <option value="7d" className="bg-white text-slate-800">
                 7 ngày qua
               </option>
-              <option value="30d" className="bg-slate-900">
+              <option value="30d" className="bg-white text-slate-800">
                 30 ngày qua
               </option>
-              <option value="this_month" className="bg-slate-900">
+              <option value="this_month" className="bg-white text-slate-800">
                 Tháng này
               </option>
-              <option value="this_quarter" className="bg-slate-900">
+              <option value="this_quarter" className="bg-white text-slate-800">
                 Quý này
               </option>
-              <option value="this_year" className="bg-slate-900">
+              <option value="this_year" className="bg-white text-slate-800">
                 Năm nay
               </option>
             </select>
           </div>
 
           {/* Department Filter */}
-          <div className="flex items-center gap-1.5 bg-slate-950/80 px-3 py-1.5 rounded-xl border border-slate-800">
-            <Funnel size={16} className="text-cyan-400" />
-            <span className="text-slate-400 font-medium">Phòng ban:</span>
+          <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+            <Funnel size={16} className="text-cyan-600" />
+            <span className="text-slate-600 font-medium">Phòng ban:</span>
             <select
               value={departmentFilter}
               onChange={(e) => setDepartmentFilter(e.target.value)}
-              className="bg-transparent text-slate-200 font-semibold focus:outline-none cursor-pointer"
+              className="bg-transparent text-slate-800 font-semibold focus:outline-none cursor-pointer"
             >
-              <option value="all" className="bg-slate-900">
+              <option value="all" className="bg-white text-slate-800">
                 Tất cả phòng ban
               </option>
               {departmentList.map((d) => (
-                <option key={d} value={d} className="bg-slate-900">
+                <option key={d} value={d} className="bg-white text-slate-800">
                   {d}
                 </option>
               ))}
@@ -824,14 +818,16 @@ export function CartridgeReportPage() {
           </div>
 
           {/* Source Type Filter */}
-          <div className="flex items-center gap-1.5 bg-slate-950/80 px-3 py-1.5 rounded-xl border border-slate-800">
-            <span className="text-slate-400 font-medium">Nguồn mực:</span>
+          <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+            <span className="text-slate-600 font-medium">Nguồn mực:</span>
             <div className="flex items-center gap-1">
               <button
                 type="button"
                 onClick={() => setSourceFilter('all')}
-                className={`px-2 py-0.5 rounded-md font-semibold ${
-                  sourceFilter === 'all' ? 'bg-cyan-950 text-cyan-400 border border-cyan-800' : 'text-slate-400'
+                className={`px-2 py-0.5 rounded-md font-semibold transition-colors cursor-pointer ${
+                  sourceFilter === 'all'
+                    ? 'bg-cyan-100 text-cyan-800 border border-cyan-300'
+                    : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 Tất cả
@@ -839,10 +835,10 @@ export function CartridgeReportPage() {
               <button
                 type="button"
                 onClick={() => setSourceFilter('new')}
-                className={`px-2 py-0.5 rounded-md font-semibold ${
+                className={`px-2 py-0.5 rounded-md font-semibold transition-colors cursor-pointer ${
                   sourceFilter === 'new'
-                    ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
-                    : 'text-slate-400'
+                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                    : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 Mới 100%
@@ -850,8 +846,10 @@ export function CartridgeReportPage() {
               <button
                 type="button"
                 onClick={() => setSourceFilter('refilled')}
-                className={`px-2 py-0.5 rounded-md font-semibold ${
-                  sourceFilter === 'refilled' ? 'bg-cyan-950 text-cyan-400 border border-cyan-800' : 'text-slate-400'
+                className={`px-2 py-0.5 rounded-md font-semibold transition-colors cursor-pointer ${
+                  sourceFilter === 'refilled'
+                    ? 'bg-cyan-100 text-cyan-800 border border-cyan-300'
+                    : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 Đã bơm
@@ -863,8 +861,8 @@ export function CartridgeReportPage() {
 
       {/* Main Content Area */}
       {isLoading ? (
-        <div className="glass-panel p-16 text-center text-slate-400 flex flex-col items-center justify-center gap-3">
-          <ArrowCounterClockwise size={32} className="animate-spin text-cyan-400" />
+        <div className="glass-panel p-16 text-center text-slate-500 flex flex-col items-center justify-center gap-3 bg-white border border-slate-200 shadow-2xs">
+          <ArrowCounterClockwise size={32} className="animate-spin text-cyan-600" />
           <p className="text-sm">Đang nạp dữ liệu thống kê sử dụng mực...</p>
         </div>
       ) : activeTab === 'department' ? (
@@ -872,8 +870,8 @@ export function CartridgeReportPage() {
         <div className="space-y-6">
           {/* Visual Distribution Chart */}
           {departmentStats.some((d) => d.totalCartridges > 0) && (
-            <div className="glass-panel p-5 bg-slate-900/60 border border-slate-800">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-cyan-400 mb-3">
+            <div className="glass-panel p-5 bg-white border border-slate-200 shadow-2xs">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-cyan-700 mb-3">
                 Biểu đồ tỷ lệ tiêu thụ bình mực theo phòng ban
               </h4>
               <div className="space-y-2.5">
@@ -887,16 +885,16 @@ export function CartridgeReportPage() {
                     return (
                       <div key={d.department} className="space-y-1">
                         <div className="flex justify-between text-xs">
-                          <span className="font-semibold text-slate-200 flex items-center gap-1.5">
-                            <Buildings size={14} className="text-cyan-400" />
+                          <span className="font-semibold text-slate-800 flex items-center gap-1.5">
+                            <Buildings size={14} className="text-cyan-600" />
                             {d.department}
                           </span>
-                          <span className="text-slate-400">
-                            <strong className="text-slate-100">{d.totalCartridges}</strong> bình ({percent}%) · 🟢{' '}
+                          <span className="text-slate-600">
+                            <strong className="text-slate-900">{d.totalCartridges}</strong> bình ({percent}%) · 🟢{' '}
                             {d.totalNew} · 🔵 {d.totalRefilled}
                           </span>
                         </div>
-                        <div className="w-full h-2.5 bg-slate-950 rounded-full overflow-hidden flex">
+                        <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden flex">
                           <div
                             className="bg-emerald-500 h-full transition-all duration-500"
                             style={{
@@ -920,11 +918,11 @@ export function CartridgeReportPage() {
           )}
 
           {/* Department Table */}
-          <div className="glass-panel overflow-hidden">
+          <div className="glass-panel overflow-hidden bg-white border border-slate-200 shadow-2xs">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="border-b border-slate-800 bg-slate-900/80 text-slate-400 font-bold uppercase tracking-wider text-[11px]">
+                  <tr className="border-b border-slate-200 bg-slate-50/90 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
                     <th className="py-3 px-4">Phòng ban</th>
                     <th className="py-3 px-3 text-center">Số máy</th>
                     <th className="py-3 px-3 text-center">Mới</th>
@@ -936,28 +934,28 @@ export function CartridgeReportPage() {
                     <th className="py-3 px-4 text-right">Lần thay gần nhất</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60">
+                <tbody className="divide-y divide-slate-200/60">
                   {departmentStats.map((stat) => {
                     const isExpanded = expandedDept === stat.department
                     return (
-                      <tbody key={stat.department} className="border-b border-slate-800/40">
+                      <tbody key={stat.department} className="border-b border-slate-200/60">
                         <tr
                           onClick={() => setExpandedDept(isExpanded ? null : stat.department)}
-                          className="hover:bg-slate-900/50 transition-colors cursor-pointer"
+                          className="hover:bg-slate-50/80 transition-colors cursor-pointer"
                         >
-                          <td className="py-3.5 px-4 font-semibold text-slate-200 flex items-center gap-2">
+                          <td className="py-3.5 px-4 font-semibold text-slate-900 flex items-center gap-2">
                             {isExpanded ? (
-                              <CaretDown size={14} className="text-cyan-400" />
+                              <CaretDown size={14} className="text-cyan-600" />
                             ) : (
-                              <CaretRight size={14} className="text-slate-500" />
+                              <CaretRight size={14} className="text-slate-400" />
                             )}
                             <span>{stat.department}</span>
                           </td>
-                          <td className="py-3.5 px-3 text-center text-slate-400">{stat.printers.length} máy</td>
-                          <td className="py-3.5 px-3 text-center font-bold text-emerald-400">{stat.totalNew}</td>
-                          <td className="py-3.5 px-3 text-center font-bold text-cyan-400">{stat.totalRefilled}</td>
+                          <td className="py-3.5 px-3 text-center text-slate-600">{stat.printers.length} máy</td>
+                          <td className="py-3.5 px-3 text-center font-bold text-emerald-700">{stat.totalNew}</td>
+                          <td className="py-3.5 px-3 text-center font-bold text-cyan-700">{stat.totalRefilled}</td>
                           <td className="py-3.5 px-3 text-center">
-                            <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-200 font-bold">
+                            <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-bold border border-slate-200">
                               {stat.totalCartridges}
                             </span>
                           </td>
@@ -965,27 +963,27 @@ export function CartridgeReportPage() {
                             <span
                               className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                                 stat.refillRate > 60
-                                  ? 'bg-emerald-950 text-emerald-300 border border-emerald-800/60'
+                                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
                                   : stat.refillRate > 30
-                                    ? 'bg-cyan-950 text-cyan-300 border border-cyan-800/60'
-                                    : 'bg-slate-800 text-slate-400'
+                                    ? 'bg-cyan-50 text-cyan-800 border border-cyan-200'
+                                    : 'bg-slate-100 text-slate-600 border border-slate-200'
                               }`}
                             >
                               {stat.refillRate}%
                             </span>
                           </td>
-                          <td className="py-3.5 px-4 text-right font-black text-purple-300">
+                          <td className="py-3.5 px-4 text-right font-black text-purple-700">
                             {stat.totalPrintedPages.toLocaleString('vi-VN')}
                           </td>
-                          <td className="py-3.5 px-4 text-right font-semibold text-slate-300">
+                          <td className="py-3.5 px-4 text-right font-semibold text-slate-700">
                             {stat.avgYield > 0 ? `${stat.avgYield.toLocaleString('vi-VN')} trg` : '—'}
                           </td>
-                          <td className="py-3.5 px-4 text-right text-slate-400">
+                          <td className="py-3.5 px-4 text-right text-slate-600">
                             {stat.lastReplacedAt ? (
                               <div>
                                 <span>{new Date(stat.lastReplacedAt).toLocaleDateString('vi-VN')}</span>
                                 {stat.lastPrinterName && (
-                                  <span className="block text-[10px] text-slate-500 truncate max-w-[150px] ml-auto">
+                                  <span className="block text-[10px] text-slate-400 truncate max-w-[150px] ml-auto">
                                     {stat.lastPrinterName}
                                   </span>
                                 )}
@@ -998,9 +996,9 @@ export function CartridgeReportPage() {
 
                         {/* Collapsible Drawer: Printers inside this Department */}
                         {isExpanded && (
-                          <tr className="bg-slate-950/60">
-                            <td colSpan={9} className="p-4 pl-10 border-t border-slate-800/50">
-                              <h5 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+                          <tr className="bg-slate-50/80">
+                            <td colSpan={9} className="p-4 pl-10 border-t border-slate-200">
+                              <h5 className="text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-2">
                                 Danh sách máy in thuộc phòng: {stat.department} ({stat.printers.length} máy)
                               </h5>
                               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -1009,21 +1007,21 @@ export function CartridgeReportPage() {
                                   return (
                                     <div
                                       key={p.id}
-                                      className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 space-y-1.5"
+                                      className="p-3 rounded-xl bg-white border border-slate-200 space-y-1.5 shadow-2xs"
                                     >
                                       <div className="flex items-center justify-between">
-                                        <span className="font-semibold text-slate-200 text-xs truncate max-w-[180px]">
+                                        <span className="font-semibold text-slate-800 text-xs truncate max-w-[180px]">
                                           {p.display_name}
                                         </span>
-                                        <span className="text-[10px] font-mono text-cyan-400">{p.address}</span>
+                                        <span className="text-[10px] font-mono text-cyan-700">{p.address}</span>
                                       </div>
-                                      <div className="text-[11px] text-slate-400 flex items-center justify-between">
+                                      <div className="text-[11px] text-slate-600 flex items-center justify-between">
                                         <span>
                                           Đã dùng:{' '}
-                                          <strong className="text-slate-200">{pStat?.totalCartridges ?? 0}</strong> bình
+                                          <strong className="text-slate-900">{pStat?.totalCartridges ?? 0}</strong> bình
                                         </span>
-                                        <span className="text-emerald-400">🟢 {pStat?.totalNew ?? 0}</span>
-                                        <span className="text-cyan-400">🔵 {pStat?.totalRefilled ?? 0}</span>
+                                        <span className="text-emerald-700">🟢 {pStat?.totalNew ?? 0}</span>
+                                        <span className="text-cyan-700">🔵 {pStat?.totalRefilled ?? 0}</span>
                                       </div>
                                     </div>
                                   )
@@ -1049,11 +1047,11 @@ export function CartridgeReportPage() {
         </div>
       ) : activeTab === 'printer' ? (
         /* TAB 2: THEO TỪNG MÁY IN */
-        <div className="glass-panel overflow-hidden">
+        <div className="glass-panel overflow-hidden bg-white border border-slate-200 shadow-2xs">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="border-b border-slate-800 bg-slate-900/80 text-slate-400 font-bold uppercase tracking-wider text-[11px]">
+                <tr className="border-b border-slate-200 bg-slate-50/90 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
                   <th className="py-3 px-4">Tên máy in / Dòng máy</th>
                   <th className="py-3 px-4">Phòng ban</th>
                   <th className="py-3 px-3 text-center">Địa chỉ IP</th>
@@ -1066,25 +1064,25 @@ export function CartridgeReportPage() {
                   <th className="py-3 px-4 text-right">Lần thay gần nhất</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60">
+              <tbody className="divide-y divide-slate-200/60">
                 {printerStats.map((item) => (
-                  <tr key={item.printer.id} className="hover:bg-slate-900/50 transition-colors">
-                    <td className="py-3.5 px-4 font-semibold text-slate-200">
+                  <tr key={item.printer.id} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="py-3.5 px-4 font-semibold text-slate-900">
                       <div>
                         <span>{item.printer.display_name}</span>
                         {item.printer.model && (
-                          <span className="block text-[10px] text-slate-400 font-normal mt-0.5">
+                          <span className="block text-[10px] text-slate-500 font-normal mt-0.5">
                             {item.printer.manufacturer} {item.printer.model}
                           </span>
                         )}
                       </div>
                     </td>
-                    <td className="py-3.5 px-4 text-slate-300">{item.department}</td>
-                    <td className="py-3.5 px-3 text-center font-mono text-cyan-400">{item.printer.address || '—'}</td>
-                    <td className="py-3.5 px-3 text-center font-bold text-emerald-400">{item.totalNew}</td>
-                    <td className="py-3.5 px-3 text-center font-bold text-cyan-400">{item.totalRefilled}</td>
+                    <td className="py-3.5 px-4 text-slate-700">{item.department}</td>
+                    <td className="py-3.5 px-3 text-center font-mono text-cyan-700">{item.printer.address || '—'}</td>
+                    <td className="py-3.5 px-3 text-center font-bold text-emerald-700">{item.totalNew}</td>
+                    <td className="py-3.5 px-3 text-center font-bold text-cyan-700">{item.totalRefilled}</td>
                     <td className="py-3.5 px-3 text-center">
-                      <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-200 font-bold">
+                      <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-bold border border-slate-200">
                         {item.totalCartridges}
                       </span>
                     </td>
@@ -1092,27 +1090,27 @@ export function CartridgeReportPage() {
                       <span
                         className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                           item.refillRate > 60
-                            ? 'bg-emerald-950 text-emerald-300 border border-emerald-800/60'
+                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
                             : item.refillRate > 30
-                              ? 'bg-cyan-950 text-cyan-300 border border-cyan-800/60'
-                              : 'bg-slate-800 text-slate-400'
+                              ? 'bg-cyan-50 text-cyan-800 border border-cyan-200'
+                              : 'bg-slate-100 text-slate-600 border border-slate-200'
                         }`}
                       >
                         {item.refillRate}%
                       </span>
                     </td>
-                    <td className="py-3.5 px-4 text-right font-black text-purple-300">
+                    <td className="py-3.5 px-4 text-right font-black text-purple-700">
                       {item.totalPrintedPages.toLocaleString('vi-VN')}
                     </td>
-                    <td className="py-3.5 px-4 text-right font-semibold text-slate-300">
+                    <td className="py-3.5 px-4 text-right font-semibold text-slate-700">
                       {item.avgYield > 0 ? `${item.avgYield.toLocaleString('vi-VN')} trg` : '—'}
                     </td>
-                    <td className="py-3.5 px-4 text-right text-slate-400">
+                    <td className="py-3.5 px-4 text-right text-slate-600">
                       {item.lastReplacedAt ? (
                         <div>
                           <span>{new Date(item.lastReplacedAt).toLocaleDateString('vi-VN')}</span>
                           {item.lastCartridgeName && (
-                            <span className="block text-[10px] text-cyan-400 truncate max-w-[150px] ml-auto">
+                            <span className="block text-[10px] text-cyan-700 truncate max-w-[150px] ml-auto">
                               {item.lastCartridgeName} ({item.lastSourceType === 'new' ? 'Mới' : 'Bơm'})
                             </span>
                           )}
@@ -1136,11 +1134,11 @@ export function CartridgeReportPage() {
         </div>
       ) : (
         /* TAB 3: NHẬT KÝ THAY MỰC CHI TIẾT */
-        <div className="glass-panel overflow-hidden">
+        <div className="glass-panel overflow-hidden bg-white border border-slate-200 shadow-2xs">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="border-b border-slate-800 bg-slate-900/80 text-slate-400 font-bold uppercase tracking-wider text-[11px]">
+                <tr className="border-b border-slate-200 bg-slate-50/90 text-slate-600 font-bold uppercase tracking-wider text-[11px]">
                   <th className="py-3 px-4">Thời gian</th>
                   <th className="py-3 px-4">Máy in</th>
                   <th className="py-3 px-4">Phòng ban</th>
@@ -1152,29 +1150,29 @@ export function CartridgeReportPage() {
                   <th className="py-3 px-4">Ghi chú</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60">
+              <tbody className="divide-y divide-slate-200/60">
                 {filteredLogs.map((log) => {
                   const printer = log.device_id ? printerMap.get(log.device_id) : undefined
                   const dept = (printer?.department || '').trim() || 'Chưa phân phòng'
                   const cartridge = cartridgeMap.get(log.cartridge_id)
 
                   return (
-                    <tr key={log.id} className="hover:bg-slate-900/50 transition-colors">
-                      <td className="py-3.5 px-4 text-slate-300 font-mono text-[11px]">
+                    <tr key={log.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-3.5 px-4 text-slate-600 font-mono text-[11px]">
                         {new Date(log.performed_at).toLocaleString('vi-VN')}
                       </td>
-                      <td className="py-3.5 px-4 font-semibold text-slate-200">
+                      <td className="py-3.5 px-4 font-semibold text-slate-900">
                         <div>
                           <span>{printer?.display_name || 'Máy in đã xóa'}</span>
                           {printer?.address && (
-                            <span className="block text-[10px] text-slate-400 font-mono font-normal">
+                            <span className="block text-[10px] text-slate-500 font-mono font-normal">
                               {printer.address}
                             </span>
                           )}
                         </div>
                       </td>
-                      <td className="py-3.5 px-4 text-slate-300">{dept}</td>
-                      <td className="py-3.5 px-4 text-slate-200">
+                      <td className="py-3.5 px-4 text-slate-700">{dept}</td>
+                      <td className="py-3.5 px-4 text-slate-900">
                         <span className="font-semibold">{cartridge?.name || 'Vật tư không xác định'}</span>
                         {cartridge?.sku_code && (
                           <span className="block text-[10px] text-slate-500 font-mono">{cartridge.sku_code}</span>
@@ -1184,24 +1182,24 @@ export function CartridgeReportPage() {
                         <span
                           className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                             log.source_type === 'new'
-                              ? 'bg-emerald-950 text-emerald-400 border border-emerald-800/60'
-                              : 'bg-cyan-950 text-cyan-400 border border-cyan-800/60'
+                              ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                              : 'bg-cyan-50 text-cyan-800 border border-cyan-200'
                           }`}
                         >
                           {log.source_type === 'new' ? 'Bình mới' : 'Bình bơm'}
                         </span>
                       </td>
-                      <td className="py-3.5 px-3 text-center font-bold text-slate-200">{log.quantity || 1}</td>
-                      <td className="py-3.5 px-4 text-right font-mono text-slate-300">
+                      <td className="py-3.5 px-3 text-center font-bold text-slate-900">{log.quantity || 1}</td>
+                      <td className="py-3.5 px-4 text-right font-mono text-slate-700">
                         {log.page_count ? log.page_count.toLocaleString('vi-VN') : '—'}
                       </td>
-                      <td className="py-3.5 px-4 text-right font-black text-purple-300">
+                      <td className="py-3.5 px-4 text-right font-black text-purple-700">
                         {log.printed_pages && log.printed_pages > 0
                           ? `${log.printed_pages.toLocaleString('vi-VN')} trang`
                           : '—'}
                       </td>
                       <td
-                        className="py-3.5 px-4 text-slate-400 text-[11px] max-w-[200px] truncate"
+                        className="py-3.5 px-4 text-slate-600 text-[11px] max-w-[200px] truncate"
                         title={log.notes || ''}
                       >
                         {log.notes || '—'}

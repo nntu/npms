@@ -208,14 +208,14 @@ export function PageUsageReportPage() {
       {/* Top Banner */}
       <div className="glass-panel p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 relative overflow-hidden">
         <div className="space-y-2 max-w-2xl z-10">
-          <div className="flex items-center gap-2 text-emerald-400 text-xs uppercase font-extrabold tracking-widest">
+          <div className="flex items-center gap-2 text-emerald-700 text-xs uppercase font-extrabold tracking-widest">
             <ChartBar size={16} weight="bold" />
             <span>Phân tích lưu lượng in ấn</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-100 tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
             Báo cáo số trang in của máy in
           </h1>
-          <p className="text-slate-400 text-sm leading-relaxed">
+          <p className="text-slate-600 text-sm leading-relaxed">
             Thống kê sản lượng in ấn quy đổi và số trang quét (scanner) theo từng phòng ban và từng thiết bị từ chỉ số
             bộ đếm SNMP thời gian thực.
           </p>
@@ -225,7 +225,7 @@ export function PageUsageReportPage() {
         <div className="flex flex-wrap items-center gap-2.5 z-10 w-full sm:w-auto">
           <Link
             to="/reports/cartridges"
-            className="flex-1 sm:flex-none bg-slate-800/80 hover:bg-slate-700 text-cyan-300 font-semibold px-4 py-2.5 rounded-xl text-xs sm:text-sm border border-cyan-800/60 transition-all flex items-center justify-center gap-2"
+            className="flex-1 sm:flex-none bg-white hover:bg-slate-50 text-cyan-800 font-semibold px-4 py-2.5 rounded-xl text-xs sm:text-sm border border-cyan-200 transition-all flex items-center justify-center gap-2 shadow-2xs"
           >
             <Drop size={18} weight="bold" />
             <span>Xem Báo cáo bình mực</span>
@@ -234,7 +234,7 @@ export function PageUsageReportPage() {
             type="button"
             disabled={isExporting || pageUsageQuery.isLoading}
             onClick={() => void handleExportPageUsageExcel()}
-            className="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold px-4 py-2.5 rounded-xl text-xs sm:text-sm shadow-lg shadow-emerald-950/50 transition-all flex items-center justify-center gap-2 cursor-pointer"
+            className="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold px-4 py-2.5 rounded-xl text-xs sm:text-sm shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
           >
             <FileXls size={18} weight="bold" />
             <span>{isExporting ? 'Đang tạo Excel...' : 'Xuất Excel trang in'}</span>
@@ -242,7 +242,7 @@ export function PageUsageReportPage() {
           <button
             type="button"
             onClick={handlePrint}
-            className="flex-1 sm:flex-none bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold px-4 py-2.5 rounded-xl text-xs sm:text-sm border border-slate-700 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm shadow-slate-950"
+            className="flex-1 sm:flex-none bg-white hover:bg-slate-50 text-slate-700 font-semibold px-4 py-2.5 rounded-xl text-xs sm:text-sm border border-slate-200 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
           >
             <DownloadSimple size={18} />
             <span>In báo cáo</span>
@@ -251,80 +251,69 @@ export function PageUsageReportPage() {
       </div>
 
       {/* Filter and Control Toolbar */}
-      <div className="glass-panel p-5 bg-slate-900/60 border border-slate-800 space-y-4 print:hidden">
+      <div className="glass-panel p-5 bg-white border border-slate-200 space-y-4 print:hidden shadow-2xs">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-2 text-sm font-bold text-slate-200">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+          <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
             <span>Bộ lọc dữ liệu trang in</span>
           </div>
 
           {/* Quick Search */}
           <div className="relative flex-1 sm:max-w-xs">
-            <MagnifyingGlass size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+            <MagnifyingGlass size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Tìm theo tên máy, IP, model..."
-              className="w-full bg-slate-950/80 border border-slate-800 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-emerald-500 transition-all"
+              className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-emerald-500 shadow-2xs transition-all"
             />
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-800/80 text-xs">
+        <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-200 text-xs">
           {/* Time range selector */}
-          <div className="flex items-center gap-1.5 bg-slate-950/80 px-3 py-1.5 rounded-xl border border-slate-800">
-            <CalendarBlank size={16} className="text-emerald-400" />
-            <span className="text-slate-400 font-medium">Khoảng thời gian:</span>
+          <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs">
+            <CalendarBlank size={16} className="text-emerald-600" />
+            <span className="text-slate-600 font-medium">Khoảng thời gian:</span>
             <select
               value={timeRange}
               onChange={(e) => setTimeRange(e.target.value as TimeRangeOption)}
-              className="bg-transparent text-slate-200 font-semibold focus:outline-none cursor-pointer"
+              className="bg-transparent text-slate-800 font-semibold focus:outline-none cursor-pointer"
             >
-              <option value="all" className="bg-slate-900">
-                Toàn bộ thời gian (Tổng counter)
-              </option>
-              <option value="7d" className="bg-slate-900">
-                7 ngày qua
-              </option>
-              <option value="30d" className="bg-slate-900">
-                30 ngày qua
-              </option>
-              <option value="this_month" className="bg-slate-900">
-                Tháng này
-              </option>
-              <option value="this_quarter" className="bg-slate-900">
-                Quý này
-              </option>
-              <option value="this_year" className="bg-slate-900">
-                Năm nay
-              </option>
+              <option value="all">Toàn bộ thời gian (Tổng counter)</option>
+              <option value="7d">7 ngày qua</option>
+              <option value="30d">30 ngày qua</option>
+              <option value="this_month">Tháng này</option>
+              <option value="this_quarter">Quý này</option>
+              <option value="this_year">Năm nay</option>
             </select>
           </div>
 
           {/* Department Filter */}
-          <div className="flex items-center gap-1.5 bg-slate-950/80 px-3 py-1.5 rounded-xl border border-slate-800">
-            <Funnel size={16} className="text-cyan-400" />
-            <span className="text-slate-400 font-medium">Phòng ban:</span>
+          <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs">
+            <Funnel size={16} className="text-cyan-700" />
+            <span className="text-slate-600 font-medium">Phòng ban:</span>
             <select
               value={departmentFilter}
               onChange={(e) => setDepartmentFilter(e.target.value)}
-              className="bg-transparent text-slate-200 font-semibold focus:outline-none cursor-pointer"
+              className="bg-transparent text-slate-800 font-semibold focus:outline-none cursor-pointer"
             >
-              <option value="all" className="bg-slate-900">
-                Tất cả phòng ban
-              </option>
+              <option value="all">Tất cả phòng ban</option>
               {departmentList.map((d) => (
-                <option key={d} value={d} className="bg-slate-900">
+                <option key={d} value={d}>
                   {d}
                 </option>
               ))}
             </select>
           </div>
 
-          <div className="ml-auto text-xs text-slate-400">
+          <div className="ml-auto text-xs text-slate-500">
             Số thiết bị ghi nhận:{' '}
-            <strong className="text-emerald-400">{pageUsageQuery.data?.total_printers ?? printers.length}</strong> máy
+            <strong className="text-emerald-700 font-mono font-bold">
+              {pageUsageQuery.data?.total_printers ?? printers.length}
+            </strong>{' '}
+            máy
           </div>
         </div>
       </div>

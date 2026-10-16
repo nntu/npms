@@ -3,71 +3,64 @@
 @layer base {
   :root {
     font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    color-scheme: dark;
+    color-scheme: light;
   }
 
   body {
-    @apply bg-slate-950 text-slate-100 min-h-screen antialiased selection:bg-cyan-500 selection:text-slate-950;
+    @apply bg-slate-50 text-slate-900 min-h-screen antialiased selection:bg-cyan-500 selection:text-white;
   }
 }
 
-/* Custom Scrollbar */
+/* Custom Scrollbar for Light Theme */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #0f172a;
+  background: #f1f5f9;
 }
 ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: #cbd5e1;
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: #94a3b8;
 }
 
-/* Glassmorphism Card Style */
+/* Crisp Panel & Card Styles */
 .glass-panel {
-  @apply bg-slate-900/80 backdrop-blur-xl border border-slate-800/80 rounded-2xl shadow-xl shadow-slate-950/50;
+  @apply bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-2xl shadow-xs;
 }
 
 .glass-card {
-  @apply bg-slate-900/60 backdrop-blur-md border border-slate-800/60 rounded-xl transition-all duration-200;
-}
-
-.glass-card:hover {
-  @apply border-slate-700/80 bg-slate-800/50 shadow-lg shadow-slate-950/40;
+  @apply bg-white border border-slate-200/90 rounded-xl transition-all duration-200 shadow-xs hover:border-slate-300 hover:shadow-sm;
 }
 
 /* Status Indicator Dot */
 .status-badge {
-  @apply inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-semibold tracking-wide border;
+  @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold tracking-wide border;
 }
 
 .status-online {
-  @apply bg-emerald-950/60 text-emerald-400 border-emerald-800/60;
+  @apply bg-emerald-50 text-emerald-700 border-emerald-200;
 }
-
 .status-online::before {
   content: "";
-  @apply w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse;
+  @apply w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse;
 }
 
 .status-offline {
-  @apply bg-rose-950/60 text-rose-400 border-rose-800/60;
+  @apply bg-rose-50 text-rose-700 border-rose-200;
 }
-
 .status-offline::before {
   content: "";
-  @apply w-1.5 h-1.5 rounded-full bg-rose-400;
+  @apply w-1.5 h-1.5 rounded-full bg-rose-500;
 }
 
 .status-unknown,
 .status-unavailable {
-  @apply bg-slate-800/60 text-slate-400 border-slate-700/60;
+  @apply bg-slate-100 text-slate-600 border-slate-200;
 }
-
 .status-unknown::before,
 .status-unavailable::before {
   content: "";
@@ -79,15 +72,15 @@
   @apply inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium tracking-wide uppercase;
 }
 .quality-valid {
-  @apply bg-emerald-950 text-emerald-300 border border-emerald-800/50;
+  @apply bg-emerald-50 text-emerald-700 border border-emerald-200;
 }
 .quality-suspicious {
-  @apply bg-amber-950 text-amber-300 border border-amber-800/50;
+  @apply bg-amber-50 text-amber-700 border border-amber-200;
 }
 .quality-unverified {
-  @apply bg-cyan-950 text-cyan-300 border border-cyan-800/50;
+  @apply bg-cyan-50 text-cyan-700 border border-cyan-200;
 }
 .quality-unsupported,
 .quality-unavailable {
-  @apply bg-slate-800 text-slate-400 border border-slate-700/50;
+  @apply bg-slate-100 text-slate-600 border border-slate-200;
 }

@@ -133,8 +133,8 @@ export function CartridgesPage() {
         header: 'Mã mực (SKU) / Tên',
         cell: ({ row }) => (
           <div>
-            <span className="font-bold text-slate-100 block">{row.original.name}</span>
-            <small className="text-cyan-400 font-mono text-xs">{row.original.sku_code}</small>
+            <span className="font-bold text-slate-900 block">{row.original.name}</span>
+            <small className="text-cyan-700 font-mono text-xs">{row.original.sku_code}</small>
           </div>
         ),
       },
@@ -142,25 +142,31 @@ export function CartridgesPage() {
         id: 'compatible_models',
         accessorKey: 'compatible_models',
         header: 'Máy in tương thích',
-        cell: ({ row }) => <span className="text-slate-300 text-xs">{row.original.compatible_models || 'Tất cả'}</span>,
+        cell: ({ row }) => <span className="text-slate-600 text-xs">{row.original.compatible_models || 'Tất cả'}</span>,
       },
       {
         id: 'stock_new',
         accessorKey: 'stock_new',
         header: '🟢 Bình MỚI',
-        cell: ({ row }) => <span className="font-bold text-emerald-400 text-base">{row.original.stock_new}</span>,
+        cell: ({ row }) => (
+          <span className="font-bold text-emerald-700 font-mono text-base">{row.original.stock_new}</span>
+        ),
       },
       {
         id: 'stock_refilled',
         accessorKey: 'stock_refilled',
         header: '🔵 Bình BƠM',
-        cell: ({ row }) => <span className="font-bold text-cyan-400 text-base">{row.original.stock_refilled}</span>,
+        cell: ({ row }) => (
+          <span className="font-bold text-cyan-700 font-mono text-base">{row.original.stock_refilled}</span>
+        ),
       },
       {
         id: 'stock_empty',
         accessorKey: 'stock_empty',
         header: '🔴 Vỏ HẾT (Chờ bơm)',
-        cell: ({ row }) => <span className="font-bold text-amber-400 text-base">{row.original.stock_empty}</span>,
+        cell: ({ row }) => (
+          <span className="font-bold text-amber-700 font-mono text-base">{row.original.stock_empty}</span>
+        ),
       },
       {
         id: 'actions',
@@ -178,7 +184,7 @@ export function CartridgesPage() {
                     setRefillQuantity(cartridge.stock_empty)
                     setShowRefillModal(true)
                   }}
-                  className="bg-amber-600 hover:bg-amber-500 text-white font-semibold px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer inline-flex items-center gap-1"
+                  className="bg-amber-600 hover:bg-amber-500 text-white font-semibold px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer inline-flex items-center gap-1 shadow-xs"
                 >
                   <Recycle size={14} /> Bơm {cartridge.stock_empty} vỏ
                 </button>
@@ -189,7 +195,7 @@ export function CartridgesPage() {
                   setSelectedCartridge(cartridge)
                   setShowStockModal(true)
                 }}
-                className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold px-3 py-1.5 rounded-lg text-xs border border-slate-700 transition-all cursor-pointer"
+                className="bg-white hover:bg-slate-50 text-slate-700 font-semibold px-3 py-1.5 rounded-lg text-xs border border-slate-200 transition-all cursor-pointer shadow-2xs"
               >
                 + Thêm tồn kho
               </button>
@@ -208,7 +214,7 @@ export function CartridgesPage() {
         accessorKey: 'performed_at',
         header: 'Thời gian',
         cell: ({ row }) => (
-          <span className="text-slate-400 text-xs">{new Date(row.original.performed_at).toLocaleString('vi-VN')}</span>
+          <span className="text-slate-500 text-xs">{new Date(row.original.performed_at).toLocaleString('vi-VN')}</span>
         ),
       },
       {
@@ -220,11 +226,11 @@ export function CartridgesPage() {
           return (
             <span className="font-semibold text-xs">
               {act === 'replace' ? (
-                <span className="text-cyan-400">🖨️ Thay vào máy in</span>
+                <span className="text-cyan-700">🖨️ Thay vào máy in</span>
               ) : act === 'refill' ? (
-                <span className="text-amber-400">🔄 Bơm mực xong</span>
+                <span className="text-amber-700">🔄 Bơm mực xong</span>
               ) : (
-                <span className="text-emerald-400">📦 Nhập kho thêm</span>
+                <span className="text-emerald-700">📦 Nhập kho thêm</span>
               )}
             </span>
           )
@@ -235,7 +241,7 @@ export function CartridgesPage() {
         accessorKey: 'source_type',
         header: 'Nguồn mực',
         cell: ({ row }) => (
-          <span className="text-xs font-medium text-slate-300">
+          <span className="text-xs font-medium text-slate-700">
             {row.original.source_type === 'new'
               ? '🟢 Bình mới 100%'
               : row.original.source_type === 'refilled'
@@ -250,17 +256,17 @@ export function CartridgesPage() {
         accessorFn: (row) => row.printed_pages ?? row.page_count ?? 0,
         cell: ({ row }) => {
           const log = row.original
-          if (log.action_type !== 'replace') return <span className="text-slate-600">—</span>
+          if (log.action_type !== 'replace') return <span className="text-slate-400">—</span>
           if (log.printed_pages && log.printed_pages > 0) {
             return (
-              <span className="text-cyan-400 font-bold text-xs">
+              <span className="text-cyan-700 font-bold font-mono text-xs">
                 ⚡ {log.printed_pages.toLocaleString('vi-VN')} trang
               </span>
             )
           }
           if (log.page_count && log.page_count > 0) {
             return (
-              <span className="text-slate-400 font-normal text-xs">
+              <span className="text-slate-600 font-normal text-xs">
                 Đang dùng ({log.page_count.toLocaleString('vi-VN')})
               </span>
             )
@@ -272,13 +278,13 @@ export function CartridgesPage() {
         id: 'quantity',
         accessorKey: 'quantity',
         header: 'Số lượng',
-        cell: ({ row }) => <span className="font-bold text-slate-200">{row.original.quantity}</span>,
+        cell: ({ row }) => <span className="font-bold text-slate-800">{row.original.quantity}</span>,
       },
       {
         id: 'notes',
         accessorKey: 'notes',
         header: 'Ghi chú',
-        cell: ({ row }) => <span className="text-slate-400 text-xs">{row.original.notes || '—'}</span>,
+        cell: ({ row }) => <span className="text-slate-500 text-xs">{row.original.notes || '—'}</span>,
       },
     ],
     [],
@@ -289,13 +295,13 @@ export function CartridgesPage() {
       {/* Page Banner */}
       <div className="glass-panel p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
         <div className="space-y-2 max-w-2xl">
-          <p className="text-xs uppercase font-extrabold tracking-widest text-cyan-400">
+          <p className="text-xs uppercase font-extrabold tracking-widest text-cyan-700">
             Quản lý vật tư & Kho bình mực
           </p>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-100 tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
             Quản lý Tồn kho & Thay mực máy in
           </h1>
-          <p className="text-slate-400 text-sm leading-relaxed">
+          <p className="text-slate-600 text-sm leading-relaxed">
             Theo dõi số lượng bình mực mới, bình mực đã bơm sẵn sàng thay và gom các vỏ bình hết để mang đi bơm lại.
           </p>
         </div>
@@ -303,7 +309,7 @@ export function CartridgesPage() {
           <button
             type="button"
             onClick={() => setShowAddModal(true)}
-            className="bg-cyan-600 hover:bg-cyan-500 text-white font-semibold px-4 py-2.5 rounded-xl text-xs sm:text-sm shadow-lg shadow-cyan-950/50 transition-all flex items-center justify-center gap-2 cursor-pointer"
+            className="bg-cyan-600 hover:bg-cyan-500 text-white font-semibold px-4 py-2.5 rounded-xl text-xs sm:text-sm shadow-md shadow-cyan-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
           >
             <Plus size={18} weight="bold" />
             <span>Thêm loại mực mới</span>
@@ -313,61 +319,61 @@ export function CartridgesPage() {
 
       {/* KPI Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="glass-card p-5 border-l-4 border-l-emerald-500">
+        <div className="glass-card p-5 border-l-4 border-l-emerald-500 shadow-2xs">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-bold text-slate-400 uppercase">🟢 Bình mực MỚI 100%</p>
-              <h3 className="text-2xl font-black text-emerald-400 mt-1">{totalNew} bình</h3>
+              <p className="text-xs font-bold text-slate-500 uppercase">🟢 Bình mực MỚI 100%</p>
+              <h3 className="text-2xl font-black text-emerald-700 font-mono mt-1">{totalNew} bình</h3>
             </div>
-            <Drop size={32} className="text-emerald-400/60" />
+            <Drop size={32} className="text-emerald-600/60" />
           </div>
-          <p className="text-xs text-slate-400 mt-2">Hộp mực chính hãng / mới nguyên đai</p>
+          <p className="text-xs text-slate-500 mt-2">Hộp mực chính hãng / mới nguyên đai</p>
         </div>
 
-        <div className="glass-card p-5 border-l-4 border-l-cyan-500">
+        <div className="glass-card p-5 border-l-4 border-l-cyan-500 shadow-2xs">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-bold text-slate-400 uppercase">🔵 Bình mực ĐÃ BƠM (Sẵn sàng)</p>
-              <h3 className="text-2xl font-black text-cyan-400 mt-1">{totalRefilled} bình</h3>
+              <p className="text-xs font-bold text-slate-500 uppercase">🔵 Bình mực ĐÃ BƠM (Sẵn sàng)</p>
+              <h3 className="text-2xl font-black text-cyan-700 font-mono mt-1">{totalRefilled} bình</h3>
             </div>
-            <Recycle size={32} className="text-cyan-400/60" />
+            <Recycle size={32} className="text-cyan-600/60" />
           </div>
-          <p className="text-xs text-slate-400 mt-2">Hộp mực đã được bơm sẵn sàng thay</p>
+          <p className="text-xs text-slate-500 mt-2">Hộp mực đã được bơm sẵn sàng thay</p>
         </div>
 
-        <div className="glass-card p-5 border-l-4 border-l-amber-500">
+        <div className="glass-card p-5 border-l-4 border-l-amber-500 shadow-2xs">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-bold text-slate-400 uppercase">🔴 Vỏ bình HẾT (Chờ đi bơm)</p>
-              <h3 className="text-2xl font-black text-amber-400 mt-1">{totalEmpty} vỏ</h3>
+              <p className="text-xs font-bold text-slate-500 uppercase">🔴 Vỏ bình HẾT (Chờ đi bơm)</p>
+              <h3 className="text-2xl font-black text-amber-700 font-mono mt-1">{totalEmpty} vỏ</h3>
             </div>
-            <Wrench size={32} className="text-amber-400/60" />
+            <Wrench size={32} className="text-amber-600/60" />
           </div>
-          <p className="text-xs text-slate-400 mt-2">Vỏ bình vừa rút từ máy in ra</p>
+          <p className="text-xs text-slate-500 mt-2">Vỏ bình vừa rút từ máy in ra</p>
         </div>
       </div>
 
       {/* Yield Performance Evaluation Banner */}
-      <div className="glass-panel p-5 bg-slate-900/60 border border-slate-800">
+      <div className="glass-panel p-5 bg-white border border-slate-200 shadow-2xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <span className="text-xs font-extrabold uppercase tracking-widest text-cyan-400">
+            <span className="text-xs font-extrabold uppercase tracking-widest text-cyan-700">
               📊 Đánh giá sản lượng in bình mực (Yield Evaluation)
             </span>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <p className="text-xs text-slate-500 mt-0.5">
               So sánh trung bình số trang in được thực tế giữa bình mực mới nguyên đai và bình mực bơm lại.
             </p>
           </div>
           <div className="flex items-center gap-6 text-xs sm:text-sm">
-            <div className="bg-slate-950/80 px-4 py-2 rounded-xl border border-emerald-900/50">
-              <span className="text-slate-400 block text-[11px]">Trung bình 🟢 Bình MỚI:</span>
-              <strong className="text-emerald-400 font-bold text-sm">
+            <div className="bg-emerald-50/70 px-4 py-2 rounded-xl border border-emerald-200">
+              <span className="text-slate-600 block text-[11px]">Trung bình 🟢 Bình MỚI:</span>
+              <strong className="text-emerald-800 font-bold text-sm font-mono">
                 {avgYieldNew > 0 ? `${avgYieldNew.toLocaleString('vi-VN')} trang/bình` : 'Chưa có dữ liệu'}
               </strong>
             </div>
-            <div className="bg-slate-950/80 px-4 py-2 rounded-xl border border-cyan-900/50">
-              <span className="text-slate-400 block text-[11px]">Trung bình 🔵 Bình BƠM:</span>
-              <strong className="text-cyan-400 font-bold text-sm">
+            <div className="bg-cyan-50/70 px-4 py-2 rounded-xl border border-cyan-200">
+              <span className="text-slate-600 block text-[11px]">Trung bình 🔵 Bình BƠM:</span>
+              <strong className="text-cyan-800 font-bold text-sm font-mono">
                 {avgYieldRefilled > 0 ? `${avgYieldRefilled.toLocaleString('vi-VN')} trang/bình` : 'Chưa có dữ liệu'}
               </strong>
             </div>
@@ -379,10 +385,10 @@ export function CartridgesPage() {
       <div className="glass-panel p-6 sm:p-8 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-4 pb-1">
           <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-cyan-400">Danh mục tồn kho</p>
-            <h2 className="text-xl font-bold text-slate-100">Các loại bình mực</h2>
+            <p className="text-xs font-bold uppercase tracking-wider text-cyan-700">Danh mục tồn kho</p>
+            <h2 className="text-xl font-bold text-slate-900">Các loại bình mực</h2>
           </div>
-          <span className="text-xs font-semibold bg-slate-800 text-slate-300 px-3 py-1 rounded-full">
+          <span className="text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200 px-3 py-1 rounded-full">
             {items.length} loại mực
           </span>
         </div>
@@ -401,10 +407,10 @@ export function CartridgesPage() {
       <div className="glass-panel p-6 sm:p-8 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-4 pb-1">
           <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-cyan-400">Nhật ký hoạt động</p>
-            <h2 className="text-xl font-bold text-slate-100">Lịch sử xuất / nhập / thay / bơm mực & Hiệu suất</h2>
+            <p className="text-xs font-bold uppercase tracking-wider text-cyan-700">Nhật ký hoạt động</p>
+            <h2 className="text-xl font-bold text-slate-900">Lịch sử xuất / nhập / thay / bơm mực & Hiệu suất</h2>
           </div>
-          <span className="text-xs font-semibold bg-slate-800 text-slate-300 px-3 py-1 rounded-full">
+          <span className="text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200 px-3 py-1 rounded-full">
             {logs.length} bản ghi
           </span>
         </div>
@@ -421,12 +427,12 @@ export function CartridgesPage() {
 
       {/* Modal Add Cartridge */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="glass-panel p-6 w-full max-w-md space-y-4 border-cyan-800">
-            <h3 className="text-lg font-bold text-slate-100">Thêm chủng loại mực mới</h3>
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="glass-panel p-6 w-full max-w-md space-y-4 border-slate-200 shadow-xl">
+            <h3 className="text-lg font-bold text-slate-900">Thêm chủng loại mực mới</h3>
             <div className="space-y-3">
               <div>
-                <label htmlFor="sku-code" className="block text-xs font-bold text-slate-300 mb-1">
+                <label htmlFor="sku-code" className="block text-xs font-bold text-slate-700 mb-1">
                   Mã mực (SKU)
                 </label>
                 <input
@@ -434,11 +440,11 @@ export function CartridgesPage() {
                   value={skuCode}
                   onChange={(e) => setSkuCode(e.target.value)}
                   placeholder="vd: HP-CF226A, TN-2480"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-900 shadow-2xs placeholder-slate-400"
                 />
               </div>
               <div>
-                <label htmlFor="cartridge-name" className="block text-xs font-bold text-slate-300 mb-1">
+                <label htmlFor="cartridge-name" className="block text-xs font-bold text-slate-700 mb-1">
                   Tên loại mực
                 </label>
                 <input
@@ -446,11 +452,11 @@ export function CartridgesPage() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="vd: Hộp mực HP 26A Black"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-900 shadow-2xs placeholder-slate-400"
                 />
               </div>
               <div>
-                <label htmlFor="compatible-models" className="block text-xs font-bold text-slate-300 mb-1">
+                <label htmlFor="compatible-models" className="block text-xs font-bold text-slate-700 mb-1">
                   Dòng máy tương thích
                 </label>
                 <input
@@ -458,11 +464,11 @@ export function CartridgesPage() {
                   value={compatibleModels}
                   onChange={(e) => setCompatibleModels(e.target.value)}
                   placeholder="vd: HP LaserJet Pro M404dn, M501dn"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-900 shadow-2xs placeholder-slate-400"
                 />
               </div>
               <div>
-                <label htmlFor="stock-new-input" className="block text-xs font-bold text-slate-300 mb-1">
+                <label htmlFor="stock-new-input" className="block text-xs font-bold text-slate-700 mb-1">
                   Số bình MỚI nhập ban đầu
                 </label>
                 <input
@@ -471,7 +477,7 @@ export function CartridgesPage() {
                   min={0}
                   value={stockNewInput}
                   onChange={(e) => setStockNewInput(Number(e.target.value))}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-900 shadow-2xs"
                 />
               </div>
             </div>
@@ -479,7 +485,7 @@ export function CartridgesPage() {
               <button
                 type="button"
                 onClick={() => setShowAddModal(false)}
-                className="bg-slate-800 text-slate-300 px-4 py-2 rounded-xl text-sm"
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-sm border border-slate-200 cursor-pointer"
               >
                 Hủy
               </button>
@@ -487,7 +493,7 @@ export function CartridgesPage() {
                 type="button"
                 disabled={addCartridgeMutation.isPending || !skuCode.trim() || !name.trim()}
                 onClick={() => addCartridgeMutation.mutate()}
-                className="bg-cyan-600 hover:bg-cyan-500 text-white font-semibold px-4 py-2 rounded-xl text-sm"
+                className="bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white font-semibold px-4 py-2 rounded-xl text-sm cursor-pointer shadow-xs"
               >
                 {addCartridgeMutation.isPending ? 'Đang lưu...' : 'Lưu loại mực'}
               </button>
@@ -498,12 +504,12 @@ export function CartridgesPage() {
 
       {/* Modal Update Stock */}
       {showStockModal && selectedCartridge && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="glass-panel p-6 w-full max-w-md space-y-4 border-cyan-800">
-            <h3 className="text-lg font-bold text-slate-100">Cập nhật tồn kho cho {selectedCartridge.name}</h3>
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="glass-panel p-6 w-full max-w-md space-y-4 border-slate-200 shadow-xl">
+            <h3 className="text-lg font-bold text-slate-900">Cập nhật tồn kho cho {selectedCartridge.name}</h3>
             <div className="space-y-3">
               <div>
-                <label htmlFor="add-stock-new" className="block text-xs font-bold text-slate-300 mb-1">
+                <label htmlFor="add-stock-new" className="block text-xs font-bold text-slate-700 mb-1">
                   Nhập thêm bình MỚI (+)
                 </label>
                 <input
@@ -512,11 +518,11 @@ export function CartridgesPage() {
                   min={0}
                   value={addStockNew}
                   onChange={(e) => setAddStockNew(Number(e.target.value))}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-900 shadow-2xs"
                 />
               </div>
               <div>
-                <label htmlFor="add-stock-refilled" className="block text-xs font-bold text-slate-300 mb-1">
+                <label htmlFor="add-stock-refilled" className="block text-xs font-bold text-slate-700 mb-1">
                   Nhập thêm bình ĐÃ BƠM (+)
                 </label>
                 <input
@@ -525,11 +531,11 @@ export function CartridgesPage() {
                   min={0}
                   value={addStockRefilled}
                   onChange={(e) => setAddStockRefilled(Number(e.target.value))}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-900 shadow-2xs"
                 />
               </div>
               <div>
-                <label htmlFor="stock-notes" className="block text-xs font-bold text-slate-300 mb-1">
+                <label htmlFor="stock-notes" className="block text-xs font-bold text-slate-700 mb-1">
                   Ghi chú
                 </label>
                 <input
@@ -537,7 +543,7 @@ export function CartridgesPage() {
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="vd: Nhập lô hàng từ nhà cung cấp"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-900 shadow-2xs placeholder-slate-400"
                 />
               </div>
             </div>
@@ -545,7 +551,7 @@ export function CartridgesPage() {
               <button
                 type="button"
                 onClick={() => setShowStockModal(false)}
-                className="bg-slate-800 text-slate-300 px-4 py-2 rounded-xl text-sm"
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-sm border border-slate-200 cursor-pointer"
               >
                 Hủy
               </button>
@@ -553,7 +559,7 @@ export function CartridgesPage() {
                 type="button"
                 disabled={updateStockMutation.isPending}
                 onClick={() => updateStockMutation.mutate()}
-                className="bg-cyan-600 hover:bg-cyan-500 text-white font-semibold px-4 py-2 rounded-xl text-sm"
+                className="bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white font-semibold px-4 py-2 rounded-xl text-sm cursor-pointer shadow-xs"
               >
                 {updateStockMutation.isPending ? 'Đang lưu...' : 'Cập nhật kho'}
               </button>
@@ -564,16 +570,16 @@ export function CartridgesPage() {
 
       {/* Modal Refill All */}
       {showRefillModal && selectedCartridge && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="glass-panel p-6 w-full max-w-md space-y-4 border-amber-800">
-            <h3 className="text-lg font-bold text-slate-100">Bơm mực cho {selectedCartridge.name}</h3>
-            <p className="text-xs text-slate-400">
-              Hiện có <strong className="text-amber-400">{selectedCartridge.stock_empty}</strong> vỏ bình hết. Chuyển
-              thành bình đã bơm sẵn sàng sử dụng.
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="glass-panel p-6 w-full max-w-md space-y-4 border-amber-200 shadow-xl">
+            <h3 className="text-lg font-bold text-slate-900">Bơm mực cho {selectedCartridge.name}</h3>
+            <p className="text-xs text-slate-600">
+              Hiện có <strong className="text-amber-700 font-mono">{selectedCartridge.stock_empty}</strong> vỏ bình hết.
+              Chuyển thành bình đã bơm sẵn sàng sử dụng.
             </p>
             <div className="space-y-3">
               <div>
-                <label htmlFor="refill-quantity" className="block text-xs font-bold text-slate-300 mb-1">
+                <label htmlFor="refill-quantity" className="block text-xs font-bold text-slate-700 mb-1">
                   Số lượng vỏ đã bơm xong
                 </label>
                 <input
@@ -583,11 +589,11 @@ export function CartridgesPage() {
                   max={selectedCartridge.stock_empty}
                   value={refillQuantity}
                   onChange={(e) => setRefillQuantity(Number(e.target.value))}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-900 shadow-2xs"
                 />
               </div>
               <div>
-                <label htmlFor="refill-notes" className="block text-xs font-bold text-slate-300 mb-1">
+                <label htmlFor="refill-notes" className="block text-xs font-bold text-slate-700 mb-1">
                   Ghi chú
                 </label>
                 <input
@@ -595,7 +601,7 @@ export function CartridgesPage() {
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="vd: Đã bơm xong tại công ty mực in XYZ"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-900 shadow-2xs placeholder-slate-400"
                 />
               </div>
             </div>
@@ -603,7 +609,7 @@ export function CartridgesPage() {
               <button
                 type="button"
                 onClick={() => setShowRefillModal(false)}
-                className="bg-slate-800 text-slate-300 px-4 py-2 rounded-xl text-sm"
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-sm border border-slate-200 cursor-pointer"
               >
                 Hủy
               </button>
@@ -611,7 +617,7 @@ export function CartridgesPage() {
                 type="button"
                 disabled={refillMutation.isPending}
                 onClick={() => refillMutation.mutate()}
-                className="bg-amber-600 hover:bg-amber-500 text-white font-semibold px-4 py-2 rounded-xl text-sm"
+                className="bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-semibold px-4 py-2 rounded-xl text-sm cursor-pointer shadow-xs"
               >
                 {refillMutation.isPending ? 'Đang cập nhật...' : 'Xác nhận đã bơm xong'}
               </button>

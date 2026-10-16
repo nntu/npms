@@ -28,16 +28,16 @@ export function DailyUsageChart({ usage }: { usage: DailyUsage[] }) {
 
   return (
     <div className="glass-card p-5 my-6">
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-4 pb-3 border-b border-slate-800">
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-4 pb-3 border-b border-slate-200">
         <div>
-          <p className="text-xs uppercase font-bold tracking-wider text-emerald-400">
+          <p className="text-xs uppercase font-bold tracking-wider text-emerald-700">
             Lưu lượng in theo ngày (14 ngày gần nhất)
           </p>
-          <h4 className="text-lg font-bold text-slate-100">{key}</h4>
+          <h4 className="text-lg font-bold text-slate-900">{key}</h4>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-xs text-slate-400 bg-slate-800/80 px-3 py-1 rounded-full border border-slate-700/60">
-            Đơn vị tính: <strong className="text-slate-200">{unit}</strong>
+          <span className="text-xs text-slate-600 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
+            Đơn vị tính: <strong className="text-slate-900">{unit}</strong>
           </span>
         </div>
       </div>
@@ -45,20 +45,20 @@ export function DailyUsageChart({ usage }: { usage: DailyUsage[] }) {
       <div className="h-60 w-full">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.5} />
-            <XAxis dataKey="shortDate" stroke="#94a3b8" fontSize={11} tickLine={false} />
-            <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} tickFormatter={(v: number) => v.toLocaleString()} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" opacity={0.8} />
+            <XAxis dataKey="shortDate" stroke="#64748b" fontSize={11} tickLine={false} />
+            <YAxis stroke="#64748b" fontSize={11} tickLine={false} tickFormatter={(v: number) => v.toLocaleString()} />
             <Tooltip
               content={(props: any) => {
                 if (!props.active || !props.payload?.length) return null
                 const data = props.payload[0].payload
                 return (
-                  <div className="bg-slate-900 border border-slate-700 p-3 rounded-xl shadow-xl text-xs space-y-1">
-                    <p className="font-semibold text-emerald-400">Ngày: {data.date}</p>
-                    <p className="text-slate-100 font-bold text-sm">
+                  <div className="bg-white border border-slate-200 p-3 rounded-xl shadow-lg text-xs space-y-1">
+                    <p className="font-semibold text-emerald-700">Ngày: {data.date}</p>
+                    <p className="text-slate-900 font-bold text-sm">
                       Sử dụng: {data.delta.toLocaleString()} {data.unit}
                     </p>
-                    <p className="text-slate-400">
+                    <p className="text-slate-500">
                       Trạng thái dữ liệu: <span className={`quality-tag quality-${data.quality}`}>{data.quality}</span>
                     </p>
                   </div>
