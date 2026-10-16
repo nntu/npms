@@ -91,3 +91,40 @@ func TestAggregateDailyExcludesResetAndMarksMidnightEstimate(t *testing.T) {
 		t.Fatalf("unexpected reset/midnight usage: %#v, %v", usage, err)
 	}
 }
+
+func TestEvaluateZeroInitialReadingAndFirstNonZeroBaseline(t *testing.T) {
+	// 1. Initial reading is 0 => marked suspicious / zero_baseline, no delta
+	zeroFirst := reading(0, "2026-01-01T00:00:00Z", "epoch-1")
+	dec0, err := Evaluate(nil, zeroFirst, Policy{})
+	if err != nil || dec0.Delta != nil || dec0.EventType != "zero_baseline" {
+		t.Fatalf("expected zero_baseline event on initial 0 reading: %#v, %v", dec0, err)
+	}
+
+	// 2. Previous was 0, now first non-zero reading arrives (e.g. 45230) => establishes baseline, NO false spike of 45230
+	nonZero := reading(45230, "2026-01-01T01:00:00Z", "epoch-1")
+	dec1, err := Evaluate(&zeroFirst, nonZero, Policy{})
+	if err != nil || dec1.Delta != nil || dec1.Quality != QualityValid {
+		t.Fatalf("expected baseline established without delta: %#v, %v", dec1, err)
+	}
+
+	// 3. Normal printing increments counter to 45250 => produces delta of 20
+	next := reading(45250, "2026-01-01T02:00:00Z", "epoch-1")
+	dec2, err := Evaluate(&nonZero, next, Policy{})
+	if err != nil || dec2.Delta == nil || *dec2.Delta != 20 {
+		t.Fatalf("expected delta 20 from non-zero baseline: %#v, %v", dec2, err)
+	}
+}
+
+func TestAggregateDailyIgnoresLeadingZeroReadings(t *testing.T) {
+	location := time.FixedZone("ICT", 7*60*60)
+	readings := []Reading{
+		reading(0, "2026-01-02T00:00:00Z", "epoch-1"),
+		reading(45230, "2026-01-02T01:00:00Z", "epoch-1"), // First non-zero baseline
+		reading(45255, "2026-01-02T02:00:00Z", "epoch-1"), // Delta: 25
+	}
+	usage, err := AggregateDaily(readings, location, Policy{})
+	if err != nil || len(usage) != 1 || usage[0].Delta != 25 {
+		t.Fatalf("expected only true delta 25, got: %#v, %v", usage, err)
+	}
+}
+

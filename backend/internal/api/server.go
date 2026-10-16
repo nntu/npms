@@ -443,18 +443,23 @@ type subnetScanRequest struct {
 }
 
 type discoveredPrinterItem struct {
-	Address           string                  `json:"address"`
-	Port              int                     `json:"port"`
-	Name              string                  `json:"name"`
-	Description       string                  `json:"description"`
-	SysObjectID       string                  `json:"sys_object_id"`
-	Serial            string                  `json:"serial"`
-	Location          string                  `json:"location,omitempty"`
-	Manufacturer      string                  `json:"manufacturer,omitempty"`
-	Model             string                  `json:"model,omitempty"`
-	MatchedProfileID  string                  `json:"matched_profile_id,omitempty"`
-	Markers           []discoveryMarkerOutput `json:"markers,omitempty"`
-	AlreadyRegistered bool                    `json:"already_registered"`
+	Address             string                  `json:"address"`
+	Port                int                     `json:"port"`
+	Name                string                  `json:"name"`
+	Description         string                  `json:"description"`
+	SysObjectID         string                  `json:"sys_object_id"`
+	Serial              string                  `json:"serial"`
+	MAC                 string                  `json:"mac,omitempty"`
+	Location            string                  `json:"location,omitempty"`
+	Manufacturer        string                  `json:"manufacturer,omitempty"`
+	Model               string                  `json:"model,omitempty"`
+	MatchedProfileID    string                  `json:"matched_profile_id,omitempty"`
+	Markers             []discoveryMarkerOutput `json:"markers,omitempty"`
+	AlreadyRegistered   bool                    `json:"already_registered"`
+	IsIPChanged         bool                    `json:"is_ip_changed,omitempty"`
+	ExistingDeviceID    string                  `json:"existing_device_id,omitempty"`
+	ExistingDisplayName string                  `json:"existing_display_name,omitempty"`
+	OldAddress          string                  `json:"old_address,omitempty"`
 }
 
 type discoveryMarkerOutput struct {
@@ -550,12 +555,17 @@ func (s *Server) scanSubnet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Identify already registered IPs to guide the user in the UI
+	// Identify already registered IPs and Serials to reconcile IP changes
 	registeredIPs := make(map[string]bool)
+	registeredSerials := make(map[string]repository.Device)
 	if existingDevices, err := s.store.ListDevices(r.Context(), 1000, 0); err == nil {
 		for _, dev := range existingDevices {
 			if dev.Address != "" {
 				registeredIPs[dev.Address] = true
+			}
+			sKey := strings.ToUpper(strings.TrimSpace(dev.Serial))
+			if sKey != "" {
+				registeredSerials[sKey] = dev
 			}
 		}
 	}
@@ -587,19 +597,39 @@ func (s *Server) scanSubnet(w http.ResponseWriter, r *http.Request) {
 			})
 		}
 
+		serialKey := strings.ToUpper(strings.TrimSpace(res.Serial))
+		isIPChanged := false
+		existingDevID := ""
+		existingDevName := ""
+		oldAddress := ""
+
+		if !registeredIPs[res.Address] && serialKey != "" {
+			if matchedDev, exists := registeredSerials[serialKey]; exists {
+				isIPChanged = true
+				existingDevID = matchedDev.ID
+				existingDevName = matchedDev.DisplayName
+				oldAddress = matchedDev.Address
+			}
+		}
+
 		items = append(items, discoveredPrinterItem{
-			Address:           res.Address,
-			Port:              port,
-			Name:              res.Name,
-			Description:       res.Description,
-			SysObjectID:       res.SysObjectID,
-			Serial:            res.Serial,
-			Location:          res.Location,
-			Manufacturer:      res.Manufacturer,
-			Model:             res.Model,
-			MatchedProfileID:  matchedProfile,
-			Markers:           markers,
-			AlreadyRegistered: registeredIPs[res.Address],
+			Address:             res.Address,
+			Port:                port,
+			Name:                res.Name,
+			Description:         res.Description,
+			SysObjectID:         res.SysObjectID,
+			Serial:              res.Serial,
+			MAC:                 res.MAC,
+			Location:            res.Location,
+			Manufacturer:        res.Manufacturer,
+			Model:               res.Model,
+			MatchedProfileID:    matchedProfile,
+			Markers:             markers,
+			AlreadyRegistered:   registeredIPs[res.Address],
+			IsIPChanged:         isIPChanged,
+			ExistingDeviceID:    existingDevID,
+			ExistingDisplayName: existingDevName,
+			OldAddress:          oldAddress,
 		})
 	}
 
@@ -707,6 +737,10 @@ func (s *Server) getPrinter(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.HasSuffix(id, "/usage") {
 		s.listUsage(w, r, strings.TrimSuffix(id, "/usage"))
+		return
+	}
+	if strings.HasSuffix(id, "/relocate-ip") {
+		s.relocatePrinterIP(w, r, strings.TrimSuffix(id, "/relocate-ip"))
 		return
 	}
 	if strings.HasSuffix(id, "/poll") {
@@ -1525,6 +1559,81 @@ func (s *Server) updatePrinter(w http.ResponseWriter, r *http.Request, deviceID 
 		updated = update.Device
 	}
 	writeJSON(w, http.StatusOK, toPrinterResponse(updated))
+}
+
+type relocatePrinterIPRequest struct {
+	Address string `json:"address"`
+}
+
+func (s *Server) relocatePrinterIP(w http.ResponseWriter, r *http.Request, deviceID string) {
+	if r.Method == http.MethodOptions {
+		w.Header().Set("Access-Control-Allow-Origin", s.allowedOrigin)
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if r.Method != http.MethodPost {
+		s.methodNotAllowed(w)
+		return
+	}
+	if !s.authorized(r) {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "valid bearer token is required")
+		return
+	}
+	store, ok := s.store.(PrinterManagementStore)
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "printer_update_unavailable", "printer update is not configured")
+		return
+	}
+	existing, err := s.store.GetDevice(r.Context(), deviceID)
+	if errors.Is(err, sql.ErrNoRows) {
+		writeError(w, http.StatusNotFound, "not_found", "printer was not found")
+		return
+	} else if err != nil {
+		writeError(w, http.StatusInternalServerError, "device_get_failed", "could not get printer")
+		return
+	}
+
+	var input relocatePrinterIPRequest
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&input); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", "request body must be valid JSON")
+		return
+	}
+	newAddress := strings.TrimSpace(input.Address)
+	if newAddress == "" {
+		writeError(w, http.StatusBadRequest, "invalid_address", "address is required")
+		return
+	}
+
+	oldAddress := existing.Address
+	port := existing.Port
+	if port == 0 {
+		port = 161
+	}
+
+	update := repository.PrinterUpdate{
+		Device:          existing,
+		EndpointAddress: newAddress,
+		EndpointPort:    port,
+	}
+
+	if err := store.UpdatePrinter(r.Context(), update); err != nil {
+		writeError(w, http.StatusInternalServerError, "relocate_failed", "could not relocate printer IP")
+		return
+	}
+
+	_, _ = s.queuePoll(r.Context(), deviceID)
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"success":     true,
+		"device_id":   deviceID,
+		"old_address": oldAddress,
+		"new_address": newAddress,
+		"message":     fmt.Sprintf("Máy in đã được cập nhật sang địa chỉ IP mới: %s", newAddress),
+	})
 }
 
 func (s *Server) deletePrinter(w http.ResponseWriter, r *http.Request, deviceID string) {

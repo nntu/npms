@@ -16,7 +16,7 @@ import {
 import { useMutation } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { bulkRegisterPrinters, probeDiscovery, scanSubnet } from '../../api/client'
+import { bulkRegisterPrinters, probeDiscovery, relocatePrinterIP, scanSubnet } from '../../api/client'
 import type { BulkRegisterPrinterItem, DiscoveredPrinter, SubnetScanResult } from '../../api/types'
 import { showError, showSuccess } from '../../utils/sweetalert'
 
@@ -177,6 +177,29 @@ export function DiscoveryPage() {
       )
     } finally {
       setBulkRegistering(false)
+    }
+  }
+
+  const handleRelocateIP = async (device: DiscoveredPrinter) => {
+    if (!device.existing_device_id) return
+    const confirmed = window.confirm(
+      `Phát hiện máy in "${device.existing_display_name || device.name}" (Serial: ${device.serial || '—'}) đã đổi từ IP cũ ${device.old_address} sang IP mới ${device.address}.\n\nBạn có muốn cập nhật IP cho máy in này không?\n(Toàn bộ lịch sử số trang và cấu hình phòng ban được giữ nguyên)`,
+    )
+    if (!confirmed) return
+
+    try {
+      const res = await relocatePrinterIP(device.existing_device_id, device.address)
+      void showSuccess('Đã cập nhật IP máy in thành công!', res.message)
+      if (scanResult?.discovered_printers) {
+        setScanResult({
+          ...scanResult,
+          discovered_printers: scanResult.discovered_printers.map((p) =>
+            p.address === device.address ? { ...p, is_ip_changed: false, already_registered: true } : p,
+          ),
+        })
+      }
+    } catch (err) {
+      void showError('Không thể cập nhật IP máy in', err instanceof Error ? err.message : String(err))
     }
   }
 
@@ -585,7 +608,10 @@ export function DiscoveryPage() {
                                 <span className="text-slate-600 text-xs">—</span>
                               )}
                             </td>
-                            <td className="p-4 text-slate-300 font-mono text-xs">{printer.serial || '—'}</td>
+                            <td className="p-4 text-slate-300 font-mono text-xs">
+                              {printer.serial ? <span className="block font-semibold">{printer.serial}</span> : '—'}
+                              {printer.mac ? <span className="text-[10px] text-slate-500 font-mono block">MAC: {printer.mac}</span> : null}
+                            </td>
                             <td className="p-4">
                               <span className="text-xs font-mono bg-slate-900 border border-slate-800 text-cyan-300 px-2 py-0.5 rounded-lg">
                                 {printer.matched_profile_id || 'generic-printer-mib'}
@@ -593,7 +619,12 @@ export function DiscoveryPage() {
                             </td>
                             <td className="p-4 text-slate-300 text-xs font-mono">{markerText}</td>
                             <td className="p-4">
-                              {printer.already_registered ? (
+                              {printer.is_ip_changed ? (
+                                <span className="bg-amber-950/80 text-amber-300 text-xs font-semibold px-2.5 py-1 rounded-full border border-amber-800/60 inline-flex items-center gap-1.5 shadow-sm shadow-amber-950/40">
+                                  <ArrowClockwise size={12} weight="bold" />
+                                  <span>Đổi IP (Cũ: {printer.old_address})</span>
+                                </span>
+                              ) : printer.already_registered ? (
                                 <span className="bg-slate-800 text-slate-400 text-xs font-medium px-2.5 py-1 rounded-full border border-slate-700">
                                   Đã có trong hệ thống
                                 </span>
@@ -604,14 +635,26 @@ export function DiscoveryPage() {
                               )}
                             </td>
                             <td className="p-4 pr-6 text-right">
-                              <button
-                                type="button"
-                                onClick={() => handleRegisterDiscovered(printer)}
-                                className="inline-flex items-center gap-1.5 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer shadow-md shadow-cyan-950/40"
-                              >
-                                <PlusCircle size={14} weight="bold" />
-                                <span>{printer.already_registered ? 'Cập nhật' : 'Thêm máy in'}</span>
-                              </button>
+                              {printer.is_ip_changed ? (
+                                <button
+                                  type="button"
+                                  onClick={() => void handleRelocateIP(printer)}
+                                  className="inline-flex items-center gap-1.5 bg-amber-600 hover:bg-amber-500 text-white font-semibold px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer shadow-md shadow-amber-950/40"
+                                  title={`Cập nhật IP cho ${printer.existing_display_name || printer.name} từ ${printer.old_address} sang ${printer.address}`}
+                                >
+                                  <ArrowClockwise size={14} weight="bold" />
+                                  <span>Cập nhật IP</span>
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRegisterDiscovered(printer)}
+                                  className="inline-flex items-center gap-1.5 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer shadow-md shadow-cyan-950/40"
+                                >
+                                  <PlusCircle size={14} weight="bold" />
+                                  <span>{printer.already_registered ? 'Cập nhật' : 'Thêm máy in'}</span>
+                                </button>
+                              )}
                             </td>
                           </tr>
                         )

@@ -108,8 +108,16 @@ export interface SubnetScanInput {
   concurrency?: number
 }
 
-export type DiscoveredPrinter = components['schemas']['DiscoveredDevice']
-export type SubnetScanResult = components['schemas']['SubnetScanOutputBody']
+export type DiscoveredPrinter = components['schemas']['DiscoveredDevice'] & {
+  mac?: string
+  is_ip_changed?: boolean
+  existing_device_id?: string
+  existing_display_name?: string
+  old_address?: string
+}
+export type SubnetScanResult = Omit<components['schemas']['SubnetScanOutputBody'], 'discovered_printers'> & {
+  discovered_printers?: DiscoveredPrinter[]
+}
 
 export type BulkRegisterPrinterItem = components['schemas']['BulkRegisterPrinterItem']
 export type BulkRegisterInput = components['schemas']['BulkRegisterInputBody']

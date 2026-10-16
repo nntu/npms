@@ -41,6 +41,9 @@ func Evaluate(previous *Reading, current Reading, policy Policy) (Decision, erro
 		return Decision{}, err
 	}
 	if previous == nil {
+		if current.RawValue <= 0 {
+			return Decision{Quality: QualitySuspicious, EventType: "zero_baseline", Reason: "initial reading is zero; non-zero baseline required"}, nil
+		}
 		return Decision{Quality: current.Quality, Reason: "first reading establishes a baseline"}, nil
 	}
 	if err := validateReading(*previous); err != nil {
@@ -54,6 +57,12 @@ func Evaluate(previous *Reading, current Reading, policy Policy) (Decision, erro
 	}
 	if previous.EpochID != current.EpochID {
 		return Decision{Quality: current.Quality, EventType: "epoch_changed", Reason: "readings belong to different counter epochs"}, nil
+	}
+	if previous.RawValue <= 0 {
+		if current.RawValue > 0 {
+			return Decision{Quality: current.Quality, Reason: "first non-zero reading establishes a baseline"}, nil
+		}
+		return Decision{Quality: QualitySuspicious, EventType: "zero_reading", Reason: "counter reading is zero"}, nil
 	}
 	if current.RawValue < previous.RawValue {
 		return Decision{Quality: QualitySuspicious, EventType: "reset_suspected", Reason: "counter decreased"}, nil

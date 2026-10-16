@@ -19,6 +19,7 @@ import (
 
 	"npms/backend/internal/config"
 	"npms/backend/internal/profile"
+	"npms/backend/internal/repository"
 	"npms/backend/internal/security"
 )
 
@@ -499,7 +500,7 @@ func syncDatabase(dbPath string, devices map[string]*DeviceRecord, box *security
 			`, cDefID, deviceID)
 		}
 
-		// If initial reading was extracted from dump, insert snapshot reading & daily usage
+		// If initial reading was extracted from dump, insert baseline snapshot reading only (delta = 0, no daily_counter_usage spike)
 		if d.InitialReading > 0 {
 			runID := uuid.NewString()
 			_, _ = db.ExecContext(ctx, `
@@ -513,13 +514,21 @@ func syncDatabase(dbPath string, devices map[string]*DeviceRecord, box *security
 				VALUES (?, ?, ?, ?, 'valid')
 				ON CONFLICT(poll_run_id, counter_definition_id) DO UPDATE SET raw_value=excluded.raw_value
 			`, runID, cDefID, d.InitialReading, now)
+		}
+	}
 
-			today := time.Now().Format("2006-01-02")
-			_, _ = db.ExecContext(ctx, `
-				INSERT INTO daily_counter_usage(device_id, counter_definition_id, local_date, delta, quality, computed_at)
-				VALUES (?, ?, ?, ?, 'valid', ?)
-				ON CONFLICT(device_id, counter_definition_id, local_date) DO UPDATE SET delta=excluded.delta
-			`, deviceID, cDefID, today, d.InitialReading, now)
+	// Recalculate daily counter usage using standard non-zero baseline engine
+	repo, repoErr := repository.NewSQLiteRepository(db)
+	if repoErr == nil {
+		rows, err := db.QueryContext(ctx, `SELECT id FROM devices WHERE deleted_at IS NULL`)
+		if err == nil {
+			defer rows.Close()
+			for rows.Next() {
+				var devID string
+				if err := rows.Scan(&devID); err == nil {
+					_ = repo.RecalculateDailyUsage(ctx, devID, time.UTC)
+				}
+			}
 		}
 	}
 

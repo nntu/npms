@@ -16,6 +16,7 @@ type PageUsageReport struct {
 	TotalPrinters    int                   `json:"total_printers"`
 	TotalPrintPages  int64                 `json:"total_print_pages"`
 	TotalScanPages   int64                 `json:"total_scan_pages"`
+	TotalInitialLife int64                 `json:"total_initial_life"`
 	TotalCurrentLife int64                 `json:"total_current_life"`
 	Departments      []DepartmentPageUsage `json:"departments"`
 	Printers         []PrinterPageUsage    `json:"printers"`
@@ -27,6 +28,7 @@ type DepartmentPageUsage struct {
 	PrinterCount     int                `json:"printer_count"`
 	TotalPrintPages  int64              `json:"total_print_pages"`
 	TotalScanPages   int64              `json:"total_scan_pages"`
+	TotalInitialLife int64              `json:"total_initial_life"`
 	TotalCurrentLife int64              `json:"total_current_life"`
 	Printers         []PrinterPageUsage `json:"printers"`
 }
@@ -44,6 +46,7 @@ type PrinterPageUsage struct {
 	Status           string  `json:"status"`
 	CounterKey       string  `json:"counter_key"`
 	RawUnit          string  `json:"raw_unit"`
+	InitialReading   *int64  `json:"initial_reading,omitempty"`
 	CurrentReading   *int64  `json:"current_reading,omitempty"`
 	PeriodUsage      int64   `json:"period_usage"`
 	ConversionFactor float64 `json:"conversion_factor"`
@@ -147,7 +150,7 @@ func (r *SQLiteRepository) GetPageUsageReport(ctx context.Context, from, to, dep
 		return nil, fmt.Errorf("iterate daily usage for page report: %w", err)
 	}
 
-	// 4. Query latest reading from counter_readings
+	// 4. Query baseline (first non-zero) and latest readings from counter_readings
 	readingQuery := `SELECT cr.counter_definition_id, cr.raw_value
 		FROM counter_readings cr
 		JOIN (
@@ -174,6 +177,33 @@ func (r *SQLiteRepository) GetPageUsageReport(ctx context.Context, from, to, dep
 		return nil, fmt.Errorf("iterate latest counter reading for page report: %w", err)
 	}
 
+	baselineQuery := `SELECT cr.counter_definition_id, cr.raw_value
+		FROM counter_readings cr
+		JOIN (
+			SELECT counter_definition_id, MIN(id) as min_id 
+			FROM counter_readings 
+			WHERE raw_value > 0
+			GROUP BY counter_definition_id
+		) first_nz ON cr.id = first_nz.min_id`
+	baselineRows, err := r.db.QueryContext(ctx, baselineQuery)
+	if err != nil {
+		return nil, fmt.Errorf("query baseline counter reading for page report: %w", err)
+	}
+	defer baselineRows.Close()
+
+	baselineReadings := make(map[string]int64)
+	for baselineRows.Next() {
+		var defID string
+		var rawVal int64
+		if err := baselineRows.Scan(&defID, &rawVal); err != nil {
+			return nil, fmt.Errorf("scan baseline counter reading for page report: %w", err)
+		}
+		baselineReadings[defID] = rawVal
+	}
+	if err := baselineRows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate baseline counter reading for page report: %w", err)
+	}
+
 	// 5. Build report and department grouping
 	report := &PageUsageReport{
 		From:        from,
@@ -186,8 +216,12 @@ func (r *SQLiteRepository) GetPageUsageReport(ctx context.Context, from, to, dep
 
 	for _, d := range devices {
 		def, hasDef := deviceDefs[d.id]
+		var initialVal *int64
 		var currentVal *int64
 		if hasDef {
+			if val, ok := baselineReadings[def.id]; ok {
+				initialVal = &val
+			}
 			if val, ok := latestReadings[def.id]; ok {
 				currentVal = &val
 			}
@@ -196,6 +230,10 @@ func (r *SQLiteRepository) GetPageUsageReport(ctx context.Context, from, to, dep
 		periodDelta := int64(0)
 		if hasDef {
 			periodDelta = devicePeriodDelta[d.id+":"+def.id]
+			// When querying all time, if daily aggregation hasn't run yet, difference between latest and non-zero baseline is trusted usage
+			if from == "" && to == "" && periodDelta == 0 && currentVal != nil && initialVal != nil && *currentVal > *initialVal {
+				periodDelta = *currentVal - *initialVal
+			}
 		}
 
 		// Determine device category
@@ -239,6 +277,9 @@ func (r *SQLiteRepository) GetPageUsageReport(ctx context.Context, from, to, dep
 			report.TotalPrintPages += normalizedPages
 		}
 
+		if initialVal != nil {
+			report.TotalInitialLife += *initialVal
+		}
 		if currentVal != nil {
 			report.TotalCurrentLife += *currentVal
 		}
@@ -255,6 +296,7 @@ func (r *SQLiteRepository) GetPageUsageReport(ctx context.Context, from, to, dep
 			Status:           d.status,
 			CounterKey:       def.key,
 			RawUnit:          rawUnit,
+			InitialReading:   initialVal,
 			CurrentReading:   currentVal,
 			PeriodUsage:      periodDelta,
 			ConversionFactor: conversionFactor,
@@ -279,6 +321,9 @@ func (r *SQLiteRepository) GetPageUsageReport(ctx context.Context, from, to, dep
 			dept.TotalScanPages += normalizedPages
 		} else {
 			dept.TotalPrintPages += normalizedPages
+		}
+		if initialVal != nil {
+			dept.TotalInitialLife += *initialVal
 		}
 		if currentVal != nil {
 			dept.TotalCurrentLife += *currentVal

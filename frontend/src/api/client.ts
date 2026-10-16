@@ -279,6 +279,7 @@ export interface PageUsageReport {
   total_printers: number
   total_print_pages: number
   total_scan_pages: number
+  total_initial_life: number
   total_current_life: number
   departments: DepartmentPageUsage[]
   printers: PrinterPageUsage[]
@@ -289,6 +290,7 @@ export interface DepartmentPageUsage {
   printer_count: number
   total_print_pages: number
   total_scan_pages: number
+  total_initial_life: number
   total_current_life: number
   printers: PrinterPageUsage[]
 }
@@ -305,6 +307,7 @@ export interface PrinterPageUsage {
   status: string
   counter_key: string
   raw_unit: string
+  initial_reading?: number
   current_reading?: number
   period_usage: number
   conversion_factor: number
@@ -429,3 +432,18 @@ export async function restoreDatabaseBackup(file: File): Promise<DatabaseRestore
   }
   return response.json()
 }
+
+export async function relocatePrinterIP(
+  id: string,
+  newAddress: string,
+): Promise<{ success: boolean; message: string; device_id: string; old_address: string; new_address: string }> {
+  return request<{ success: boolean; message: string; device_id: string; old_address: string; new_address: string }>(
+    `/printers/${id}/relocate-ip`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ address: newAddress }),
+    },
+  )
+}
+

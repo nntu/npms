@@ -864,3 +864,33 @@ func TestGetPageUsageReportEndpoint(t *testing.T) {
 		t.Fatalf("unexpected body: %s", rec.Body.String())
 	}
 }
+
+func TestRelocatePrinterIPEndpoint(t *testing.T) {
+	device := repository.Device{
+		ID:          "dev-relocate",
+		DisplayName: "HP LaserJet",
+		Address:     "192.168.1.50",
+		Port:        161,
+		Status:      "online",
+		Serial:      "VNC3K04185",
+	}
+	server, err := NewServer(fakeStore{devices: []repository.Device{device}, total: 1}, "token", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	body := strings.NewReader(`{"address":"192.168.1.75"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/printers/dev-relocate/relocate-ip", body)
+	req.Header.Set("Authorization", "Bearer token")
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d, body: %s", rec.Code, rec.Body.String())
+	}
+	if !containsAll(rec.Body.String(), `"success":true`, `"old_address":"192.168.1.50"`, `"new_address":"192.168.1.75"`) {
+		t.Fatalf("unexpected body: %s", rec.Body.String())
+	}
+}
+

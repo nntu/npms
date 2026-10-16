@@ -82,7 +82,8 @@ export function PageUsageReportPage() {
         { header: 'Số thiết bị', key: 'printer_count', width: 14 },
         { header: 'Số trang in quy đổi (Trang)', key: 'print_pages', width: 26 },
         { header: 'Số trang quét (Trang scan)', key: 'scan_pages', width: 26 },
-        { header: 'Tổng counter tích lũy', key: 'current_life', width: 26 },
+        { header: 'Mốc counter ban đầu', key: 'initial_life', width: 24 },
+        { header: 'Tổng counter hiện tại', key: 'current_life', width: 24 },
         { header: 'Ghi chú quy đổi', key: 'note', width: 35 },
       ]
 
@@ -102,6 +103,7 @@ export function PageUsageReportPage() {
           printer_count: dept.printer_count,
           print_pages: dept.total_print_pages,
           scan_pages: dept.total_scan_pages,
+          initial_life: dept.total_initial_life,
           current_life: dept.total_current_life,
           note: dept.total_scan_pages > 0 ? 'Có máy quét tài liệu tách riêng' : 'Chuẩn trang in A4',
         })
@@ -114,6 +116,7 @@ export function PageUsageReportPage() {
         row.getCell('printer_count').alignment = { vertical: 'middle', horizontal: 'center' }
         row.getCell('print_pages').numFmt = '#,##0'
         row.getCell('scan_pages').numFmt = '#,##0'
+        row.getCell('initial_life').numFmt = '#,##0'
         row.getCell('current_life').numFmt = '#,##0'
       })
 
@@ -128,6 +131,7 @@ export function PageUsageReportPage() {
         { header: 'Địa chỉ IP', key: 'ip', width: 18 },
         { header: 'Hãng & Dòng máy', key: 'model', width: 24 },
         { header: 'Phân loại', key: 'cat', width: 16 },
+        { header: 'Mốc ban đầu', key: 'initial', width: 20 },
         { header: 'Bộ đếm hiện tại', key: 'reading', width: 20 },
         { header: 'Sản lượng trong kỳ', key: 'usage', width: 22 },
         { header: 'Hệ số quy đổi', key: 'factor', width: 16 },
@@ -152,6 +156,7 @@ export function PageUsageReportPage() {
           ip: p.address,
           model: `${p.manufacturer} ${p.model}`.trim() || '—',
           cat: p.category === 'scanner' ? 'Máy quét (Scan)' : 'Máy in (Print)',
+          initial: p.initial_reading ?? 0,
           reading: p.current_reading ?? 0,
           usage: p.period_usage,
           factor: p.conversion_factor,
@@ -165,6 +170,7 @@ export function PageUsageReportPage() {
         })
         row.getCell('stt').alignment = { vertical: 'middle', horizontal: 'center' }
         row.getCell('cat').alignment = { vertical: 'middle', horizontal: 'center' }
+        row.getCell('initial').numFmt = '#,##0'
         row.getCell('reading').numFmt = '#,##0'
         row.getCell('usage').numFmt = '#,##0'
         row.getCell('normalized').numFmt = '#,##0'

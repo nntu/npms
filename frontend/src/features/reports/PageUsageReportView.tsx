@@ -77,13 +77,10 @@ export function PageUsageReportView({
   }, [data?.departments, searchQuery, departmentFilter])
 
   // Top printing department
+  // Top printing department
   const topDept = useMemo(() => {
     if (!data?.departments || data.departments.length === 0) return null
-    return [...data.departments].sort((a, b) => {
-      const metricA = a.total_print_pages > 0 ? a.total_print_pages : a.total_current_life
-      const metricB = b.total_print_pages > 0 ? b.total_print_pages : b.total_current_life
-      return metricB - metricA
-    })[0]
+    return [...data.departments].sort((a, b) => b.total_print_pages - a.total_print_pages)[0]
   }, [data?.departments])
 
   if (isLoading) {
@@ -107,10 +104,6 @@ export function PageUsageReportView({
     )
   }
 
-  // Display metrics
-  const displayPrintPages = data.total_print_pages > 0 ? data.total_print_pages : data.total_current_life
-  const hasPeriodDelta = data.total_print_pages > 0
-
   return (
     <div className="space-y-6">
       {/* KPI Summary Cards */}
@@ -120,10 +113,10 @@ export function PageUsageReportView({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                {hasPeriodDelta ? 'Sản lượng in trong kỳ (Quy đổi)' : 'Tổng số trang in tích lũy'}
+                Sản lượng in trong kỳ (Quy đổi)
               </p>
               <h3 className="text-2xl font-black text-emerald-400 mt-1">
-                {displayPrintPages.toLocaleString('vi-VN')} <span className="text-sm font-semibold">trang</span>
+                {data.total_print_pages.toLocaleString('vi-VN')} <span className="text-sm font-semibold">trang</span>
               </h3>
             </div>
             <div className="w-12 h-12 rounded-2xl bg-emerald-950/80 border border-emerald-800/60 text-emerald-400 flex items-center justify-center">
@@ -131,7 +124,7 @@ export function PageUsageReportView({
             </div>
           </div>
           <p className="text-xs text-slate-400 mt-3 pt-3 border-t border-slate-800/80 flex items-center justify-between">
-            <span>Counter lũy kế:</span>
+            <span>Tổng counter hiện tại:</span>
             <strong className="text-slate-200">{data.total_current_life.toLocaleString('vi-VN')} trang</strong>
           </p>
         </div>
@@ -173,13 +166,7 @@ export function PageUsageReportView({
           <p className="text-xs text-slate-400 mt-3 pt-3 border-t border-slate-800/80 flex items-center justify-between">
             <span>Sản lượng:</span>
             <strong className="text-amber-300">
-              {topDept
-                ? (topDept.total_print_pages > 0
-                    ? topDept.total_print_pages
-                    : topDept.total_current_life
-                  ).toLocaleString('vi-VN')
-                : 0}{' '}
-              trang
+              {topDept ? topDept.total_print_pages.toLocaleString('vi-VN') : 0} trang
             </strong>
           </p>
         </div>
@@ -286,7 +273,7 @@ export function PageUsageReportView({
               <tbody className="divide-y divide-slate-800/60">
                 {filteredDepartments.map((dept, idx) => {
                   const isExpanded = expandedDept === dept.department
-                  const deptPrint = dept.total_print_pages > 0 ? dept.total_print_pages : dept.total_current_life
+                  const deptPrint = dept.total_print_pages
                   return (
                     <tr key={dept.department} className="hover:bg-slate-800/30 transition-colors">
                       <td className="py-3.5 px-4 text-center font-semibold text-slate-500">{idx + 1}</td>
@@ -360,7 +347,9 @@ export function PageUsageReportView({
                       <th className="py-2.5 px-3">IP & Model</th>
                       <th className="py-2.5 px-3 text-center">Phân loại</th>
                       <th className="py-2.5 px-3 text-center">Đơn vị gốc</th>
+                      <th className="py-2.5 px-3 text-right">Mốc ban đầu</th>
                       <th className="py-2.5 px-3 text-right">Chỉ số hiện tại</th>
+                      <th className="py-2.5 px-3 text-right">Sản lượng kỳ</th>
                       <th className="py-2.5 px-3 text-right">Trang quy đổi</th>
                       <th className="py-2.5 px-3">Công thức quy đổi</th>
                     </tr>
@@ -369,7 +358,6 @@ export function PageUsageReportView({
                     {filteredDepartments
                       .find((d) => d.department === expandedDept)
                       ?.printers.map((p) => {
-                        const displayVal = p.normalized_pages > 0 ? p.normalized_pages : (p.current_reading ?? 0)
                         return (
                           <tr key={p.device_id} className="hover:bg-slate-800/20">
                             <td className="py-2 px-3 font-semibold text-slate-200">{p.display_name}</td>
@@ -392,11 +380,17 @@ export function PageUsageReportView({
                                 {p.raw_unit}
                               </span>
                             </td>
+                            <td className="py-2 px-3 text-right font-mono text-slate-400">
+                              {p.initial_reading ? p.initial_reading.toLocaleString('vi-VN') : '—'}
+                            </td>
                             <td className="py-2 px-3 text-right font-mono text-slate-300">
                               {p.current_reading ? p.current_reading.toLocaleString('vi-VN') : '—'}
                             </td>
+                            <td className="py-2 px-3 text-right font-mono text-amber-300 font-semibold">
+                              {p.period_usage.toLocaleString('vi-VN')}
+                            </td>
                             <td className="py-2 px-3 text-right font-black text-emerald-400">
-                              {displayVal.toLocaleString('vi-VN')} trang
+                              {p.normalized_pages.toLocaleString('vi-VN')} trang
                             </td>
                             <td className="py-2 px-3 text-slate-400 text-[11px] italic">{p.conversion_note}</td>
                           </tr>
@@ -421,14 +415,15 @@ export function PageUsageReportView({
                   <th className="py-3 px-4">Phòng ban</th>
                   <th className="py-3 px-4 text-center">Phân loại</th>
                   <th className="py-3 px-4 text-center">Đơn vị gốc</th>
+                  <th className="py-3 px-4 text-right">Mốc ban đầu</th>
                   <th className="py-3 px-4 text-right">Chỉ số hiện tại</th>
+                  <th className="py-3 px-4 text-right">Sản lượng kỳ</th>
                   <th className="py-3 px-4 text-right">Số trang quy đổi</th>
                   <th className="py-3 px-4">Ghi chú quy đổi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
                 {filteredPrinters.map((p, idx) => {
-                  const displayPages = p.normalized_pages > 0 ? p.normalized_pages : (p.current_reading ?? 0)
                   return (
                     <tr key={p.device_id} className="hover:bg-slate-800/30 transition-colors">
                       <td className="py-3 px-4 text-center font-semibold text-slate-500">{idx + 1}</td>
@@ -466,12 +461,18 @@ export function PageUsageReportView({
                           {p.raw_unit}
                         </span>
                       </td>
+                      <td className="py-3 px-4 text-right font-mono text-slate-400">
+                        {p.initial_reading ? p.initial_reading.toLocaleString('vi-VN') : '—'}
+                      </td>
                       <td className="py-3 px-4 text-right font-mono text-slate-300">
                         {p.current_reading ? p.current_reading.toLocaleString('vi-VN') : '—'}
                       </td>
+                      <td className="py-3 px-4 text-right font-mono text-amber-300 font-semibold">
+                        {p.period_usage.toLocaleString('vi-VN')}
+                      </td>
                       <td className="py-3 px-4 text-right">
                         <span className="font-black text-emerald-400 text-sm">
-                          {displayPages.toLocaleString('vi-VN')}
+                          {p.normalized_pages.toLocaleString('vi-VN')}
                         </span>{' '}
                         <span className="text-slate-500 font-normal">trang</span>
                       </td>

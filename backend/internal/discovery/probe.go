@@ -24,6 +24,7 @@ type Result struct {
 	Description      string           `json:"description"`
 	SysObjectID      string           `json:"sys_object_id"`
 	Serial           string           `json:"serial"`
+	MAC              string           `json:"mac,omitempty"`
 	Location         string           `json:"location,omitempty"`
 	Manufacturer     string           `json:"manufacturer,omitempty"`
 	Model            string           `json:"model,omitempty"`
@@ -80,6 +81,20 @@ func Probe(ctx context.Context, config snmp.Config, factory ClientFactory) (Resu
 			}
 		}
 	}
+	result.Serial = strings.TrimSpace(result.Serial)
+
+	// Attempt to retrieve hardware MAC address via MIB-II ifPhysAddress
+	if macWalk, macErr := client.Walk(ctx, "1.3.6.1.2.1.2.2.1.6"); macErr == nil {
+		for _, vb := range macWalk {
+			if !snmp.IsExceptionVarBind(vb) {
+				if b, ok := vb.Value.([]byte); ok && len(b) == 6 {
+					result.MAC = fmt.Sprintf("%02X:%02X:%02X:%02X:%02X:%02X", b[0], b[1], b[2], b[3], b[4], b[5])
+					break
+				}
+			}
+		}
+	}
+
 	// Identity is the primary discovery result. Marker WALK is best effort so
 	// printers without a readable Printer-MIB remain discoverable.
 	life, lifeErr := client.Walk(ctx, snmp.MarkerLifeOID)

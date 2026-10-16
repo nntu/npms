@@ -128,4 +128,51 @@ func TestGetPageUsageReport(t *testing.T) {
 	if scannerItem == nil || scannerItem.Category != "scanner" || scannerItem.NormalizedPages != 500 {
 		t.Fatalf("unexpected scanner item: %+v", scannerItem)
 	}
+	if scannerItem.InitialReading == nil || *scannerItem.InitialReading != 12000 {
+		t.Fatalf("expected initial reading 12000, got: %v", scannerItem.InitialReading)
+	}
+	if report.TotalInitialLife != 87000 {
+		t.Fatalf("expected total initial life 87000, got: %d", report.TotalInitialLife)
+	}
+
+	// Test case: newly added device with non-zero initial reading has 0 period usage
+	pNew := Device{ID: "p_new", DisplayName: "HP New", Model: "HP M404dn", Department: "Kế toán", Status: "online"}
+	if err := repo.CreateDevice(ctx, pNew); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.DB.Exec(`INSERT INTO counter_definitions(id, device_id, key, source_protocol, oid, unit, semantic_type, scope, mode) VALUES ('p_new:marker_life', 'p_new', 'marker_life', 'snmp', '1.3.6.1.2.1.43.10.2.1.4', 'impressions', 'marker_life', 'engine', 'walk')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.DB.Exec(`INSERT INTO polling_runs(id, device_id, job_kind, started_at, ended_at, result) VALUES ('r_new', 'p_new', 'counter', ?, ?, 'success')`, now, now); err != nil {
+		t.Fatal(err)
+	}
+	// Initial reading is 45230 (not 0)
+	if _, err := db.DB.Exec(`INSERT INTO counter_readings(poll_run_id, counter_definition_id, raw_value, collected_at, quality) VALUES ('r_new', 'p_new:marker_life', 45230, ?, 'valid')`, now); err != nil {
+		t.Fatal(err)
+	}
+
+	reportNew, err := repo.GetPageUsageReport(ctx, "", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var newPrinterItem *PrinterPageUsage
+	for i := range reportNew.Printers {
+		if reportNew.Printers[i].DeviceID == "p_new" {
+			newPrinterItem = &reportNew.Printers[i]
+			break
+		}
+	}
+	if newPrinterItem == nil {
+		t.Fatal("expected p_new in report")
+	}
+	if newPrinterItem.InitialReading == nil || *newPrinterItem.InitialReading != 45230 {
+		t.Fatalf("expected initial reading 45230, got %v", newPrinterItem.InitialReading)
+	}
+	if newPrinterItem.CurrentReading == nil || *newPrinterItem.CurrentReading != 45230 {
+		t.Fatalf("expected current reading 45230, got %v", newPrinterItem.CurrentReading)
+	}
+	if newPrinterItem.PeriodUsage != 0 || newPrinterItem.NormalizedPages != 0 {
+		t.Fatalf("expected 0 period usage on first non-zero baseline, got period: %d, normalized: %d", newPrinterItem.PeriodUsage, newPrinterItem.NormalizedPages)
+	}
 }
+
