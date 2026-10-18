@@ -102,6 +102,27 @@ func TestGetPageUsageReport(t *testing.T) {
 		t.Fatalf("expected 500 total scan pages, got %d", report.TotalScanPages)
 	}
 
+	// Verify daily usage breakdown
+	if len(report.DailyUsage) != 15 {
+		t.Fatalf("expected 15 days in daily usage, got %d", len(report.DailyUsage))
+	}
+	var day10 *DailyPageUsage
+	for i := range report.DailyUsage {
+		if report.DailyUsage[i].Date == "2026-10-10" {
+			day10 = &report.DailyUsage[i]
+			break
+		}
+	}
+	if day10 == nil {
+		t.Fatal("expected date 2026-10-10 in daily usage")
+	}
+	if day10.TotalPrintPages != 500 || day10.TotalScanPages != 500 {
+		t.Fatalf("unexpected day 10 pages: print=%d, scan=%d", day10.TotalPrintPages, day10.TotalScanPages)
+	}
+	if len(day10.DeviceUsage) != 3 {
+		t.Fatalf("expected 3 device usages on day 10, got %d", len(day10.DeviceUsage))
+	}
+
 	// Verify department "Kế toán"
 	var keToan *DepartmentPageUsage
 	for i := range report.Departments {

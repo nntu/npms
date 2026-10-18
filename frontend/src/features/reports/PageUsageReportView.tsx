@@ -11,6 +11,7 @@ import {
 } from '@phosphor-icons/react'
 import { useMemo, useState } from 'react'
 import type { PageUsageReport } from '../../api/client'
+import { PageUsageCharts } from './PageUsageCharts'
 
 interface PageUsageReportViewProps {
   data?: PageUsageReport
@@ -217,6 +218,9 @@ export function PageUsageReportView({
           </ul>
         </div>
       </div>
+
+      {/* Interactive Charts: Daily Print Pages and Per-Printer Volumes */}
+      <PageUsageCharts report={data} departmentFilter={departmentFilter} />
 
       {/* View Mode Toggle and Export Button Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4">

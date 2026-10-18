@@ -1,9 +1,12 @@
+import { useState } from 'react'
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import type { DailyUsage } from '../../api/types'
 
 export function DailyUsageChart({ usage }: { usage: DailyUsage[] }) {
+  const [range, setRange] = useState<'30d' | '14d' | 'all'>('30d')
   const key = usage[0]?.definition_key
-  const series = usage.filter((item) => item.definition_key === key).slice(-14)
+  const filtered = usage.filter((item) => item.definition_key === key)
+  const series = range === '14d' ? filtered.slice(-14) : range === '30d' ? filtered.slice(-30) : filtered
   if (series.length === 0) return null
 
   const unit = series[0].unit
@@ -31,11 +34,41 @@ export function DailyUsageChart({ usage }: { usage: DailyUsage[] }) {
       <div className="flex flex-wrap items-center justify-between gap-4 mb-4 pb-3 border-b border-slate-200">
         <div>
           <p className="text-xs uppercase font-bold tracking-wider text-emerald-700">
-            Lưu lượng in theo ngày (14 ngày gần nhất)
+            Lưu lượng in theo từng ngày trong tháng (
+            {range === '30d' ? '30 ngày' : range === '14d' ? '14 ngày' : 'Toàn bộ'})
           </p>
           <h4 className="text-lg font-bold text-slate-900">{key}</h4>
         </div>
         <div className="flex items-center gap-3">
+          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
+            <button
+              type="button"
+              onClick={() => setRange('30d')}
+              className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer ${
+                range === '30d' ? 'bg-white text-slate-900 shadow-2xs font-bold' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Trong tháng (30 ngày)
+            </button>
+            <button
+              type="button"
+              onClick={() => setRange('14d')}
+              className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer ${
+                range === '14d' ? 'bg-white text-slate-900 shadow-2xs font-bold' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              14 ngày
+            </button>
+            <button
+              type="button"
+              onClick={() => setRange('all')}
+              className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer ${
+                range === 'all' ? 'bg-white text-slate-900 shadow-2xs font-bold' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Tất cả
+            </button>
+          </div>
           <span className="text-xs text-slate-600 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
             Đơn vị tính: <strong className="text-slate-900">{unit}</strong>
           </span>

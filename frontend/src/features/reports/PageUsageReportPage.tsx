@@ -14,7 +14,7 @@ export function PageUsageReportPage() {
   const printersQuery = usePrinters()
   const printers = useMemo(() => printersQuery.data?.data ?? [], [printersQuery.data])
 
-  const [timeRange, setTimeRange] = useState<TimeRangeOption>('all')
+  const [timeRange, setTimeRange] = useState<TimeRangeOption>('this_month')
   const [departmentFilter, setDepartmentFilter] = useState<string>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [isExporting, setIsExporting] = useState(false)

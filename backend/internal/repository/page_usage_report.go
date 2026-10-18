@@ -5,7 +5,25 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 )
+
+// DailyPageUsage summarizes print and scan volumes for a single date across devices.
+type DailyPageUsage struct {
+	Date            string             `json:"date"`
+	TotalPrintPages int64              `json:"total_print_pages"`
+	TotalScanPages  int64              `json:"total_scan_pages"`
+	DeviceUsage     []DeviceDailyUsage `json:"device_usage"`
+}
+
+// DeviceDailyUsage details daily page counts for an individual device.
+type DeviceDailyUsage struct {
+	DeviceID        string `json:"device_id"`
+	DisplayName     string `json:"display_name"`
+	Department      string `json:"department"`
+	Category        string `json:"category"` // "printer" or "scanner"
+	NormalizedPages int64  `json:"normalized_pages"`
+}
 
 // PageUsageReport provides aggregated and normalized printed/scanned pages statistics
 // grouped by department and printer.
@@ -20,6 +38,7 @@ type PageUsageReport struct {
 	TotalCurrentLife int64                 `json:"total_current_life"`
 	Departments      []DepartmentPageUsage `json:"departments"`
 	Printers         []PrinterPageUsage    `json:"printers"`
+	DailyUsage       []DailyPageUsage      `json:"daily_usage"`
 }
 
 // DepartmentPageUsage summarizes print and scan volumes for a single department.
@@ -79,6 +98,7 @@ func (r *SQLiteRepository) GetPageUsageReport(ctx context.Context, from, to, dep
 		address      string
 		status       string
 	}
+	deviceMap := make(map[string]devMeta)
 	devices := make([]devMeta, 0)
 	for devRows.Next() {
 		var d devMeta
@@ -89,6 +109,7 @@ func (r *SQLiteRepository) GetPageUsageReport(ctx context.Context, from, to, dep
 			d.department = "Chưa phân phòng"
 		}
 		devices = append(devices, d)
+		deviceMap[d.id] = d
 	}
 	if err := devRows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate devices for page report: %w", err)
@@ -126,11 +147,12 @@ func (r *SQLiteRepository) GetPageUsageReport(ctx context.Context, from, to, dep
 		return nil, fmt.Errorf("iterate counter definitions for page report: %w", err)
 	}
 
-	// 3. Query delta period usage from daily_counter_usage
-	usageQuery := `SELECT device_id, counter_definition_id, SUM(delta) AS total_delta 
+	// 3. Query delta period usage and daily breakdown from daily_counter_usage
+	usageQuery := `SELECT local_date, device_id, counter_definition_id, SUM(delta) AS delta 
 		FROM daily_counter_usage 
 		WHERE (? = '' OR local_date >= ?) AND (? = '' OR local_date <= ?)
-		GROUP BY device_id, counter_definition_id`
+		GROUP BY local_date, device_id, counter_definition_id
+		ORDER BY local_date ASC`
 	usageRows, err := r.db.QueryContext(ctx, usageQuery, from, from, to, to)
 	if err != nil {
 		return nil, fmt.Errorf("query daily usage for page report: %w", err)
@@ -138,13 +160,54 @@ func (r *SQLiteRepository) GetPageUsageReport(ctx context.Context, from, to, dep
 	defer usageRows.Close()
 
 	devicePeriodDelta := make(map[string]int64)
+	dailyMap := make(map[string]*DailyPageUsage)
+
 	for usageRows.Next() {
-		var devID, defID string
+		var localDate, devID, defID string
 		var delta int64
-		if err := usageRows.Scan(&devID, &defID, &delta); err != nil {
+		if err := usageRows.Scan(&localDate, &devID, &defID, &delta); err != nil {
 			return nil, fmt.Errorf("scan daily usage for page report: %w", err)
 		}
-		devicePeriodDelta[devID+":"+defID] = delta
+		devicePeriodDelta[devID+":"+defID] += delta
+
+		def, hasDef := deviceDefs[devID]
+		d, hasDev := deviceMap[devID]
+		if !hasDef || def.id != defID || !hasDev {
+			continue
+		}
+
+		isScanner := strings.Contains(strings.ToUpper(d.model), "ADS-") ||
+			strings.Contains(strings.ToLower(d.model), "scanner") ||
+			def.key == "page_count" ||
+			def.scope == "scan"
+
+		category := "printer"
+		if isScanner {
+			category = "scanner"
+		}
+
+		normalizedPages := delta
+
+		entry, ok := dailyMap[localDate]
+		if !ok {
+			entry = &DailyPageUsage{
+				Date:        localDate,
+				DeviceUsage: make([]DeviceDailyUsage, 0),
+			}
+			dailyMap[localDate] = entry
+		}
+		if isScanner {
+			entry.TotalScanPages += normalizedPages
+		} else {
+			entry.TotalPrintPages += normalizedPages
+		}
+		entry.DeviceUsage = append(entry.DeviceUsage, DeviceDailyUsage{
+			DeviceID:        devID,
+			DisplayName:     d.displayName,
+			Department:      d.department,
+			Category:        category,
+			NormalizedPages: normalizedPages,
+		})
 	}
 	if err := usageRows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate daily usage for page report: %w", err)
@@ -343,6 +406,36 @@ func (r *SQLiteRepository) GetPageUsageReport(ctx context.Context, from, to, dep
 		report.Departments = append(report.Departments, *deptMap[k])
 	}
 	report.TotalDepartments = len(report.Departments)
+
+	dailyUsageList := make([]DailyPageUsage, 0)
+	if from != "" && to != "" {
+		tFrom, err1 := time.Parse("2006-01-02", from)
+		tTo, err2 := time.Parse("2006-01-02", to)
+		if err1 == nil && err2 == nil && !tFrom.After(tTo) && tTo.Sub(tFrom).Hours() <= 24*92 {
+			for cur := tFrom; !cur.After(tTo); cur = cur.AddDate(0, 0, 1) {
+				dStr := cur.Format("2006-01-02")
+				if item, exists := dailyMap[dStr]; exists {
+					dailyUsageList = append(dailyUsageList, *item)
+				} else {
+					dailyUsageList = append(dailyUsageList, DailyPageUsage{
+						Date:        dStr,
+						DeviceUsage: []DeviceDailyUsage{},
+					})
+				}
+			}
+		}
+	}
+	if len(dailyUsageList) == 0 {
+		dateKeys := make([]string, 0, len(dailyMap))
+		for k := range dailyMap {
+			dateKeys = append(dateKeys, k)
+		}
+		sort.Strings(dateKeys)
+		for _, k := range dateKeys {
+			dailyUsageList = append(dailyUsageList, *dailyMap[k])
+		}
+	}
+	report.DailyUsage = dailyUsageList
 
 	return report, nil
 }

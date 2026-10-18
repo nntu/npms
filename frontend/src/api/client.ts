@@ -273,6 +273,21 @@ export async function listJobs(status?: string, limit = 100, offset = 0): Promis
   return request<import('./types').ListJobsResponse>(`/jobs?${params.toString()}`)
 }
 
+export interface DailyPageUsage {
+  date: string
+  total_print_pages: number
+  total_scan_pages: number
+  device_usage: DeviceDailyUsage[]
+}
+
+export interface DeviceDailyUsage {
+  device_id: string
+  display_name: string
+  department: string
+  category: 'printer' | 'scanner'
+  normalized_pages: number
+}
+
 export interface PageUsageReport {
   from?: string
   to?: string
@@ -284,6 +299,7 @@ export interface PageUsageReport {
   total_current_life: number
   departments: DepartmentPageUsage[]
   printers: PrinterPageUsage[]
+  daily_usage?: DailyPageUsage[]
 }
 
 export interface DepartmentPageUsage {
