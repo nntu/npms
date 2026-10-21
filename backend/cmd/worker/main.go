@@ -74,6 +74,24 @@ func (r registryRunner) RunStatus(ctx context.Context) error {
 	}
 	failed := 0
 	for _, result := range results {
+		runID, err := newID()
+		if err == nil {
+			resultStatus := "success"
+			errorCode := ""
+			if result.Err != nil {
+				resultStatus = "failed"
+				errorCode = "poll_timeout"
+			}
+			_ = r.repository.CreatePollingRun(ctx, repository.PollingRun{
+				ID:           runID,
+				DeviceID:     result.TargetID,
+				JobKind:      "status",
+				Result:       resultStatus,
+				ErrorCode:    errorCode,
+				AttemptCount: result.Attempts,
+			})
+			_ = r.repository.FinishPollingRun(ctx, runID, resultStatus, errorCode, time.Now().UTC())
+		}
 		if result.Err != nil {
 			failed++
 			slog.Error("status poll failed", "device_id", result.TargetID, "attempts", result.Attempts, "error", result.Err)

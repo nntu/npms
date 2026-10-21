@@ -14,11 +14,12 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import { useEffect, useMemo, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { deletePrinter, probeDiscovery, registerPrinter, updatePrinter } from '../../api/client'
 import type { DiscoveryResult, Printer, PrinterStatus } from '../../api/types'
 import { DataTable } from '../../components/DataTable'
 import { showConfirm, showError, showSuccess } from '../../utils/sweetalert'
+import { useDepartments } from '../departments/useDepartments'
 import { usePollJob } from './usePollJob'
 import { usePrinters } from './usePrinters'
 import { useProfiles } from './useProfiles'
@@ -47,11 +48,14 @@ export function DevicesPage() {
   const query = usePrinters()
   const queryClient = useQueryClient()
   const profiles = useProfiles()
+  const departmentsQuery = useDepartments()
+  const departmentsList = useMemo(() => departmentsQuery.data?.data ?? [], [departmentsQuery.data?.data])
 
   // Create form state
   const [showCreate, setShowCreate] = useState(false)
   const [displayName, setDisplayName] = useState('')
   const [assetCode, setAssetCode] = useState('')
+  const [departmentId, setDepartmentId] = useState('')
   const [department, setDepartment] = useState('')
   const [address, setAddress] = useState('')
   const [port, setPort] = useState('161')
@@ -67,6 +71,7 @@ export function DevicesPage() {
   const [editingPrinter, setEditingPrinter] = useState<Printer | null>(null)
   const [editDisplayName, setEditDisplayName] = useState('')
   const [editAssetCode, setEditAssetCode] = useState('')
+  const [editDepartmentId, setEditDepartmentId] = useState('')
   const [editDepartment, setEditDepartment] = useState('')
   const [editAddress, setEditAddress] = useState('')
   const [editPort, setEditPort] = useState('161')
@@ -108,6 +113,7 @@ export function DevicesPage() {
   const resetCreateForm = () => {
     setDisplayName('')
     setAssetCode('')
+    setDepartmentId('')
     setDepartment('')
     setAddress('')
     setPort('161')
@@ -186,6 +192,7 @@ export function DevicesPage() {
       registerPrinter({
         display_name: displayName.trim() || `Máy in ${address.trim()}`,
         asset_code: assetCode.trim() || undefined,
+        department_id: departmentId || undefined,
         department: department.trim() || undefined,
         manufacturer: manufacturer.trim() || undefined,
         model: model.trim() || undefined,
@@ -221,6 +228,7 @@ export function DevicesPage() {
       return updatePrinter(editingPrinter.id, {
         display_name: editDisplayName.trim(),
         asset_code: editAssetCode.trim(),
+        department_id: editDepartmentId || undefined,
         department: editDepartment.trim(),
         manufacturer: editManufacturer.trim(),
         model: editModel.trim(),
@@ -263,6 +271,7 @@ export function DevicesPage() {
     setEditingPrinter(printer)
     setEditDisplayName(printer.display_name)
     setEditAssetCode(printer.asset_code ?? '')
+    setEditDepartmentId((printer as unknown as { department_id?: string }).department_id ?? '')
     setEditDepartment(printer.department ?? '')
     setEditAddress(printer.address ?? '')
     setEditPort(String(printer.port ?? 161))
@@ -297,11 +306,14 @@ export function DevicesPage() {
 
   const departmentOptions = useMemo(() => {
     const set = new Set<string>()
+    for (const d of departmentsList) {
+      if (d.name) set.add(d.name)
+    }
     for (const p of printers) {
       if (p.department) set.add(p.department)
     }
     return Array.from(set).sort()
-  }, [printers])
+  }, [departmentsList, printers])
 
   const printerColumns = useMemo<ColumnDef<Printer>[]>(
     () => [
@@ -673,17 +685,44 @@ export function DevicesPage() {
             </div>
 
             <div>
-              <label htmlFor="department" className="block text-xs font-bold text-slate-700 mb-1.5">
-                Phòng ban / Vị trí
-              </label>
-              <input
+              <div className="flex items-center justify-between mb-1.5">
+                <label htmlFor="department" className="block text-xs font-bold text-slate-700">
+                  Phòng ban
+                </label>
+                <Link
+                  to="/departments"
+                  target="_blank"
+                  className="text-[11px] text-cyan-600 hover:text-cyan-700 hover:underline font-semibold"
+                >
+                  + Quản lý phòng ban
+                </Link>
+              </div>
+              <select
                 id="department"
-                value={department}
-                onChange={(e) => setDepartment(e.target.value)}
-                placeholder="vd: Phòng Kế toán - Tầng 2"
-                className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-cyan-500 shadow-2xs transition-colors"
-                maxLength={200}
-              />
+                value={departmentId || department}
+                onChange={(e) => {
+                  const val = e.target.value
+                  const found = departmentsList.find((d) => d.id === val || d.name === val)
+                  if (found) {
+                    setDepartmentId(found.id)
+                    setDepartment(found.name)
+                  } else {
+                    setDepartmentId('')
+                    setDepartment(val)
+                  }
+                }}
+                className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-cyan-500 shadow-2xs transition-colors cursor-pointer"
+              >
+                <option value="">-- Chưa phân phòng --</option>
+                {departmentsList.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name} ({d.code})
+                  </option>
+                ))}
+                {department && !departmentsList.some((d) => d.id === departmentId || d.name === department) && (
+                  <option value={department}>{department} (Chưa chuẩn hóa)</option>
+                )}
+              </select>
             </div>
 
             <div>
@@ -969,15 +1008,45 @@ export function DevicesPage() {
                   />
                 </div>
                 <div>
-                  <label htmlFor="edit-department" className="block text-xs font-bold text-slate-700 mb-1">
-                    Phòng ban
-                  </label>
-                  <input
+                  <div className="flex items-center justify-between mb-1">
+                    <label htmlFor="edit-department" className="block text-xs font-bold text-slate-700">
+                      Phòng ban
+                    </label>
+                    <Link
+                      to="/departments"
+                      target="_blank"
+                      className="text-[11px] text-cyan-600 hover:text-cyan-700 hover:underline font-semibold"
+                    >
+                      + Quản lý phòng ban
+                    </Link>
+                  </div>
+                  <select
                     id="edit-department"
-                    value={editDepartment}
-                    onChange={(e) => setEditDepartment(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-900 shadow-2xs"
-                  />
+                    value={editDepartmentId || editDepartment}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      const found = departmentsList.find((d) => d.id === val || d.name === val)
+                      if (found) {
+                        setEditDepartmentId(found.id)
+                        setEditDepartment(found.name)
+                      } else {
+                        setEditDepartmentId('')
+                        setEditDepartment(val)
+                      }
+                    }}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-900 shadow-2xs cursor-pointer"
+                  >
+                    <option value="">-- Chưa phân phòng --</option>
+                    {departmentsList.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name} ({d.code})
+                      </option>
+                    ))}
+                    {editDepartment &&
+                      !departmentsList.some((d) => d.id === editDepartmentId || d.name === editDepartment) && (
+                        <option value={editDepartment}>{editDepartment} (Chưa chuẩn hóa)</option>
+                      )}
+                  </select>
                 </div>
                 <div>
                   <label htmlFor="edit-profile" className="block text-xs font-bold text-slate-700 mb-1">

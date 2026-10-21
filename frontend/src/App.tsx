@@ -6,6 +6,9 @@ import { Navbar } from './components/Navbar'
 const CartridgesPage = lazy(() =>
   import('./features/cartridges/CartridgesPage').then((module) => ({ default: module.CartridgesPage })),
 )
+const DepartmentsPage = lazy(() =>
+  import('./features/departments/DepartmentsPage').then((module) => ({ default: module.DepartmentsPage })),
+)
 const DevicesPage = lazy(() =>
   import('./features/devices/DevicesPage').then((module) => ({ default: module.DevicesPage })),
 )
@@ -46,6 +49,7 @@ export function App() {
             <Route path="/printers" element={<DevicesPage />} />
             <Route path="/printers/:id" element={<PrinterDetailPage />} />
             <Route path="/cartridges" element={<CartridgesPage />} />
+            <Route path="/departments" element={<DepartmentsPage />} />
             <Route path="/discovery" element={<DiscoveryPage />} />
             <Route path="/jobs" element={<JobsPage />} />
             <Route path="/reports" element={<Navigate to="/reports/pages" replace />} />

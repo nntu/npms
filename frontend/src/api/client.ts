@@ -2,11 +2,13 @@ import type {
   BulkRegisterInput,
   BulkRegisterOutput,
   CounterReading,
+  CreateDepartmentInput,
   CreateEndpointInput,
   CreatePrinterInput,
   CreateSNMPCredentialInput,
   DailyUsage,
   DatabaseRestoreResponse,
+  Department,
   DiscoveryProbeInput,
   DiscoveryResult,
   Paginated,
@@ -17,6 +19,7 @@ import type {
   PrintersRestoreResponse,
   RegisterPrinterInput,
   RegisterPrinterResult,
+  UpdateDepartmentInput,
   UpdatePrinterInput,
   VersionInfo,
 } from './types'
@@ -466,4 +469,34 @@ export async function relocatePrinterIP(
 
 export async function getVersion(): Promise<VersionInfo> {
   return request<VersionInfo>('/version')
+}
+
+export async function listDepartments(): Promise<{ data: Department[]; total: number }> {
+  return request<{ data: Department[]; total: number }>('/departments')
+}
+
+export async function getDepartment(id: string): Promise<Department> {
+  return request<Department>(`/departments/${encodeURIComponent(id)}`)
+}
+
+export async function createDepartment(input: CreateDepartmentInput): Promise<Department> {
+  return request<Department>('/departments', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+}
+
+export async function updateDepartment(id: string, input: UpdateDepartmentInput): Promise<Department> {
+  return request<Department>(`/departments/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+}
+
+export async function deleteDepartment(id: string): Promise<{ status: string; message: string }> {
+  return request<{ status: string; message: string }>(`/departments/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  })
 }

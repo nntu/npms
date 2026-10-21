@@ -77,12 +77,13 @@ type PrinterPageUsage struct {
 // applying unit normalization (impressions/sheets -> printed pages).
 func (r *SQLiteRepository) GetPageUsageReport(ctx context.Context, from, to, departmentFilter string) (*PageUsageReport, error) {
 	// 1. Query active devices
-	devQuery := `SELECT d.id, d.display_name, COALESCE(d.manufacturer, ''), COALESCE(d.model, ''), COALESCE(d.serial, ''), COALESCE(d.department, ''), COALESCE(ep.address, ''), d.status 
+	devQuery := `SELECT d.id, d.display_name, COALESCE(d.manufacturer, ''), COALESCE(d.model, ''), COALESCE(d.serial, ''), COALESCE(dept.name, d.department, ''), COALESCE(ep.address, ''), d.status 
 		FROM devices d
+		LEFT JOIN departments dept ON dept.id = d.department_id
 		LEFT JOIN device_endpoints ep ON ep.device_id = d.id AND ep.is_primary = 1
-		WHERE d.deleted_at IS NULL AND (? = '' OR d.department = ?)
-		ORDER BY d.department, d.display_name`
-	devRows, err := r.db.QueryContext(ctx, devQuery, departmentFilter, departmentFilter)
+		WHERE d.deleted_at IS NULL AND (? = '' OR d.department_id = ? OR dept.code = ? OR dept.name = ? OR d.department = ?)
+		ORDER BY COALESCE(dept.name, d.department, ''), d.display_name`
+	devRows, err := r.db.QueryContext(ctx, devQuery, departmentFilter, departmentFilter, departmentFilter, departmentFilter, departmentFilter)
 	if err != nil {
 		return nil, fmt.Errorf("query devices for page report: %w", err)
 	}

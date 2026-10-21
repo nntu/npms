@@ -14,7 +14,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   deletePrinter,
   listCartridges,
@@ -26,6 +26,7 @@ import {
 import type { CounterReading, DailyUsage, DiscoveryResult, PrinterStatus } from '../../api/types'
 import { DataTable } from '../../components/DataTable'
 import { showConfirm, showError, showSuccess } from '../../utils/sweetalert'
+import { useDepartments } from '../departments/useDepartments'
 import { CounterChart } from './CounterChart'
 import { DailyUsageChart } from './DailyUsageChart'
 import { usePollingRuns } from './usePollingRuns'
@@ -75,6 +76,8 @@ export function PrinterDetailPage() {
   const counters = usePrinterCounters(printerId)
   const usage = usePrinterUsage(printerId)
   const profiles = useProfiles()
+  const departmentsQuery = useDepartments()
+  const departmentsList = useMemo(() => departmentsQuery.data?.data ?? [], [departmentsQuery.data?.data])
   const monthlyUsage = useMemo(() => aggregateMonthlyUsage(usage.data?.data ?? []), [usage.data?.data])
   const _pollingRuns = usePollingRuns(printerId)
   const queryClient = useQueryClient()
@@ -170,6 +173,7 @@ export function PrinterDetailPage() {
   const [showEditModal, setShowEditModal] = useState(false)
   const [editDisplayName, setEditDisplayName] = useState('')
   const [editAssetCode, setEditAssetCode] = useState('')
+  const [editDepartmentId, setEditDepartmentId] = useState('')
   const [editDepartment, setEditDepartment] = useState('')
   const [editAddress, setEditAddress] = useState('')
   const [editPort, setEditPort] = useState('161')
@@ -246,6 +250,7 @@ export function PrinterDetailPage() {
       updatePrinter(printerId, {
         display_name: editDisplayName.trim(),
         asset_code: editAssetCode.trim(),
+        department_id: editDepartmentId || undefined,
         department: editDepartment.trim(),
         manufacturer: editManufacturer.trim(),
         model: editModel.trim(),
@@ -335,6 +340,7 @@ export function PrinterDetailPage() {
   const openEditModal = () => {
     setEditDisplayName(printer.display_name)
     setEditAssetCode(printer.asset_code ?? '')
+    setEditDepartmentId((printer as unknown as { department_id?: string }).department_id ?? '')
     setEditDepartment(printer.department ?? '')
     setEditAddress(printer.address ?? '')
     setEditPort(String(printer.port ?? 161))
@@ -720,15 +726,45 @@ export function PrinterDetailPage() {
                   />
                 </div>
                 <div>
-                  <label htmlFor="detail-edit-department" className="block text-xs font-bold text-slate-700 mb-1">
-                    Phòng ban
-                  </label>
-                  <input
+                  <div className="flex items-center justify-between mb-1">
+                    <label htmlFor="detail-edit-department" className="block text-xs font-bold text-slate-700">
+                      Phòng ban
+                    </label>
+                    <Link
+                      to="/departments"
+                      target="_blank"
+                      className="text-[11px] text-cyan-600 hover:text-cyan-700 hover:underline font-semibold"
+                    >
+                      + Quản lý phòng ban
+                    </Link>
+                  </div>
+                  <select
                     id="detail-edit-department"
-                    value={editDepartment}
-                    onChange={(e) => setEditDepartment(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-900 shadow-2xs"
-                  />
+                    value={editDepartmentId || editDepartment}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      const found = departmentsList.find((d) => d.id === val || d.name === val)
+                      if (found) {
+                        setEditDepartmentId(found.id)
+                        setEditDepartment(found.name)
+                      } else {
+                        setEditDepartmentId('')
+                        setEditDepartment(val)
+                      }
+                    }}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-900 shadow-2xs cursor-pointer"
+                  >
+                    <option value="">-- Chưa phân phòng --</option>
+                    {departmentsList.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name} ({d.code})
+                      </option>
+                    ))}
+                    {editDepartment &&
+                      !departmentsList.some((d) => d.id === editDepartmentId || d.name === editDepartment) && (
+                        <option value={editDepartment}>{editDepartment} (Chưa chuẩn hóa)</option>
+                      )}
+                  </select>
                 </div>
                 <div>
                   <label htmlFor="detail-edit-profile" className="block text-xs font-bold text-slate-700 mb-1">

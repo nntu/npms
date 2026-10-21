@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getPageUsageReport } from '../../api/client'
 import { showError, showSuccess } from '../../utils/sweetalert'
+import { useDepartments } from '../departments/useDepartments'
 import { usePrinters } from '../devices/usePrinters'
 import { PageUsageReportView } from './PageUsageReportView'
 
@@ -13,6 +14,8 @@ type TimeRangeOption = 'all' | '7d' | '30d' | 'this_month' | 'this_quarter' | 't
 export function PageUsageReportPage() {
   const printersQuery = usePrinters()
   const printers = useMemo(() => printersQuery.data?.data ?? [], [printersQuery.data])
+  const departmentsQuery = useDepartments()
+  const departmentsList = useMemo(() => departmentsQuery.data?.data ?? [], [departmentsQuery.data?.data])
 
   const [timeRange, setTimeRange] = useState<TimeRangeOption>('this_month')
   const [departmentFilter, setDepartmentFilter] = useState<string>('all')
@@ -22,12 +25,15 @@ export function PageUsageReportPage() {
   // Distinct departments
   const departmentList = useMemo(() => {
     const set = new Set<string>()
+    for (const d of departmentsList) {
+      if (d.name) set.add(d.name)
+    }
     for (const p of printers) {
       const dept = (p.department || '').trim() || 'Chưa phân phòng'
       set.add(dept)
     }
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'vi'))
-  }, [printers])
+  }, [departmentsList, printers])
 
   const pageDateParams = useMemo(() => {
     const now = new Date()

@@ -15,6 +15,7 @@ type Printer struct {
 	Model        *string `json:"model,omitempty"`
 	Serial       *string `json:"serial,omitempty"`
 	SysObjectID  *string `json:"sys_object_id,omitempty"`
+	DepartmentID *string `json:"department_id,omitempty"`
 	Department   *string `json:"department,omitempty"`
 	Address      *string `json:"address,omitempty"`
 	Port         *int    `json:"port,omitempty"`
@@ -50,6 +51,7 @@ type CreatePrinterInput struct {
 		Model        string `json:"model,omitempty" maxLength:"200"`
 		Serial       string `json:"serial,omitempty" maxLength:"200"`
 		SysObjectID  string `json:"sys_object_id,omitempty" maxLength:"200"`
+		DepartmentID string `json:"department_id,omitempty" maxLength:"200"`
 		Department   string `json:"department,omitempty" maxLength:"200"`
 	}
 }
@@ -65,6 +67,7 @@ type UpdatePrinterInput struct {
 		Model          string `json:"model,omitempty" maxLength:"200"`
 		Serial         string `json:"serial,omitempty" maxLength:"200"`
 		SysObjectID    string `json:"sys_object_id,omitempty" maxLength:"200"`
+		DepartmentID   string `json:"department_id,omitempty" maxLength:"200"`
 		Department     string `json:"department,omitempty" maxLength:"200"`
 		ProfileID      string `json:"profile_id,omitempty"`
 		Address        string `json:"address,omitempty" maxLength:"253"`
@@ -94,6 +97,7 @@ type RegisterPrinterInput struct {
 		Model          string `json:"model,omitempty" maxLength:"200"`
 		Serial         string `json:"serial,omitempty" maxLength:"200"`
 		SysObjectID    string `json:"sys_object_id,omitempty" maxLength:"200"`
+		DepartmentID   string `json:"department_id,omitempty" maxLength:"200"`
 		Department     string `json:"department,omitempty" maxLength:"200"`
 		ProfileID      string `json:"profile_id,omitempty"`
 		Address        string `json:"address" minLength:"1" maxLength:"253"`

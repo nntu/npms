@@ -24,6 +24,7 @@ type fakeStore struct {
 	devices        []repository.Device
 	total          int
 	jobs           []repository.JobWithDevice
+	departments    []repository.Department
 	registrationCh chan repository.PrinterRegistration
 	finishCh       chan string
 	leaseHeld      bool
@@ -198,6 +199,30 @@ func (fakeStore) RefillPrinterCartridge(context.Context, repository.RefillPrinte
 func (fakeStore) ListCartridgeLogs(context.Context, string, string, int, int) ([]repository.CartridgeLog, error) {
 	return []repository.CartridgeLog{}, nil
 }
+
+func (f fakeStore) ListDepartments(context.Context) ([]repository.Department, error) {
+	if f.departments != nil {
+		return f.departments, nil
+	}
+	return []repository.Department{{ID: "dept-1", Code: "KT", Name: "Phòng Kế toán", DeviceCount: 2}}, nil
+}
+func (f fakeStore) GetDepartmentByID(_ context.Context, id string) (*repository.Department, error) {
+	for _, d := range f.departments {
+		if d.ID == id {
+			return &d, nil
+		}
+	}
+	if id == "dept-1" {
+		return &repository.Department{ID: "dept-1", Code: "KT", Name: "Phòng Kế toán"}, nil
+	}
+	return nil, nil
+}
+func (f fakeStore) GetDepartmentByCode(_ context.Context, _ string) (*repository.Department, error) {
+	return nil, nil
+}
+func (fakeStore) CreateDepartment(context.Context, *repository.Department) error  { return nil }
+func (fakeStore) UpdateDepartment(context.Context, *repository.Department) error  { return nil }
+func (fakeStore) DeleteDepartment(context.Context, string) error                  { return nil }
 func (fakeStore) CountCartridgeLogs(context.Context, string, string) (int, error) { return 0, nil }
 func (f fakeStore) UpdatePrinter(_ context.Context, u repository.PrinterUpdate) error {
 	for _, d := range f.devices {
@@ -907,5 +932,65 @@ func TestRelocatePrinterIPEndpoint(t *testing.T) {
 	}
 	if !containsAll(rec.Body.String(), `"success":true`, `"old_address":"192.168.1.50"`, `"new_address":"192.168.1.75"`) {
 		t.Fatalf("unexpected body: %s", rec.Body.String())
+	}
+}
+
+func TestDepartmentEndpoints(t *testing.T) {
+	server, err := NewServer(fakeStore{}, "token", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. List departments
+	reqList := httptest.NewRequest(http.MethodGet, "/api/v1/departments", nil)
+	reqList.Header.Set("Authorization", "Bearer token")
+	recList := httptest.NewRecorder()
+	server.Handler().ServeHTTP(recList, reqList)
+	if recList.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d, body: %s", recList.Code, recList.Body.String())
+	}
+	if !containsAll(recList.Body.String(), `"code":"KT"`, `"name":"Phòng Kế toán"`) {
+		t.Fatalf("unexpected list body: %s", recList.Body.String())
+	}
+
+	// 2. Create department
+	reqCreate := httptest.NewRequest(http.MethodPost, "/api/v1/departments", strings.NewReader(`{"code":"IT","name":"Phòng Công nghệ thông tin","description":"Tầng 4"}`))
+	reqCreate.Header.Set("Authorization", "Bearer token")
+	reqCreate.Header.Set("Content-Type", "application/json")
+	recCreate := httptest.NewRecorder()
+	server.Handler().ServeHTTP(recCreate, reqCreate)
+	if recCreate.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d, body: %s", recCreate.Code, recCreate.Body.String())
+	}
+
+	// 3. Get department
+	reqGet := httptest.NewRequest(http.MethodGet, "/api/v1/departments/dept-1", nil)
+	reqGet.Header.Set("Authorization", "Bearer token")
+	recGet := httptest.NewRecorder()
+	server.Handler().ServeHTTP(recGet, reqGet)
+	if recGet.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d, body: %s", recGet.Code, recGet.Body.String())
+	}
+
+	// 4. Update department
+	reqUpdate := httptest.NewRequest(http.MethodPut, "/api/v1/departments/dept-1", strings.NewReader(`{"code":"KT","name":"Phòng Kế toán tổng hợp"}`))
+	reqUpdate.Header.Set("Authorization", "Bearer token")
+	reqUpdate.Header.Set("Content-Type", "application/json")
+	recUpdate := httptest.NewRecorder()
+	server.Handler().ServeHTTP(recUpdate, reqUpdate)
+	if recUpdate.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d, body: %s", recUpdate.Code, recUpdate.Body.String())
+	}
+
+	// 5. Delete department
+	reqDel := httptest.NewRequest(http.MethodDelete, "/api/v1/departments/dept-1", nil)
+	reqDel.Header.Set("Authorization", "Bearer token")
+	recDel := httptest.NewRecorder()
+	server.Handler().ServeHTTP(recDel, reqDel)
+	if recDel.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d, body: %s", recDel.Code, recDel.Body.String())
+	}
+	if !containsAll(recDel.Body.String(), `"status":"success"`) {
+		t.Fatalf("unexpected delete body: %s", recDel.Body.String())
 	}
 }

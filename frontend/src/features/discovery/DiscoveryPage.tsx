@@ -14,11 +14,12 @@ import {
   X,
 } from '@phosphor-icons/react'
 import { useMutation } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { bulkRegisterPrinters, probeDiscovery, relocatePrinterIP, scanSubnet } from '../../api/client'
 import type { BulkRegisterPrinterItem, DiscoveredPrinter, SubnetScanResult } from '../../api/types'
 import { showError, showSuccess } from '../../utils/sweetalert'
+import { useDepartments } from '../departments/useDepartments'
 
 export function DiscoveryPage() {
   const navigate = useNavigate()
@@ -36,8 +37,11 @@ export function DiscoveryPage() {
   const [scanResult, setScanResult] = useState<SubnetScanResult | null>(null)
 
   // Bulk selection and registration state
+  const departmentsQuery = useDepartments()
+  const departmentsList = useMemo(() => departmentsQuery.data?.data ?? [], [departmentsQuery.data?.data])
   const [selectedIPs, setSelectedIPs] = useState<Set<string>>(new Set())
   const [bulkModalOpen, setBulkModalOpen] = useState(false)
+  const [bulkDefaultDepartmentId, setBulkDefaultDepartmentId] = useState('')
   const [bulkDefaultDepartment, setBulkDefaultDepartment] = useState('')
   const [bulkRegistering, setBulkRegistering] = useState(false)
 
@@ -133,6 +137,7 @@ export function DiscoveryPage() {
         serial: p.serial || undefined,
         sys_object_id: p.sys_object_id || undefined,
         profile_id: p.matched_profile_id || undefined,
+        department_id: bulkDefaultDepartmentId || undefined,
         department: bulkDefaultDepartment.trim() || p.location || undefined,
       }))
 
@@ -689,14 +694,29 @@ export function DiscoveryPage() {
                     <label htmlFor="bulk-dept-input" className="block text-xs font-bold text-slate-700 mb-1.5">
                       Phòng ban / Vị trí mặc định (Tùy chọn)
                     </label>
-                    <input
+                    <select
                       id="bulk-dept-input"
-                      type="text"
-                      value={bulkDefaultDepartment}
-                      onChange={(e) => setBulkDefaultDepartment(e.target.value)}
-                      placeholder="Để trống sẽ tự động lấy vị trí từ SNMP sysLocation của từng máy"
-                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-cyan-500 shadow-2xs"
-                    />
+                      value={bulkDefaultDepartmentId || bulkDefaultDepartment}
+                      onChange={(e) => {
+                        const val = e.target.value
+                        const found = departmentsList.find((d) => d.id === val || d.name === val)
+                        if (found) {
+                          setBulkDefaultDepartmentId(found.id)
+                          setBulkDefaultDepartment(found.name)
+                        } else {
+                          setBulkDefaultDepartmentId('')
+                          setBulkDefaultDepartment('')
+                        }
+                      }}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-cyan-500 shadow-2xs cursor-pointer"
+                    >
+                      <option value="">-- Để trống (Tự động lấy vị trí từ SNMP sysLocation) --</option>
+                      {departmentsList.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.name} ({d.code})
+                        </option>
+                      ))}
+                    </select>
                     <p className="text-[11px] text-slate-500 mt-1">
                       Gợi ý: Nếu để trống, hệ thống sẽ ưu tiên đọc thông tin vị trí cài đặt sẵn trong máy in qua SNMP
                       (OID sysLocation).

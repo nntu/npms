@@ -15,6 +15,7 @@ const sysNameOID = "1.3.6.1.2.1.1.5.0"
 type EndpointStore interface {
 	ListDeviceEndpoints(context.Context, string) ([]repository.DeviceEndpoint, error)
 	MarkEndpointSuccess(context.Context, string, time.Time) error
+	MarkDeviceOffline(context.Context, string) error
 }
 
 type ClientFactory func(snmp.Config) (snmp.Client, error)
@@ -96,8 +97,10 @@ func (p *StatusPoller) PollDevice(ctx context.Context, deviceID string) error {
 		return nil
 	}
 	if lastErr == nil {
+		_ = p.Store.MarkDeviceOffline(ctx, deviceID)
 		return fmt.Errorf("device %s has no supported SNMP endpoint", deviceID)
 	}
+	_ = p.Store.MarkDeviceOffline(ctx, deviceID)
 	return fmt.Errorf("status poll device %s: %w", deviceID, lastErr)
 }
 

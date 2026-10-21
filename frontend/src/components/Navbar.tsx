@@ -1,6 +1,7 @@
 import {
   Archive,
   BookBookmark,
+  Buildings,
   CaretDown,
   ChartBar,
   Cpu,
@@ -97,6 +98,21 @@ export function Navbar() {
           >
             <Drop size={17} weight="bold" />
             <span>Bình mực</span>
+          </NavLink>
+
+          {/* Phòng ban */}
+          <NavLink
+            to="/departments"
+            className={({ isActive }: { isActive: boolean }) =>
+              `flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs xl:text-sm font-semibold whitespace-nowrap transition-all ${
+                isActive
+                  ? 'bg-cyan-50 text-cyan-800 border border-cyan-200 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+              }`
+            }
+          >
+            <Buildings size={17} weight="bold" />
+            <span>Phòng ban</span>
           </NavLink>
 
           {/* Báo cáo (Dropdown) */}
@@ -312,6 +328,19 @@ export function Navbar() {
             >
               <Drop size={16} weight="bold" className="text-cyan-600" />
               <span>Bình mực</span>
+            </NavLink>
+
+            <NavLink
+              to="/departments"
+              onClick={() => setMobileMenuOpen(false)}
+              className={({ isActive }) =>
+                `flex items-center gap-2 p-2.5 rounded-xl text-xs font-semibold ${
+                  isActive ? 'bg-cyan-50 text-cyan-800 border border-cyan-200' : 'text-slate-700 hover:bg-slate-100'
+                }`
+              }
+            >
+              <Buildings size={16} weight="bold" className="text-cyan-600" />
+              <span>Phòng ban</span>
             </NavLink>
 
             <NavLink

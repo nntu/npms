@@ -11,6 +11,7 @@ export interface CreatePrinterInput {
   model?: string
   serial?: string
   sys_object_id?: string
+  department_id?: string
   department?: string
 }
 
@@ -245,3 +246,25 @@ export interface DatabaseRestoreResponse {
 }
 
 export type VersionInfo = components['schemas']['VersionOutputBody']
+
+export interface Department {
+  id: string
+  code: string
+  name: string
+  description?: string
+  device_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateDepartmentInput {
+  code: string
+  name: string
+  description?: string
+}
+
+export interface UpdateDepartmentInput {
+  code: string
+  name: string
+  description?: string
+}

@@ -14,7 +14,6 @@
     "format:check": "biome format src",
     "check": "pnpm run api:check && pnpm typecheck && pnpm format:check && pnpm lint && pnpm build"
   },
-
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
     "@tailwindcss/vite": "^4.3.3",
@@ -44,7 +43,7 @@
     "typescript-eslint": "8.71.1",
     "vite": "8.3.4"
   },
-  "packageManager": "pnpm@12.8.1",
+  "packageManager": "pnpm@12.14.0",
   "engines": {
     "node": ">=20.19.0",
     "pnpm": ">=12.8.1"

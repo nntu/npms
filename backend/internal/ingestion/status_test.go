@@ -28,6 +28,10 @@ func (f *fakeStatusEndpointStore) MarkEndpointSuccess(_ context.Context, endpoin
 	return nil
 }
 
+func (f *fakeStatusEndpointStore) MarkDeviceOffline(_ context.Context, _ string) error {
+	return nil
+}
+
 type fakeStatusClient struct {
 	values   []snmp.VarBind
 	getErr   error

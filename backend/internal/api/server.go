@@ -88,6 +88,15 @@ type CartridgeStore interface {
 	CountCartridgeLogs(context.Context, string, string) (int, error)
 }
 
+type DepartmentStore interface {
+	ListDepartments(context.Context) ([]repository.Department, error)
+	GetDepartmentByID(context.Context, string) (*repository.Department, error)
+	GetDepartmentByCode(context.Context, string) (*repository.Department, error)
+	CreateDepartment(context.Context, *repository.Department) error
+	UpdateDepartment(context.Context, *repository.Department) error
+	DeleteDepartment(context.Context, string) error
+}
+
 type CounterSnapshotter interface {
 	ReadDevice(context.Context, string) (counter.Reading, repository.CounterDefinition, error)
 }
@@ -176,6 +185,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/v1/printers/", s.getPrinter)
 	mux.HandleFunc("/api/v1/jobs", s.handleJobs)
 	mux.HandleFunc("/api/v1/jobs/", s.handleJobs)
+	mux.HandleFunc("/api/v1/departments", s.handleDepartments)
+	mux.HandleFunc("/api/v1/departments/", s.handleDepartmentItem)
 	mux.HandleFunc("/api/v1/reports/pages", s.getPageUsageReport)
 	mux.Handle("/api/v1/cartridges", s.cartridgeListHandler())
 	mux.Handle("/api/v1/cartridges/stock", s.cartridgeStockHandler())
@@ -690,6 +701,7 @@ type createPrinterRequest struct {
 	Model        string `json:"model"`
 	Serial       string `json:"serial"`
 	SysObjectID  string `json:"sys_object_id"`
+	DepartmentID string `json:"department_id"`
 	Department   string `json:"department"`
 }
 
@@ -709,7 +721,7 @@ func (s *Server) createPrinter(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_display_name", "display_name is required and must be at most 200 characters")
 		return
 	}
-	device := repository.Device{ID: newJobID(), AssetCode: strings.TrimSpace(input.AssetCode), DisplayName: strings.TrimSpace(input.DisplayName), Manufacturer: strings.TrimSpace(input.Manufacturer), Model: strings.TrimSpace(input.Model), Serial: strings.TrimSpace(input.Serial), SysObjectID: strings.TrimSpace(input.SysObjectID), Department: strings.TrimSpace(input.Department), Status: "unknown"}
+	device := repository.Device{ID: newJobID(), AssetCode: strings.TrimSpace(input.AssetCode), DisplayName: strings.TrimSpace(input.DisplayName), Manufacturer: strings.TrimSpace(input.Manufacturer), Model: strings.TrimSpace(input.Model), Serial: strings.TrimSpace(input.Serial), SysObjectID: strings.TrimSpace(input.SysObjectID), DepartmentID: strings.TrimSpace(input.DepartmentID), Department: strings.TrimSpace(input.Department), Status: "unknown"}
 	if err := s.store.CreateDevice(r.Context(), device); err != nil {
 		writeError(w, http.StatusConflict, "device_create_failed", "could not create printer")
 		return
@@ -958,6 +970,7 @@ type registerPrinterRequest struct {
 	Model          string `json:"model"`
 	Serial         string `json:"serial"`
 	SysObjectID    string `json:"sys_object_id"`
+	DepartmentID   string `json:"department_id"`
 	Department     string `json:"department"`
 	ProfileID      string `json:"profile_id"`
 	Address        string `json:"address"`
@@ -1048,6 +1061,7 @@ func (s *Server) registerPrinterInternal(ctx context.Context, input registerPrin
 			Model:        strings.TrimSpace(input.Model),
 			Serial:       strings.TrimSpace(input.Serial),
 			SysObjectID:  strings.TrimSpace(input.SysObjectID),
+			DepartmentID: strings.TrimSpace(input.DepartmentID),
 			Department:   strings.TrimSpace(input.Department),
 			Address:      address,
 			Port:         uint16(port),
@@ -1321,6 +1335,7 @@ type updatePrinterRequest struct {
 	Model          string `json:"model"`
 	Serial         string `json:"serial"`
 	SysObjectID    string `json:"sys_object_id"`
+	DepartmentID   string `json:"department_id"`
 	Department     string `json:"department"`
 	ProfileID      string `json:"profile_id"`
 	Address        string `json:"address"`
@@ -1430,6 +1445,7 @@ func (s *Server) updatePrinter(w http.ResponseWriter, r *http.Request, deviceID 
 			Model:        strings.TrimSpace(input.Model),
 			Serial:       strings.TrimSpace(input.Serial),
 			SysObjectID:  strings.TrimSpace(input.SysObjectID),
+			DepartmentID: strings.TrimSpace(input.DepartmentID),
 			Department:   strings.TrimSpace(input.Department),
 			Status:       existing.Status,
 		},
@@ -2037,6 +2053,7 @@ type printerResponse struct {
 	Model        *string `json:"model,omitempty"`
 	Serial       *string `json:"serial,omitempty"`
 	SysObjectID  *string `json:"sys_object_id,omitempty"`
+	DepartmentID *string `json:"department_id,omitempty"`
 	Department   *string `json:"department,omitempty"`
 	Address      *string `json:"address,omitempty"`
 	Port         *int    `json:"port,omitempty"`
@@ -2093,9 +2110,10 @@ func toPrinterResponse(device repository.Device) printerResponse {
 	return printerResponse{
 		ID: device.ID, AssetCode: nullable(device.AssetCode), DisplayName: device.DisplayName,
 		Manufacturer: nullable(device.Manufacturer), Model: nullable(device.Model), Serial: nullable(device.Serial),
-		SysObjectID: nullable(device.SysObjectID),
-		Department:  nullable(device.Department),
-		Address:     nullable(device.Address), Port: port, SNMPVersion: nullable(device.SNMPVersion), ProfileID: nullable(device.ProfileKey),
+		SysObjectID:  nullable(device.SysObjectID),
+		DepartmentID: nullable(device.DepartmentID),
+		Department:   nullable(device.Department),
+		Address:      nullable(device.Address), Port: port, SNMPVersion: nullable(device.SNMPVersion), ProfileID: nullable(device.ProfileKey),
 		Status: device.Status, LastSeenAt: nullableTime(device.LastSeenAt),
 	}
 }
@@ -2450,4 +2468,134 @@ func (s *Server) listCartridgeLogs(w http.ResponseWriter, r *http.Request) {
 		logs = []repository.CartridgeLog{}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"data": logs, "limit": limit, "offset": offset, "total": len(logs)})
+}
+
+func (s *Server) handleDepartments(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	store, ok := s.store.(DepartmentStore)
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "department_store_unavailable", "department management is not configured")
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		if !s.authorized(r) {
+			writeError(w, http.StatusUnauthorized, "unauthorized", "valid bearer token is required")
+			return
+		}
+		list, err := store.ListDepartments(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "department_list_failed", err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"data": list, "total": len(list)})
+	case http.MethodPost:
+		if !s.authorized(r) {
+			writeError(w, http.StatusUnauthorized, "unauthorized", "valid bearer token is required")
+			return
+		}
+		var input struct {
+			Code        string `json:"code"`
+			Name        string `json:"name"`
+			Description string `json:"description"`
+		}
+		decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 32<<10))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&input); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", "request body must be valid JSON")
+			return
+		}
+		dep := repository.Department{
+			Code:        strings.TrimSpace(input.Code),
+			Name:        strings.TrimSpace(input.Name),
+			Description: strings.TrimSpace(input.Description),
+		}
+		if err := store.CreateDepartment(r.Context(), &dep); err != nil {
+			writeError(w, http.StatusBadRequest, "department_create_failed", err.Error())
+			return
+		}
+		writeJSON(w, http.StatusCreated, dep)
+	default:
+		s.methodNotAllowed(w)
+	}
+}
+
+func (s *Server) handleDepartmentItem(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	store, ok := s.store.(DepartmentStore)
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "department_store_unavailable", "department management is not configured")
+		return
+	}
+	id := strings.TrimPrefix(r.URL.Path, "/api/v1/departments/")
+	if id == "" || strings.Contains(id, "/") {
+		writeError(w, http.StatusNotFound, "not_found", "department not found")
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		if !s.authorized(r) {
+			writeError(w, http.StatusUnauthorized, "unauthorized", "valid bearer token is required")
+			return
+		}
+		dep, err := store.GetDepartmentByID(r.Context(), id)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "department_get_failed", err.Error())
+			return
+		}
+		if dep == nil {
+			writeError(w, http.StatusNotFound, "not_found", "phòng ban không tồn tại")
+			return
+		}
+		writeJSON(w, http.StatusOK, dep)
+	case http.MethodPut:
+		if !s.authorized(r) {
+			writeError(w, http.StatusUnauthorized, "unauthorized", "valid bearer token is required")
+			return
+		}
+		var input struct {
+			Code        string `json:"code"`
+			Name        string `json:"name"`
+			Description string `json:"description"`
+		}
+		decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 32<<10))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&input); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", "request body must be valid JSON")
+			return
+		}
+		dep := repository.Department{
+			ID:          id,
+			Code:        strings.TrimSpace(input.Code),
+			Name:        strings.TrimSpace(input.Name),
+			Description: strings.TrimSpace(input.Description),
+		}
+		if err := store.UpdateDepartment(r.Context(), &dep); err != nil {
+			writeError(w, http.StatusBadRequest, "department_update_failed", err.Error())
+			return
+		}
+		updated, _ := store.GetDepartmentByID(r.Context(), id)
+		if updated != nil {
+			dep = *updated
+		}
+		writeJSON(w, http.StatusOK, dep)
+	case http.MethodDelete:
+		if !s.authorized(r) {
+			writeError(w, http.StatusUnauthorized, "unauthorized", "valid bearer token is required")
+			return
+		}
+		if err := store.DeleteDepartment(r.Context(), id); err != nil {
+			writeError(w, http.StatusBadRequest, "department_delete_failed", err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"status": "success", "message": "phòng ban đã được xoá thành công"})
+	default:
+		s.methodNotAllowed(w)
+	}
 }

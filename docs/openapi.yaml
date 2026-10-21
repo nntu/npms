@@ -554,6 +554,110 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/RefillCartridges'
+  /api/v1/departments:
+    get:
+      operationId: listDepartments
+      summary: List all departments with device counts
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of registered departments.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Department'
+                  total: { type: integer }
+    post:
+      operationId: createDepartment
+      summary: Create a new department
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, name]
+              properties:
+                code: { type: string, example: "KT" }
+                name: { type: string, example: "Phòng Kế toán" }
+                description: { type: string, example: "Tầng 2, Tòa nhà A" }
+      responses:
+        '201':
+          description: Department created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Department'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/v1/departments/{id}:
+    get:
+      operationId: getDepartment
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Department detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Department'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      operationId: updateDepartment
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, name]
+              properties:
+                code: { type: string, example: "KT" }
+                name: { type: string, example: "Phòng Kế toán - Tài chính" }
+                description: { type: string }
+      responses:
+        '200':
+          description: Department updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Department'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+    delete:
+      operationId: deleteDepartment
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Department deleted successfully.
   /api/v1/backup/printers:
     get:
       operationId: backupPrinters
@@ -1104,3 +1208,14 @@ components:
         limit: { type: integer }
         offset: { type: integer }
         total: { type: integer }
+    Department:
+      type: object
+      required: [id, code, name, created_at, updated_at]
+      properties:
+        id: { type: string, example: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d" }
+        code: { type: string, example: "KT" }
+        name: { type: string, example: "Phòng Kế toán" }
+        description: { type: string, example: "Tầng 2, Tòa nhà Điều hành" }
+        device_count: { type: integer, example: 3 }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }

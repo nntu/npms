@@ -278,6 +278,7 @@ type Device struct {
 	Model        string
 	Serial       string
 	SysObjectID  string
+	DepartmentID string
 	Department   string
 	Status       string
 	Address      string
@@ -288,6 +289,24 @@ type Device struct {
 	LastSeenAt   time.Time
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
+}
+
+func (r *SQLiteRepository) resolveDepartment(ctx context.Context, deptID, deptName string) (string, string) {
+	deptID = strings.TrimSpace(deptID)
+	deptName = strings.TrimSpace(deptName)
+	if deptID != "" {
+		var name string
+		if err := r.db.QueryRowContext(ctx, `SELECT name FROM departments WHERE id = ?`, deptID).Scan(&name); err == nil && name != "" {
+			return deptID, name
+		}
+	}
+	if deptName != "" {
+		var id, name string
+		if err := r.db.QueryRowContext(ctx, `SELECT id, name FROM departments WHERE LOWER(name) = LOWER(?) OR UPPER(code) = UPPER(?) LIMIT 1`, deptName, deptName).Scan(&id, &name); err == nil && id != "" {
+			return id, name
+		}
+	}
+	return deptID, deptName
 }
 
 type DeviceEndpoint struct {
@@ -369,6 +388,18 @@ func (r *SQLiteRepository) MarkEndpointSuccess(ctx context.Context, endpointID s
 	return nil
 }
 
+func (r *SQLiteRepository) MarkDeviceOffline(ctx context.Context, deviceID string) error {
+	if strings.TrimSpace(deviceID) == "" {
+		return fmt.Errorf("device id is required")
+	}
+	formatted := time.Now().UTC().Format(time.RFC3339Nano)
+	_, err := r.db.ExecContext(ctx, "UPDATE devices SET status = 'offline', updated_at = ? WHERE id = ? AND deleted_at IS NULL", formatted, deviceID)
+	if err != nil {
+		return fmt.Errorf("mark device offline: %w", err)
+	}
+	return nil
+}
+
 type SNMPCredential struct {
 	ID, Version, SecurityMetadata string
 	EncryptedSecretMaterial       []byte
@@ -444,10 +475,11 @@ func (r *SQLiteRepository) RegisterPrinter(ctx context.Context, registration Pri
 		return fmt.Errorf("begin printer registration: %w", err)
 	}
 	defer tx.Rollback()
+	resolvedDeptID, resolvedDeptName := r.resolveDepartment(ctx, registration.Device.DepartmentID, registration.Device.Department)
 	_, err = tx.ExecContext(ctx, `INSERT INTO devices
-		(id, asset_code, display_name, manufacturer, model, serial, sys_object_id, department, status, first_seen_at, last_seen_at, created_at, updated_at)
-		VALUES (?, NULLIF(?, ''), ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, NULLIF(?, ''), NULLIF(?, ''), ?, ?)`,
-		registration.Device.ID, registration.Device.AssetCode, registration.Device.DisplayName, registration.Device.Manufacturer, registration.Device.Model, registration.Device.Serial, registration.Device.SysObjectID, registration.Device.Department, registration.Device.Status,
+		(id, asset_code, display_name, manufacturer, model, serial, sys_object_id, department_id, department, status, first_seen_at, last_seen_at, created_at, updated_at)
+		VALUES (?, NULLIF(?, ''), ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, NULLIF(?, ''), NULLIF(?, ''), ?, ?)`,
+		registration.Device.ID, registration.Device.AssetCode, registration.Device.DisplayName, registration.Device.Manufacturer, registration.Device.Model, registration.Device.Serial, registration.Device.SysObjectID, resolvedDeptID, resolvedDeptName, registration.Device.Status,
 		formatTime(registration.Device.FirstSeenAt), formatTime(registration.Device.LastSeenAt), registration.Device.CreatedAt.Format(time.RFC3339Nano), registration.Device.UpdatedAt.Format(time.RFC3339Nano))
 	if err != nil {
 		return fmt.Errorf("register device: %w", err)
@@ -543,10 +575,11 @@ func (r *SQLiteRepository) CreateDevice(ctx context.Context, device Device) erro
 	if device.UpdatedAt.IsZero() {
 		device.UpdatedAt = now
 	}
+	resolvedDeptID, resolvedDeptName := r.resolveDepartment(ctx, device.DepartmentID, device.Department)
 	_, err := r.db.ExecContext(ctx, `INSERT INTO devices
-		(id, asset_code, display_name, manufacturer, model, serial, sys_object_id, department, status, first_seen_at, last_seen_at, created_at, updated_at)
-		VALUES (?, NULLIF(?, ''), ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, NULLIF(?, ''), NULLIF(?, ''), ?, ?)`,
-		device.ID, device.AssetCode, device.DisplayName, device.Manufacturer, device.Model, device.Serial, device.SysObjectID, device.Department, device.Status,
+		(id, asset_code, display_name, manufacturer, model, serial, sys_object_id, department_id, department, status, first_seen_at, last_seen_at, created_at, updated_at)
+		VALUES (?, NULLIF(?, ''), ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, NULLIF(?, ''), NULLIF(?, ''), ?, ?)`,
+		device.ID, device.AssetCode, device.DisplayName, device.Manufacturer, device.Model, device.Serial, device.SysObjectID, resolvedDeptID, resolvedDeptName, device.Status,
 		formatTime(device.FirstSeenAt), formatTime(device.LastSeenAt), device.CreatedAt.UTC().Format(time.RFC3339Nano), device.UpdatedAt.UTC().Format(time.RFC3339Nano))
 	if err != nil {
 		return fmt.Errorf("create device: %w", err)
@@ -556,23 +589,26 @@ func (r *SQLiteRepository) CreateDevice(ctx context.Context, device Device) erro
 
 func (r *SQLiteRepository) GetDevice(ctx context.Context, id string) (Device, error) {
 	var d Device
-	var asset, manufacturer, model, serial, objectID, department, firstSeen, lastSeen sql.NullString
+	var asset, manufacturer, model, serial, objectID, deptID, department, firstSeen, lastSeen sql.NullString
 	var createdAt, updatedAt, address, snmpVersion, profileKey sql.NullString
 	var port sql.NullInt64
 	err := r.db.QueryRowContext(ctx, `SELECT
-		d.id, d.asset_code, d.display_name, d.manufacturer, d.model, d.serial, d.sys_object_id, d.department, d.status, d.first_seen_at, d.last_seen_at, d.created_at, d.updated_at,
+		d.id, d.asset_code, d.display_name, d.manufacturer, d.model, d.serial, d.sys_object_id, d.department_id, COALESCE(dept.name, d.department), d.status, d.first_seen_at, d.last_seen_at, d.created_at, d.updated_at,
 		(SELECT de.address FROM device_endpoints de WHERE de.device_id = d.id ORDER BY de.is_primary DESC, de.id LIMIT 1),
 		(SELECT de.port FROM device_endpoints de WHERE de.device_id = d.id ORDER BY de.is_primary DESC, de.id LIMIT 1),
 		(SELECT sc.version FROM device_endpoints de JOIN snmp_credentials sc ON sc.id = de.credential_id WHERE de.device_id = d.id ORDER BY de.is_primary DESC, de.id LIMIT 1),
 		(SELECT sp.profile_key FROM device_profile_assignments dpa JOIN snmp_profiles sp ON sp.id = dpa.profile_id WHERE dpa.device_id = d.id LIMIT 1)
-		FROM devices d WHERE d.id = ? AND d.deleted_at IS NULL`, id).Scan(
-		&d.ID, &asset, &d.DisplayName, &manufacturer, &model, &serial, &objectID, &department, &d.Status, &firstSeen, &lastSeen, &createdAt, &updatedAt,
+		FROM devices d
+		LEFT JOIN departments dept ON dept.id = d.department_id
+		WHERE d.id = ? AND d.deleted_at IS NULL`, id).Scan(
+		&d.ID, &asset, &d.DisplayName, &manufacturer, &model, &serial, &objectID, &deptID, &department, &d.Status, &firstSeen, &lastSeen, &createdAt, &updatedAt,
 		&address, &port, &snmpVersion, &profileKey,
 	)
 	if err != nil {
 		return Device{}, fmt.Errorf("get device: %w", err)
 	}
-	d.AssetCode, d.Manufacturer, d.Model, d.Serial, d.SysObjectID, d.Department = nullString(asset), nullString(manufacturer), nullString(model), nullString(serial), nullString(objectID), nullString(department)
+	d.AssetCode, d.Manufacturer, d.Model, d.Serial, d.SysObjectID = nullString(asset), nullString(manufacturer), nullString(model), nullString(serial), nullString(objectID)
+	d.DepartmentID, d.Department = nullString(deptID), nullString(department)
 	d.Address, d.SNMPVersion, d.ProfileKey = nullString(address), nullString(snmpVersion), nullString(profileKey)
 	if port.Valid && port.Int64 > 0 && port.Int64 <= 65535 {
 		d.Port = uint16(port.Int64)
@@ -588,12 +624,14 @@ func (r *SQLiteRepository) ListDevices(ctx context.Context, limit, offset int) (
 		return nil, fmt.Errorf("invalid pagination")
 	}
 	rows, err := r.db.QueryContext(ctx, `SELECT
-		d.id, d.asset_code, d.display_name, d.manufacturer, d.model, d.serial, d.sys_object_id, d.department, d.status, d.first_seen_at, d.last_seen_at, d.created_at, d.updated_at,
+		d.id, d.asset_code, d.display_name, d.manufacturer, d.model, d.serial, d.sys_object_id, d.department_id, COALESCE(dept.name, d.department), d.status, d.first_seen_at, d.last_seen_at, d.created_at, d.updated_at,
 		(SELECT de.address FROM device_endpoints de WHERE de.device_id = d.id ORDER BY de.is_primary DESC, de.id LIMIT 1),
 		(SELECT de.port FROM device_endpoints de WHERE de.device_id = d.id ORDER BY de.is_primary DESC, de.id LIMIT 1),
 		(SELECT sc.version FROM device_endpoints de JOIN snmp_credentials sc ON sc.id = de.credential_id WHERE de.device_id = d.id ORDER BY de.is_primary DESC, de.id LIMIT 1),
 		(SELECT sp.profile_key FROM device_profile_assignments dpa JOIN snmp_profiles sp ON sp.id = dpa.profile_id WHERE dpa.device_id = d.id LIMIT 1)
-		FROM devices d WHERE d.deleted_at IS NULL ORDER BY d.created_at DESC, d.id LIMIT ? OFFSET ?`, limit, offset)
+		FROM devices d
+		LEFT JOIN departments dept ON dept.id = d.department_id
+		WHERE d.deleted_at IS NULL ORDER BY d.created_at DESC, d.id LIMIT ? OFFSET ?`, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("list devices: %w", err)
 	}
@@ -601,16 +639,17 @@ func (r *SQLiteRepository) ListDevices(ctx context.Context, limit, offset int) (
 	result := make([]Device, 0)
 	for rows.Next() {
 		var d Device
-		var asset, manufacturer, model, serial, objectID, department, firstSeen, lastSeen, createdAt, updatedAt sql.NullString
+		var asset, manufacturer, model, serial, objectID, deptID, department, firstSeen, lastSeen, createdAt, updatedAt sql.NullString
 		var address, snmpVersion, profileKey sql.NullString
 		var port sql.NullInt64
 		if err := rows.Scan(
-			&d.ID, &asset, &d.DisplayName, &manufacturer, &model, &serial, &objectID, &department, &d.Status, &firstSeen, &lastSeen, &createdAt, &updatedAt,
+			&d.ID, &asset, &d.DisplayName, &manufacturer, &model, &serial, &objectID, &deptID, &department, &d.Status, &firstSeen, &lastSeen, &createdAt, &updatedAt,
 			&address, &port, &snmpVersion, &profileKey,
 		); err != nil {
 			return nil, fmt.Errorf("scan device: %w", err)
 		}
-		d.AssetCode, d.Manufacturer, d.Model, d.Serial, d.SysObjectID, d.Department = nullString(asset), nullString(manufacturer), nullString(model), nullString(serial), nullString(objectID), nullString(department)
+		d.AssetCode, d.Manufacturer, d.Model, d.Serial, d.SysObjectID = nullString(asset), nullString(manufacturer), nullString(model), nullString(serial), nullString(objectID)
+		d.DepartmentID, d.Department = nullString(deptID), nullString(department)
 		d.Address, d.SNMPVersion, d.ProfileKey = nullString(address), nullString(snmpVersion), nullString(profileKey)
 		if port.Valid && port.Int64 > 0 && port.Int64 <= 65535 {
 			d.Port = uint16(port.Int64)
@@ -659,6 +698,7 @@ func (r *SQLiteRepository) UpdatePrinter(ctx context.Context, update PrinterUpda
 	}
 	defer tx.Rollback()
 
+	resolvedDeptID, resolvedDeptName := r.resolveDepartment(ctx, update.Device.DepartmentID, update.Device.Department)
 	res, err := tx.ExecContext(ctx, `UPDATE devices SET
 		asset_code = NULLIF(?, ''),
 		display_name = ?,
@@ -666,11 +706,12 @@ func (r *SQLiteRepository) UpdatePrinter(ctx context.Context, update PrinterUpda
 		model = NULLIF(?, ''),
 		serial = NULLIF(?, ''),
 		sys_object_id = NULLIF(?, ''),
+		department_id = NULLIF(?, ''),
 		department = NULLIF(?, ''),
 		updated_at = ?
 		WHERE id = ? AND deleted_at IS NULL`,
 		update.Device.AssetCode, update.Device.DisplayName, update.Device.Manufacturer, update.Device.Model,
-		update.Device.Serial, update.Device.SysObjectID, update.Device.Department, now.Format(time.RFC3339Nano), update.Device.ID)
+		update.Device.Serial, update.Device.SysObjectID, resolvedDeptID, resolvedDeptName, now.Format(time.RFC3339Nano), update.Device.ID)
 	if err != nil {
 		return fmt.Errorf("update device: %w", err)
 	}
@@ -1531,14 +1572,15 @@ func (r *SQLiteRepository) FindDeviceByAddressOrAsset(ctx context.Context, addre
 	}
 
 	var d Device
-	var asset, manufacturer, model, serial, objectID, department, firstSeen, lastSeen sql.NullString
+	var asset, manufacturer, model, serial, objectID, deptID, department, firstSeen, lastSeen sql.NullString
 	var createdAt, updatedAt, epAddress, snmpVersion, profileKey sql.NullString
 	var port sql.NullInt64
 
 	query := `SELECT
-		d.id, d.asset_code, d.display_name, d.manufacturer, d.model, d.serial, d.sys_object_id, d.department, d.status, d.first_seen_at, d.last_seen_at, d.created_at, d.updated_at,
+		d.id, d.asset_code, d.display_name, d.manufacturer, d.model, d.serial, d.sys_object_id, d.department_id, COALESCE(dept.name, d.department), d.status, d.first_seen_at, d.last_seen_at, d.created_at, d.updated_at,
 		de.address, de.port, sc.version, sp.profile_key
 		FROM devices d
+		LEFT JOIN departments dept ON dept.id = d.department_id
 		LEFT JOIN device_endpoints de ON de.device_id = d.id AND de.is_primary = 1
 		LEFT JOIN snmp_credentials sc ON sc.id = de.credential_id
 		LEFT JOIN device_profile_assignments dpa ON dpa.device_id = d.id
@@ -1550,7 +1592,7 @@ func (r *SQLiteRepository) FindDeviceByAddressOrAsset(ctx context.Context, addre
 		ORDER BY d.created_at DESC LIMIT 1`
 
 	err := r.db.QueryRowContext(ctx, query, address, address, assetCode, assetCode).Scan(
-		&d.ID, &asset, &d.DisplayName, &manufacturer, &model, &serial, &objectID, &department, &d.Status, &firstSeen, &lastSeen, &createdAt, &updatedAt,
+		&d.ID, &asset, &d.DisplayName, &manufacturer, &model, &serial, &objectID, &deptID, &department, &d.Status, &firstSeen, &lastSeen, &createdAt, &updatedAt,
 		&epAddress, &port, &snmpVersion, &profileKey,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -1560,7 +1602,8 @@ func (r *SQLiteRepository) FindDeviceByAddressOrAsset(ctx context.Context, addre
 		return nil, fmt.Errorf("find device by address or asset: %w", err)
 	}
 
-	d.AssetCode, d.Manufacturer, d.Model, d.Serial, d.SysObjectID, d.Department = nullString(asset), nullString(manufacturer), nullString(model), nullString(serial), nullString(objectID), nullString(department)
+	d.AssetCode, d.Manufacturer, d.Model, d.Serial, d.SysObjectID = nullString(asset), nullString(manufacturer), nullString(model), nullString(serial), nullString(objectID)
+	d.DepartmentID, d.Department = nullString(deptID), nullString(department)
 	d.Address, d.SNMPVersion, d.ProfileKey = nullString(epAddress), nullString(snmpVersion), nullString(profileKey)
 	if port.Valid && port.Int64 > 0 && port.Int64 <= 65535 {
 		d.Port = uint16(port.Int64)

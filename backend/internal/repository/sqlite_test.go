@@ -748,3 +748,38 @@ func TestListJobsWithDevice(t *testing.T) {
 		t.Errorf("expected error_code snmp_timeout, got: %v", failedJobs[0].ErrorCode)
 	}
 }
+
+func TestMarkDeviceOffline(t *testing.T) {
+	db, err := database.OpenSQLite(filepath.Join(t.TempDir(), "npms.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ctx := context.Background()
+	if err := db.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	repo, err := NewSQLiteRepository(db.DB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	devID := "dev-offline-test"
+	if err := repo.CreateDevice(ctx, Device{
+		ID:          devID,
+		DisplayName: "Printer 1",
+		Status:      "online",
+		FirstSeenAt: time.Now().UTC(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.MarkDeviceOffline(ctx, devID); err != nil {
+		t.Fatalf("mark offline failed: %v", err)
+	}
+	dev, err := repo.GetDevice(ctx, devID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dev.Status != "offline" {
+		t.Fatalf("expected status offline, got %s", dev.Status)
+	}
+}

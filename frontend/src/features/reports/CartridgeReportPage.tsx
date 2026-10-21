@@ -21,6 +21,7 @@ import { Link } from 'react-router-dom'
 import { listCartridgeLogs, listCartridges } from '../../api/client'
 import type { Cartridge, CartridgeLog, Printer } from '../../api/types'
 import { showError, showSuccess } from '../../utils/sweetalert'
+import { useDepartments } from '../departments/useDepartments'
 import { usePrinters } from '../devices/usePrinters'
 
 type TimeRangeOption = 'all' | '7d' | '30d' | 'this_month' | 'this_quarter' | 'this_year'
@@ -76,6 +77,8 @@ export function CartridgeReportPage() {
 
   const printers = useMemo(() => printersQuery.data?.data ?? [], [printersQuery.data])
   const cartridges = useMemo(() => cartridgesQuery.data?.data ?? [], [cartridgesQuery.data])
+  const departmentsQuery = useDepartments()
+  const departmentsList = useMemo(() => departmentsQuery.data?.data ?? [], [departmentsQuery.data?.data])
   const rawLogs = useMemo(() => logsQuery.data?.data ?? [], [logsQuery.data])
 
   // Lookup maps
@@ -98,12 +101,15 @@ export function CartridgeReportPage() {
   // Distinct departments
   const departmentList = useMemo(() => {
     const set = new Set<string>()
+    for (const d of departmentsList) {
+      if (d.name) set.add(d.name)
+    }
     for (const p of printers) {
       const dept = (p.department || '').trim() || 'Chưa phân phòng'
       set.add(dept)
     }
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'vi'))
-  }, [printers])
+  }, [departmentsList, printers])
 
   // Filter logs by date, action type, source type, department, and search
   const filteredLogs = useMemo(() => {
