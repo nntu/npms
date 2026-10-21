@@ -501,20 +501,18 @@ func (r *SQLiteRepository) RegisterPrinter(ctx context.Context, registration Pri
 		return fmt.Errorf("register endpoint: %w", err)
 	}
 	if registration.Profile != nil {
-		var existingID, existingChecksum string
-		err = tx.QueryRowContext(ctx, `SELECT id, checksum FROM snmp_profiles WHERE profile_key = ? AND version = ?`, registration.Profile.ProfileKey, registration.Profile.Version).Scan(&existingID, &existingChecksum)
+		var existingID string
+		err = tx.QueryRowContext(ctx, `SELECT id FROM snmp_profiles WHERE profile_key = ? AND version = ?`, registration.Profile.ProfileKey, registration.Profile.Version).Scan(&existingID)
 		switch {
 		case err == sql.ErrNoRows:
 			_, err = tx.ExecContext(ctx, `INSERT INTO snmp_profiles(id, profile_key, version, schema_version, content, checksum, verification_status) VALUES (?, ?, ?, ?, ?, ?, ?)`, registration.Profile.ID, registration.Profile.ProfileKey, registration.Profile.Version, registration.Profile.SchemaVersion, registration.Profile.Content, registration.Profile.Checksum, registration.Profile.VerificationStatus)
-		case err == nil:
-			if existingID != registration.Profile.ID || existingChecksum != registration.Profile.Checksum {
-				return fmt.Errorf("profile %q version %d conflicts with stored content", registration.Profile.ProfileKey, registration.Profile.Version)
+			if err != nil {
+				return fmt.Errorf("store profile: %w", err)
 			}
+		case err == nil:
+			registration.Profile.ID = existingID
 		default:
 			return fmt.Errorf("check stored profile: %w", err)
-		}
-		if err != nil {
-			return fmt.Errorf("store profile: %w", err)
 		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO device_profile_assignments(device_id, profile_id, assigned_at, explicit) VALUES (?, ?, ?, ?)`, registration.Device.ID, registration.Profile.ID, now.Format(time.RFC3339Nano), boolInt(registration.ProfileExplicit)); err != nil {
 			return fmt.Errorf("assign profile: %w", err)
@@ -782,21 +780,19 @@ func (r *SQLiteRepository) UpdatePrinter(ctx context.Context, update PrinterUpda
 	}
 
 	if update.Profile != nil {
-		var existingID, existingChecksum string
-		err = tx.QueryRowContext(ctx, `SELECT id, checksum FROM snmp_profiles WHERE profile_key = ? AND version = ?`, update.Profile.ProfileKey, update.Profile.Version).Scan(&existingID, &existingChecksum)
+		var existingID string
+		err = tx.QueryRowContext(ctx, `SELECT id FROM snmp_profiles WHERE profile_key = ? AND version = ?`, update.Profile.ProfileKey, update.Profile.Version).Scan(&existingID)
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
 			_, err = tx.ExecContext(ctx, `INSERT INTO snmp_profiles(id, profile_key, version, schema_version, content, checksum, verification_status) VALUES (?, ?, ?, ?, ?, ?, ?)`,
 				update.Profile.ID, update.Profile.ProfileKey, update.Profile.Version, update.Profile.SchemaVersion, update.Profile.Content, update.Profile.Checksum, update.Profile.VerificationStatus)
-		case err == nil:
-			if existingID != update.Profile.ID || existingChecksum != update.Profile.Checksum {
-				return fmt.Errorf("profile %q version %d conflicts with stored content", update.Profile.ProfileKey, update.Profile.Version)
+			if err != nil {
+				return fmt.Errorf("store profile: %w", err)
 			}
+		case err == nil:
+			update.Profile.ID = existingID
 		default:
 			return fmt.Errorf("check stored profile: %w", err)
-		}
-		if err != nil {
-			return fmt.Errorf("store profile: %w", err)
 		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO device_profile_assignments(device_id, profile_id, assigned_at, explicit)
 			VALUES (?, ?, ?, ?)

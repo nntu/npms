@@ -102,4 +102,21 @@ func TestUpdatePrinterIntegration(t *testing.T) {
 	if devCleared.DepartmentID != "" || devCleared.Department != "" {
 		t.Errorf("expected empty dept, got deptID=%q dept=%q", devCleared.DepartmentID, devCleared.Department)
 	}
+
+	// 3. Test update when profile with different ID/checksum already exists in DB (the exact user bug)
+	_, err = db.DB.ExecContext(ctx, `INSERT INTO snmp_profiles (id, profile_key, version, schema_version, content, checksum, verification_status)
+		VALUES ('hp-laserjet-enterprise-m501dn-v1', 'hp-laserjet-enterprise-m501dn', 1, 1, 'fake content', 'oldchecksum123', 'verified')`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	hpPayload := `{"display_name":"HP M501dn","department_id":"` + dept.ID + `","department":"Phòng Công nghệ thông tin","profile_id":"hp-laserjet-enterprise-m501dn","address":"192.168.1.50","port":161,"version":"2c"}`
+	hpReq := httptest.NewRequest(http.MethodPut, "/api/v1/printers/p-test-1", strings.NewReader(hpPayload))
+	hpReq.Header.Set("Content-Type", "application/json")
+	hpW := httptest.NewRecorder()
+	server.Handler().ServeHTTP(hpW, hpReq)
+
+	if hpW.Code != http.StatusOK {
+		t.Fatalf("expected 200 when updating printer with pre-existing profile, got %d: %s", hpW.Code, hpW.Body.String())
+	}
 }
