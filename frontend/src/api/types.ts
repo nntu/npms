@@ -2,7 +2,9 @@ import type { components } from './generated'
 
 export type PrinterStatus = 'online' | 'offline' | 'unknown' | 'unavailable'
 
-export type Printer = components['schemas']['Printer']
+export type Printer = components['schemas']['Printer'] & {
+  department_id?: string
+}
 
 export interface CreatePrinterInput {
   display_name: string

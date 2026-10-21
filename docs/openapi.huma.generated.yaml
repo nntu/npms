@@ -415,6 +415,9 @@ components:
         department:
           maxLength: 200
           type: string
+        department_id:
+          maxLength: 200
+          type: string
         display_name:
           maxLength: 200
           minLength: 1
@@ -1022,6 +1025,8 @@ components:
           type: string
         department:
           type: string
+        department_id:
+          type: string
         display_name:
           type: string
         id:
@@ -1223,6 +1228,9 @@ components:
           type: string
           writeOnly: true
         department:
+          maxLength: 200
+          type: string
+        department_id:
           maxLength: 200
           type: string
         display_name:
@@ -1481,6 +1489,9 @@ components:
           type: string
           writeOnly: true
         department:
+          maxLength: 200
+          type: string
+        department_id:
           maxLength: 200
           type: string
         display_name:

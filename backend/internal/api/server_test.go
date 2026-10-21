@@ -623,7 +623,7 @@ func TestUpdateAndSoftDeletePrinter(t *testing.T) {
 	}
 	server.SetSecretBox(box)
 
-	putReq := httptest.NewRequest(http.MethodPut, "/api/v1/printers/d1", strings.NewReader(`{"display_name":"New Name","department":"IT","address":"192.0.2.11","port":161}`))
+	putReq := httptest.NewRequest(http.MethodPut, "/api/v1/printers/d1", strings.NewReader(`{"display_name":"New Name","department_id":"dept-1","department":"IT","address":"192.0.2.11","port":161}`))
 	putReq.Header.Set("Content-Type", "application/json")
 	putRec := httptest.NewRecorder()
 	server.Handler().ServeHTTP(putRec, putReq)

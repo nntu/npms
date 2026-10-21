@@ -291,22 +291,30 @@ type Device struct {
 	UpdatedAt    time.Time
 }
 
-func (r *SQLiteRepository) resolveDepartment(ctx context.Context, deptID, deptName string) (string, string) {
+type rowQuerier interface {
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+func (r *SQLiteRepository) resolveDepartment(ctx context.Context, q rowQuerier, deptID, deptName string) (string, string) {
+	if q == nil {
+		q = r.db
+	}
 	deptID = strings.TrimSpace(deptID)
 	deptName = strings.TrimSpace(deptName)
 	if deptID != "" {
 		var name string
-		if err := r.db.QueryRowContext(ctx, `SELECT name FROM departments WHERE id = ?`, deptID).Scan(&name); err == nil && name != "" {
+		if err := q.QueryRowContext(ctx, `SELECT name FROM departments WHERE id = ?`, deptID).Scan(&name); err == nil && name != "" {
 			return deptID, name
 		}
 	}
 	if deptName != "" {
 		var id, name string
-		if err := r.db.QueryRowContext(ctx, `SELECT id, name FROM departments WHERE LOWER(name) = LOWER(?) OR UPPER(code) = UPPER(?) LIMIT 1`, deptName, deptName).Scan(&id, &name); err == nil && id != "" {
+		if err := q.QueryRowContext(ctx, `SELECT id, name FROM departments WHERE LOWER(name) = LOWER(?) OR UPPER(code) = UPPER(?) LIMIT 1`, deptName, deptName).Scan(&id, &name); err == nil && id != "" {
 			return id, name
 		}
 	}
-	return deptID, deptName
+	// If deptID does not exist in departments, return empty deptID to avoid FOREIGN KEY constraint error
+	return "", deptName
 }
 
 type DeviceEndpoint struct {
@@ -475,7 +483,7 @@ func (r *SQLiteRepository) RegisterPrinter(ctx context.Context, registration Pri
 		return fmt.Errorf("begin printer registration: %w", err)
 	}
 	defer tx.Rollback()
-	resolvedDeptID, resolvedDeptName := r.resolveDepartment(ctx, registration.Device.DepartmentID, registration.Device.Department)
+	resolvedDeptID, resolvedDeptName := r.resolveDepartment(ctx, tx, registration.Device.DepartmentID, registration.Device.Department)
 	_, err = tx.ExecContext(ctx, `INSERT INTO devices
 		(id, asset_code, display_name, manufacturer, model, serial, sys_object_id, department_id, department, status, first_seen_at, last_seen_at, created_at, updated_at)
 		VALUES (?, NULLIF(?, ''), ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, NULLIF(?, ''), NULLIF(?, ''), ?, ?)`,
@@ -575,7 +583,7 @@ func (r *SQLiteRepository) CreateDevice(ctx context.Context, device Device) erro
 	if device.UpdatedAt.IsZero() {
 		device.UpdatedAt = now
 	}
-	resolvedDeptID, resolvedDeptName := r.resolveDepartment(ctx, device.DepartmentID, device.Department)
+	resolvedDeptID, resolvedDeptName := r.resolveDepartment(ctx, r.db, device.DepartmentID, device.Department)
 	_, err := r.db.ExecContext(ctx, `INSERT INTO devices
 		(id, asset_code, display_name, manufacturer, model, serial, sys_object_id, department_id, department, status, first_seen_at, last_seen_at, created_at, updated_at)
 		VALUES (?, NULLIF(?, ''), ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, NULLIF(?, ''), NULLIF(?, ''), ?, ?)`,
@@ -698,7 +706,7 @@ func (r *SQLiteRepository) UpdatePrinter(ctx context.Context, update PrinterUpda
 	}
 	defer tx.Rollback()
 
-	resolvedDeptID, resolvedDeptName := r.resolveDepartment(ctx, update.Device.DepartmentID, update.Device.Department)
+	resolvedDeptID, resolvedDeptName := r.resolveDepartment(ctx, tx, update.Device.DepartmentID, update.Device.Department)
 	res, err := tx.ExecContext(ctx, `UPDATE devices SET
 		asset_code = NULLIF(?, ''),
 		display_name = ?,

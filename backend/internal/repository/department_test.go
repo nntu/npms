@@ -137,3 +137,73 @@ func TestDepartmentCRUDAndSync(t *testing.T) {
 		t.Fatalf("expected unlinked device department, got id=%q name=%q", savedDev3.DepartmentID, savedDev3.Department)
 	}
 }
+
+func TestUpdatePrinterDepartmentAssignment(t *testing.T) {
+	ctx := context.Background()
+	repo := setupTestDB(t)
+
+	// Tạo 2 phòng ban: KT và IT
+	deptKT := &repository.Department{Code: "KT", Name: "Phòng Kế toán"}
+	if err := repo.CreateDepartment(ctx, deptKT); err != nil {
+		t.Fatalf("create deptKT: %v", err)
+	}
+	deptIT := &repository.Department{Code: "IT", Name: "Phòng CNTT"}
+	if err := repo.CreateDepartment(ctx, deptIT); err != nil {
+		t.Fatalf("create deptIT: %v", err)
+	}
+
+	// Tạo máy in gán phòng KT
+	dev := repository.Device{
+		ID:           "dev-switch",
+		DisplayName:  "Canon LBP2900",
+		DepartmentID: deptKT.ID,
+		Status:       "online",
+		CreatedAt:    time.Now().UTC(),
+		UpdatedAt:    time.Now().UTC(),
+	}
+	if err := repo.CreateDevice(ctx, dev); err != nil {
+		t.Fatalf("create device: %v", err)
+	}
+
+	// Cập nhật máy in chuyển sang phòng IT
+	update := repository.PrinterUpdate{
+		Device: repository.Device{
+			ID:           "dev-switch",
+			DisplayName:  "Canon LBP2900 (Đã chuyển)",
+			DepartmentID: deptIT.ID,
+		},
+	}
+	if err := repo.UpdatePrinter(ctx, update); err != nil {
+		t.Fatalf("update printer failed: %v", err)
+	}
+
+	// Kiểm tra máy in đã được chuyển sang phòng IT chưa
+	switched, err := repo.GetDevice(ctx, "dev-switch")
+	if err != nil {
+		t.Fatalf("get switched device: %v", err)
+	}
+	if switched.DepartmentID != deptIT.ID {
+		t.Fatalf("expected department ID %s, got %s", deptIT.ID, switched.DepartmentID)
+	}
+	if switched.Department != "Phòng CNTT" {
+		t.Fatalf("expected department name 'Phòng CNTT', got %q", switched.Department)
+	}
+
+	// Cập nhật máy in bỏ phân phòng (gán rỗng)
+	updateClear := repository.PrinterUpdate{
+		Device: repository.Device{
+			ID:          "dev-switch",
+			DisplayName: "Canon LBP2900 (Kho)",
+		},
+	}
+	if err := repo.UpdatePrinter(ctx, updateClear); err != nil {
+		t.Fatalf("update printer clear department failed: %v", err)
+	}
+	cleared, err := repo.GetDevice(ctx, "dev-switch")
+	if err != nil {
+		t.Fatalf("get cleared device: %v", err)
+	}
+	if cleared.DepartmentID != "" || cleared.Department != "" {
+		t.Fatalf("expected empty department, got id=%q name=%q", cleared.DepartmentID, cleared.Department)
+	}
+}

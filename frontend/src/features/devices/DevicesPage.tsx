@@ -228,7 +228,7 @@ export function DevicesPage() {
       return updatePrinter(editingPrinter.id, {
         display_name: editDisplayName.trim(),
         asset_code: editAssetCode.trim(),
-        department_id: editDepartmentId || undefined,
+        department_id: editDepartmentId,
         department: editDepartment.trim(),
         manufacturer: editManufacturer.trim(),
         model: editModel.trim(),
@@ -271,8 +271,26 @@ export function DevicesPage() {
     setEditingPrinter(printer)
     setEditDisplayName(printer.display_name)
     setEditAssetCode(printer.asset_code ?? '')
-    setEditDepartmentId((printer as unknown as { department_id?: string }).department_id ?? '')
-    setEditDepartment(printer.department ?? '')
+
+    let matchedId = printer.department_id ?? ''
+    let matchedName = printer.department ?? ''
+    if (!matchedId && matchedName) {
+      const found = departmentsList.find(
+        (d) => d.name.toLowerCase() === matchedName.toLowerCase() || d.code.toLowerCase() === matchedName.toLowerCase(),
+      )
+      if (found) {
+        matchedId = found.id
+        matchedName = found.name
+      }
+    } else if (matchedId) {
+      const found = departmentsList.find((d) => d.id === matchedId)
+      if (found) {
+        matchedName = found.name
+      }
+    }
+
+    setEditDepartmentId(matchedId)
+    setEditDepartment(matchedName)
     setEditAddress(printer.address ?? '')
     setEditPort(String(printer.port ?? 161))
     setEditCommunity('')
@@ -1022,16 +1040,21 @@ export function DevicesPage() {
                   </div>
                   <select
                     id="edit-department"
-                    value={editDepartmentId || editDepartment}
+                    value={
+                      editDepartmentId ||
+                      (editDepartment && !departmentsList.some((d) => d.id === editDepartmentId) ? '__custom__' : '')
+                    }
                     onChange={(e) => {
                       const val = e.target.value
-                      const found = departmentsList.find((d) => d.id === val || d.name === val)
+                      if (val === '' || val === '__custom__') {
+                        setEditDepartmentId('')
+                        setEditDepartment(val === '__custom__' ? editDepartment : '')
+                        return
+                      }
+                      const found = departmentsList.find((d) => d.id === val)
                       if (found) {
                         setEditDepartmentId(found.id)
                         setEditDepartment(found.name)
-                      } else {
-                        setEditDepartmentId('')
-                        setEditDepartment(val)
                       }
                     }}
                     className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-900 shadow-2xs cursor-pointer"
@@ -1043,9 +1066,9 @@ export function DevicesPage() {
                       </option>
                     ))}
                     {editDepartment &&
-                      !departmentsList.some((d) => d.id === editDepartmentId || d.name === editDepartment) && (
-                        <option value={editDepartment}>{editDepartment} (Chưa chuẩn hóa)</option>
-                      )}
+                      !departmentsList.some(
+                        (d) => d.id === editDepartmentId || d.name.toLowerCase() === editDepartment.toLowerCase(),
+                      ) && <option value="__custom__">{editDepartment} (Chưa chuẩn hóa)</option>}
                   </select>
                 </div>
                 <div>

@@ -1568,7 +1568,8 @@ func (s *Server) updatePrinter(w http.ResponseWriter, r *http.Request, deviceID 
 			writeError(w, http.StatusNotFound, "not_found", "printer was not found")
 			return
 		}
-		writeError(w, http.StatusConflict, "printer_update_failed", "could not update printer")
+		slog.Error("failed to update printer", "device_id", deviceID, "error", err)
+		writeError(w, http.StatusConflict, "printer_update_failed", "could not update printer: "+err.Error())
 		return
 	}
 	updated, err := s.store.GetDevice(r.Context(), deviceID)
