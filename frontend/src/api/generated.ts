@@ -623,6 +623,7 @@ export interface components {
             readonly $schema?: string;
             asset_code?: string;
             department?: string;
+            department_id?: string;
             display_name: string;
             manufacturer?: string;
             model?: string;
@@ -934,6 +935,7 @@ export interface components {
             address?: string;
             asset_code?: string;
             department?: string;
+            department_id?: string;
             display_name: string;
             id: string;
             /** Format: date-time */
@@ -1025,6 +1027,7 @@ export interface components {
             auth_protocol?: "MD5" | "SHA";
             community?: string;
             department?: string;
+            department_id?: string;
             display_name: string;
             manufacturer?: string;
             model?: string;
@@ -1158,6 +1161,7 @@ export interface components {
             auth_protocol?: "MD5" | "SHA";
             community?: string;
             department?: string;
+            department_id?: string;
             display_name: string;
             manufacturer?: string;
             model?: string;
