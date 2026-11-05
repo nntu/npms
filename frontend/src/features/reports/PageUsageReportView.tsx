@@ -9,7 +9,7 @@ import {
   Scan,
   Sparkle,
 } from '@phosphor-icons/react'
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import type { PageUsageReport } from '../../api/client'
 import { PageUsageCharts } from './PageUsageCharts'
 
@@ -31,7 +31,27 @@ export function PageUsageReportView({
   isExporting,
 }: PageUsageReportViewProps) {
   const [viewMode, setPageViewMode] = useState<'department' | 'printer'>('department')
-  const [expandedDept, setExpandedDept] = useState<string | null>(null)
+  const [expandedDepts, setExpandedDepts] = useState<Set<string>>(new Set())
+
+  const toggleDept = (deptName: string) => {
+    setExpandedDepts((prev) => {
+      const next = new Set(prev)
+      if (next.has(deptName)) {
+        next.delete(deptName)
+      } else {
+        next.add(deptName)
+      }
+      return next
+    })
+  }
+
+  const expandAll = () => {
+    setExpandedDepts(new Set(filteredDepartments.map((d) => d.department)))
+  }
+
+  const collapseAll = () => {
+    setExpandedDepts(new Set())
+  }
 
   // Filtered printers
   const filteredPrinters = useMemo(() => {
@@ -271,140 +291,211 @@ export function PageUsageReportView({
                   <th className="py-3 px-4 text-right">Số trang in quy đổi</th>
                   <th className="py-3 px-4 text-right">Số trang quét (Scan)</th>
                   <th className="py-3 px-4 text-right">Tổng counter tích lũy</th>
-                  <th className="py-3 px-4 text-center w-28">Chi tiết máy</th>
+                  <th className="py-3 px-4 text-center w-36">
+                    <div className="flex items-center justify-center gap-1.5">
+                      <span>Chi tiết máy</span>
+                      {filteredDepartments.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={expandedDepts.size === filteredDepartments.length ? collapseAll : expandAll}
+                          className="text-[10px] text-emerald-700 hover:text-emerald-900 underline font-normal cursor-pointer"
+                          title={
+                            expandedDepts.size === filteredDepartments.length ? 'Thu gọn tất cả' : 'Mở rộng tất cả'
+                          }
+                        >
+                          {expandedDepts.size === filteredDepartments.length ? 'Thu gọn' : 'Mở tất cả'}
+                        </button>
+                      )}
+                    </div>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
                 {filteredDepartments.map((dept, idx) => {
-                  const isExpanded = expandedDept === dept.department
+                  const isExpanded = expandedDepts.has(dept.department)
                   const deptPrint = dept.total_print_pages
                   return (
-                    <tr key={dept.department} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-3.5 px-4 text-center font-semibold text-slate-500">{idx + 1}</td>
-                      <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-2">
-                          <Buildings size={16} className="text-emerald-700 shrink-0" weight="bold" />
-                          <span className="font-bold text-slate-900 text-sm">{dept.department}</span>
-                        </div>
-                      </td>
-                      <td className="py-3.5 px-4 text-center">
-                        <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold border border-slate-200">
-                          {dept.printer_count} máy
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4 text-right font-mono">
-                        <span className="font-black text-emerald-700 text-sm">{deptPrint.toLocaleString('vi-VN')}</span>{' '}
-                        <span className="text-slate-500 font-normal font-sans">trang</span>
-                      </td>
-                      <td className="py-3.5 px-4 text-right font-mono">
-                        {dept.total_scan_pages > 0 ? (
-                          <span className="font-bold text-cyan-700">
-                            {dept.total_scan_pages.toLocaleString('vi-VN')}{' '}
-                            <span className="text-slate-500 font-normal font-sans">trang</span>
+                    <Fragment key={dept.department}>
+                      <tr
+                        className={`transition-colors ${
+                          isExpanded
+                            ? 'bg-emerald-50/60 border-l-4 border-l-emerald-600 font-semibold'
+                            : 'hover:bg-slate-50/80'
+                        }`}
+                      >
+                        <td className="py-3.5 px-4 text-center font-semibold text-slate-500">{idx + 1}</td>
+                        <td className="py-3.5 px-4">
+                          <button
+                            type="button"
+                            onClick={() => toggleDept(dept.department)}
+                            className="flex items-center gap-2 text-left group cursor-pointer"
+                          >
+                            <Buildings
+                              size={16}
+                              className={
+                                isExpanded
+                                  ? 'text-emerald-600 shrink-0'
+                                  : 'text-slate-500 shrink-0 group-hover:text-emerald-600'
+                              }
+                              weight="bold"
+                            />
+                            <span className="font-bold text-slate-900 group-hover:text-emerald-700 text-sm transition-colors">
+                              {dept.department}
+                            </span>
+                          </button>
+                        </td>
+                        <td className="py-3.5 px-4 text-center">
+                          <span
+                            className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${
+                              isExpanded
+                                ? 'bg-emerald-100/70 text-emerald-800 border-emerald-300'
+                                : 'bg-slate-100 text-slate-700 border-slate-200'
+                            }`}
+                          >
+                            {dept.printer_count} máy
                           </span>
-                        ) : (
-                          <span className="text-slate-400 font-sans">—</span>
-                        )}
-                      </td>
-                      <td className="py-3.5 px-4 text-right text-slate-800 font-semibold font-mono">
-                        {dept.total_current_life.toLocaleString('vi-VN')}
-                      </td>
-                      <td className="py-3.5 px-4 text-center">
-                        <button
-                          type="button"
-                          onClick={() => setExpandedDept(isExpanded ? null : dept.department)}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-semibold transition-all cursor-pointer shadow-2xs"
-                        >
-                          <span>{isExpanded ? 'Đóng' : 'Xem'}</span>
-                          {isExpanded ? <CaretDown size={14} /> : <CaretRight size={14} />}
-                        </button>
-                      </td>
-                    </tr>
+                        </td>
+                        <td className="py-3.5 px-4 text-right font-mono">
+                          <span className="font-black text-emerald-700 text-sm">
+                            {deptPrint.toLocaleString('vi-VN')}
+                          </span>{' '}
+                          <span className="text-slate-500 font-normal font-sans">trang</span>
+                        </td>
+                        <td className="py-3.5 px-4 text-right font-mono">
+                          {dept.total_scan_pages > 0 ? (
+                            <span className="font-bold text-cyan-700">
+                              {dept.total_scan_pages.toLocaleString('vi-VN')}{' '}
+                              <span className="text-slate-500 font-normal font-sans">trang</span>
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 font-sans">—</span>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-4 text-right text-slate-800 font-semibold font-mono">
+                          {dept.total_current_life.toLocaleString('vi-VN')}
+                        </td>
+                        <td className="py-3.5 px-4 text-center">
+                          <button
+                            type="button"
+                            onClick={() => toggleDept(dept.department)}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-semibold transition-all cursor-pointer shadow-2xs ${
+                              isExpanded
+                                ? 'bg-emerald-600 text-white border-emerald-600'
+                                : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+                            }`}
+                          >
+                            <span>{isExpanded ? 'Đóng' : 'Xem'}</span>
+                            {isExpanded ? (
+                              <CaretDown size={14} weight="bold" />
+                            ) : (
+                              <CaretRight size={14} weight="bold" />
+                            )}
+                          </button>
+                        </td>
+                      </tr>
+
+                      {isExpanded && (
+                        <tr className="bg-slate-50/70 border-b border-slate-200">
+                          <td colSpan={7} className="p-3 sm:p-4 bg-slate-50/80">
+                            <div className="rounded-xl border border-emerald-200/90 bg-white p-3.5 sm:p-4 shadow-xs space-y-3">
+                              <div className="flex items-center justify-between">
+                                <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-2">
+                                  <Printer size={16} weight="bold" className="text-emerald-600" />
+                                  <span>
+                                    Danh sách thiết bị ({dept.printers.length} máy) thuộc phòng {dept.department}
+                                  </span>
+                                </h4>
+                                <button
+                                  type="button"
+                                  onClick={() => toggleDept(dept.department)}
+                                  className="text-xs text-slate-500 hover:text-slate-800 font-medium cursor-pointer flex items-center gap-1 hover:underline"
+                                >
+                                  ✕ Thu gọn
+                                </button>
+                              </div>
+
+                              {dept.printers.length === 0 ? (
+                                <div className="text-center py-4 text-xs text-slate-500 italic">
+                                  Không có máy in nào thuộc phòng ban này trong bộ lọc hiện tại.
+                                </div>
+                              ) : (
+                                <div className="overflow-x-auto rounded-lg border border-slate-200">
+                                  <table className="w-full text-left text-xs">
+                                    <thead>
+                                      <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 font-bold uppercase text-[10px]">
+                                        <th className="py-2.5 px-3">Tên thiết bị</th>
+                                        <th className="py-2.5 px-3">IP & Model</th>
+                                        <th className="py-2.5 px-3 text-center">Phân loại</th>
+                                        <th className="py-2.5 px-3 text-center">Đơn vị gốc</th>
+                                        <th className="py-2.5 px-3 text-right">Mốc ban đầu</th>
+                                        <th className="py-2.5 px-3 text-right">Chỉ số hiện tại</th>
+                                        <th className="py-2.5 px-3 text-right">Sản lượng kỳ</th>
+                                        <th className="py-2.5 px-3 text-right">Trang quy đổi</th>
+                                        <th className="py-2.5 px-3">Công thức quy đổi</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-200">
+                                      {dept.printers.map((p) => (
+                                        <tr key={p.device_id} className="hover:bg-slate-50/70 transition-colors">
+                                          <td className="py-2.5 px-3 font-semibold text-slate-900">{p.display_name}</td>
+                                          <td className="py-2.5 px-3 text-slate-600">
+                                            <span className="font-mono text-cyan-700 font-medium">{p.address}</span>
+                                            {p.model ? ` · ${p.model}` : ''}
+                                          </td>
+                                          <td className="py-2.5 px-3 text-center">
+                                            <span
+                                              className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                                p.category === 'scanner'
+                                                  ? 'bg-cyan-50 text-cyan-800 border border-cyan-200'
+                                                  : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                              }`}
+                                            >
+                                              {p.category === 'scanner' ? 'Máy quét' : 'Máy in'}
+                                            </span>
+                                          </td>
+                                          <td className="py-2.5 px-3 text-center">
+                                            <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 font-mono text-[10px]">
+                                              {p.raw_unit}
+                                            </span>
+                                          </td>
+                                          <td className="py-2.5 px-3 text-right font-mono text-slate-500">
+                                            {p.initial_reading != null
+                                              ? p.initial_reading.toLocaleString('vi-VN')
+                                              : '—'}
+                                          </td>
+                                          <td className="py-2.5 px-3 text-right font-mono text-slate-700 font-medium">
+                                            {p.current_reading != null
+                                              ? p.current_reading.toLocaleString('vi-VN')
+                                              : '—'}
+                                          </td>
+                                          <td className="py-2.5 px-3 text-right font-mono text-amber-700 font-semibold">
+                                            {p.period_usage.toLocaleString('vi-VN')}
+                                          </td>
+                                          <td className="py-2.5 px-3 text-right font-black text-emerald-700 font-mono">
+                                            {p.normalized_pages.toLocaleString('vi-VN')}{' '}
+                                            <span className="text-[11px] font-normal font-sans text-slate-500">
+                                              trang
+                                            </span>
+                                          </td>
+                                          <td className="py-2.5 px-3 text-slate-500 text-[11px] italic">
+                                            {p.conversion_note || '—'}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   )
                 })}
               </tbody>
             </table>
           </div>
-
-          {/* Collapsible detail panel for expanded department */}
-          {expandedDept && (
-            <div className="p-4 bg-slate-50 border-t border-slate-200 space-y-3">
-              <div className="flex items-center justify-between">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-700 flex items-center gap-1.5">
-                  <Printer size={16} weight="bold" />
-                  Danh sách máy in & máy scan phòng {expandedDept}
-                </h4>
-                <button
-                  type="button"
-                  onClick={() => setExpandedDept(null)}
-                  className="text-xs text-slate-500 hover:text-slate-800 cursor-pointer"
-                >
-                  ✕ Đóng chi tiết
-                </button>
-              </div>
-
-              <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 font-bold uppercase text-[10px]">
-                      <th className="py-2.5 px-3">Tên thiết bị</th>
-                      <th className="py-2.5 px-3">IP & Model</th>
-                      <th className="py-2.5 px-3 text-center">Phân loại</th>
-                      <th className="py-2.5 px-3 text-center">Đơn vị gốc</th>
-                      <th className="py-2.5 px-3 text-right">Mốc ban đầu</th>
-                      <th className="py-2.5 px-3 text-right">Chỉ số hiện tại</th>
-                      <th className="py-2.5 px-3 text-right">Sản lượng kỳ</th>
-                      <th className="py-2.5 px-3 text-right">Trang quy đổi</th>
-                      <th className="py-2.5 px-3">Công thức quy đổi</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {filteredDepartments
-                      .find((d) => d.department === expandedDept)
-                      ?.printers.map((p) => {
-                        return (
-                          <tr key={p.device_id} className="hover:bg-slate-50/70">
-                            <td className="py-2 px-3 font-semibold text-slate-900">{p.display_name}</td>
-                            <td className="py-2 px-3 text-slate-600">
-                              <span className="font-mono text-cyan-700">{p.address}</span> · {p.model}
-                            </td>
-                            <td className="py-2 px-3 text-center">
-                              <span
-                                className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                                  p.category === 'scanner'
-                                    ? 'bg-cyan-50 text-cyan-800 border border-cyan-200'
-                                    : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                                }`}
-                              >
-                                {p.category === 'scanner' ? 'Máy quét' : 'Máy in'}
-                              </span>
-                            </td>
-                            <td className="py-2 px-3 text-center">
-                              <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 font-mono text-[10px]">
-                                {p.raw_unit}
-                              </span>
-                            </td>
-                            <td className="py-2 px-3 text-right font-mono text-slate-500">
-                              {p.initial_reading ? p.initial_reading.toLocaleString('vi-VN') : '—'}
-                            </td>
-                            <td className="py-2 px-3 text-right font-mono text-slate-700">
-                              {p.current_reading ? p.current_reading.toLocaleString('vi-VN') : '—'}
-                            </td>
-                            <td className="py-2 px-3 text-right font-mono text-amber-700 font-semibold">
-                              {p.period_usage.toLocaleString('vi-VN')}
-                            </td>
-                            <td className="py-2 px-3 text-right font-black text-emerald-700 font-mono">
-                              {p.normalized_pages.toLocaleString('vi-VN')} trang
-                            </td>
-                            <td className="py-2 px-3 text-slate-500 text-[11px] italic">{p.conversion_note}</td>
-                          </tr>
-                        )
-                      })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
         </div>
       ) : (
         /* VIEW 2: FLAT TABLE OF ALL PRINTERS */

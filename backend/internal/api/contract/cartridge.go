@@ -191,6 +191,7 @@ type DiscoveryOutput struct {
 		Manufacturer     string            `json:"manufacturer,omitempty"`
 		Model            string            `json:"model,omitempty"`
 		MatchedProfileID string            `json:"matched_profile_id,omitempty"`
+		DeviceType       string            `json:"device_type,omitempty"`
 		Markers          []DiscoveryMarker `json:"markers,omitempty"`
 	}
 }
@@ -231,6 +232,7 @@ type DiscoveredDevice struct {
 	Manufacturer      string            `json:"manufacturer,omitempty"`
 	Model             string            `json:"model,omitempty"`
 	MatchedProfileID  string            `json:"matched_profile_id,omitempty"`
+	DeviceType        string            `json:"device_type,omitempty"`
 	Markers           []DiscoveryMarker `json:"markers,omitempty"`
 	AlreadyRegistered bool              `json:"already_registered"`
 }

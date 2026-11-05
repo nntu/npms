@@ -189,6 +189,18 @@ export async function scanSubnet(
   })
 }
 
+export async function getDiscoveredDevices(type?: string): Promise<import('./types').StagedDevicesResult> {
+  const query = type ? `?type=${encodeURIComponent(type)}` : ''
+  return request<import('./types').StagedDevicesResult>(`/discovery/devices${query}`)
+}
+
+export async function clearDiscoveredDevices(address?: string): Promise<{ message: string }> {
+  const query = address ? `?address=${encodeURIComponent(address)}` : ''
+  return request<{ message: string }>(`/discovery/devices${query}`, {
+    method: 'DELETE',
+  })
+}
+
 export async function listCartridges(): Promise<{ data: import('./types').Cartridge[]; total: number }> {
   return request<{ data: import('./types').Cartridge[]; total: number }>('/cartridges')
 }

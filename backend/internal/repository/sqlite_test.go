@@ -783,3 +783,103 @@ func TestMarkDeviceOffline(t *testing.T) {
 		t.Fatalf("expected status offline, got %s", dev.Status)
 	}
 }
+
+func TestDiscoveredDevicesStagingAndClassification(t *testing.T) {
+	db, err := database.OpenSQLite(filepath.Join(t.TempDir(), "npms.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ctx := context.Background()
+	if err := db.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	repo, err := NewSQLiteRepository(db.DB)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. Test upsert discovered devices (both printer and scanner)
+	devices := []DiscoveredDeviceRecord{
+		{
+			Address:          "10.141.6.10",
+			Port:             161,
+			Name:             "IM 2500",
+			Manufacturer:     "Ricoh",
+			Model:            "RICOH IM 2500",
+			Serial:           "4412R820165",
+			DeviceType:       "printer",
+			MatchedProfileID: "ricoh-im-2xxx",
+			Status:           "discovered",
+		},
+		{
+			Address:          "10.141.6.41",
+			Port:             161,
+			Name:             "BRNB42200441557",
+			Manufacturer:     "Brother",
+			Model:            "Brother ADS-2400N",
+			Serial:           "E75521J1G462672",
+			DeviceType:       "scanner",
+			MatchedProfileID: "brother-ads",
+			Status:           "discovered",
+		},
+	}
+
+	if err := repo.UpsertDiscoveredDevices(ctx, devices); err != nil {
+		t.Fatalf("upsert discovered devices failed: %v", err)
+	}
+
+	// 2. List all
+	all, err := repo.ListDiscoveredDevices(ctx, "")
+	if err != nil {
+		t.Fatalf("list all failed: %v", err)
+	}
+	if len(all) != 2 {
+		t.Fatalf("expected 2 discovered devices, got %d", len(all))
+	}
+
+	// 3. List filtered by printer
+	printers, err := repo.ListDiscoveredDevices(ctx, "printer")
+	if err != nil {
+		t.Fatalf("list printers failed: %v", err)
+	}
+	if len(printers) != 1 || printers[0].Address != "10.141.6.10" || printers[0].DeviceType != "printer" {
+		t.Fatalf("expected 1 printer, got %+v", printers)
+	}
+
+	// 4. List filtered by scanner
+	scanners, err := repo.ListDiscoveredDevices(ctx, "scanner")
+	if err != nil {
+		t.Fatalf("list scanners failed: %v", err)
+	}
+	if len(scanners) != 1 || scanners[0].Address != "10.141.6.41" || scanners[0].DeviceType != "scanner" {
+		t.Fatalf("expected 1 scanner, got %+v", scanners)
+	}
+
+	// 5. Mark as registered
+	if err := repo.MarkDiscoveredDeviceRegistered(ctx, "10.141.6.41"); err != nil {
+		t.Fatalf("mark registered failed: %v", err)
+	}
+	updatedScanners, _ := repo.ListDiscoveredDevices(ctx, "scanner")
+	if !updatedScanners[0].AlreadyRegistered || updatedScanners[0].Status != "registered" {
+		t.Fatalf("expected scanner to be marked registered, got %+v", updatedScanners[0])
+	}
+
+	// 6. Delete single
+	if err := repo.DeleteDiscoveredDevice(ctx, "10.141.6.10"); err != nil {
+		t.Fatalf("delete discovered device failed: %v", err)
+	}
+	remaining, _ := repo.ListDiscoveredDevices(ctx, "")
+	if len(remaining) != 1 {
+		t.Fatalf("expected 1 device after delete, got %d", len(remaining))
+	}
+
+	// 7. Clear all
+	if err := repo.ClearDiscoveredDevices(ctx); err != nil {
+		t.Fatalf("clear discovered devices failed: %v", err)
+	}
+	cleared, _ := repo.ListDiscoveredDevices(ctx, "")
+	if len(cleared) != 0 {
+		t.Fatalf("expected 0 devices after clear, got %d", len(cleared))
+	}
+}

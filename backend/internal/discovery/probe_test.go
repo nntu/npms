@@ -107,4 +107,91 @@ func TestProbeReadsPrinterMIBTableInstanceSerialAndFallbackName(t *testing.T) {
 	if ricohRes.Name != "RICOH-IM2702-VP" || ricohRes.Serial != "REDACTED-RICOH-005" || ricohRes.Manufacturer != "Ricoh" || ricohRes.Model != "RICOH IM 2702" || len(ricohRes.Markers) != 2 {
 		t.Fatalf("unexpected Ricoh probe result: %+v", ricohRes)
 	}
+	if ricohRes.DeviceType != "printer" {
+		t.Fatalf("expected Ricoh IM 2702 to be printer, got %s", ricohRes.DeviceType)
+	}
+}
+
+func TestClassifyDeviceType(t *testing.T) {
+	tests := []struct {
+		name             string
+		manufacturer     string
+		model            string
+		devName          string
+		descr            string
+		sysObjectID      string
+		matchedProfileID string
+		markerCount      int
+		want             string
+	}{
+		{
+			name:             "Brother ADS-2400N scanner",
+			manufacturer:     "Brother",
+			model:            "Brother ADS-2400N",
+			devName:          "BRNB42200441557",
+			descr:            "Brother NC-04h, Firmware Ver.U ,MID 8WD-501",
+			matchedProfileID: "brother-ads",
+			markerCount:      0,
+			want:             "scanner",
+		},
+		{
+			name:             "Brother NC-10h network card for ADS-4300N",
+			manufacturer:     "Brother",
+			model:            "Brother NC-10h",
+			devName:          "BRN000EC6962304",
+			descr:            "Brother NC-10h, Firmware Ver.2.28, MID 5WD-B03",
+			matchedProfileID: "",
+			markerCount:      0,
+			want:             "scanner",
+		},
+		{
+			name:             "HP ScanJet Enterprise Flow 7000",
+			manufacturer:     "HP",
+			model:            "HP ScanJet Flow 7000 s3",
+			devName:          "SCANJET-7000",
+			descr:            "HP ScanJet Flow 7000",
+			matchedProfileID: "",
+			markerCount:      0,
+			want:             "scanner",
+		},
+		{
+			name:             "Fujitsu fi-7160 document scanner",
+			manufacturer:     "Fujitsu",
+			model:            "fi-7160",
+			devName:          "FI-7160",
+			descr:            "Fujitsu fi-7160 Scanner",
+			matchedProfileID: "",
+			markerCount:      0,
+			want:             "scanner",
+		},
+		{
+			name:             "HP LaserJet Enterprise M501dn printer",
+			manufacturer:     "HP",
+			model:            "HP LaserJet Enterprise M501dn",
+			devName:          "HP-M501DN",
+			descr:            "Hewlett-Packard HP LaserJet Enterprise M501dn",
+			matchedProfileID: "hp-laserjet-enterprise-m501dn",
+			markerCount:      1,
+			want:             "printer",
+		},
+		{
+			name:             "Brother HL-L5100DN printer",
+			manufacturer:     "Brother",
+			model:            "Brother HL-L5100DN",
+			devName:          "BRNB42200B39DB8",
+			descr:            "Brother NC-8300h",
+			matchedProfileID: "brother-hl-l5100dn",
+			markerCount:      1,
+			want:             "printer",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ClassifyDeviceType(tt.manufacturer, tt.model, tt.devName, tt.descr, tt.sysObjectID, tt.matchedProfileID, tt.markerCount)
+			if got != tt.want {
+				t.Errorf("ClassifyDeviceType() = %q, want %q", got, tt.want)
+			}
+		})
+	}
 }

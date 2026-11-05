@@ -686,6 +686,7 @@ export interface components {
             address: string;
             already_registered: boolean;
             description: string;
+            device_type?: string;
             location?: string;
             manufacturer?: string;
             markers?: components["schemas"]["DiscoveryMarker"][] | null;
@@ -745,6 +746,7 @@ export interface components {
             /** Format: ipv4 */
             address: string;
             description: string;
+            device_type?: string;
             location?: string;
             manufacturer?: string;
             markers?: components["schemas"]["DiscoveryMarker"][] | null;
@@ -936,6 +938,7 @@ export interface components {
             asset_code?: string;
             department?: string;
             department_id?: string;
+            device_type?: string;
             display_name: string;
             id: string;
             /** Format: date-time */

@@ -8,21 +8,32 @@ import {
   ListChecks,
   MagnifyingGlass,
   PlusCircle,
+  Printer,
+  Scan,
   Shield,
   Square,
+  Trash,
   Warning,
   X,
 } from '@phosphor-icons/react'
-import { useMutation } from '@tanstack/react-query'
-import { useMemo, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { bulkRegisterPrinters, probeDiscovery, relocatePrinterIP, scanSubnet } from '../../api/client'
+import {
+  bulkRegisterPrinters,
+  clearDiscoveredDevices,
+  getDiscoveredDevices,
+  probeDiscovery,
+  relocatePrinterIP,
+  scanSubnet,
+} from '../../api/client'
 import type { BulkRegisterPrinterItem, DiscoveredPrinter, SubnetScanResult } from '../../api/types'
-import { showError, showSuccess } from '../../utils/sweetalert'
+import { showConfirm, showError, showSuccess } from '../../utils/sweetalert'
 import { useDepartments } from '../departments/useDepartments'
 
 export function DiscoveryPage() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [activeTab, setActiveTab] = useState<'subnet' | 'single'>('subnet')
 
   // Subnet scan state
@@ -35,6 +46,25 @@ export function DiscoveryPage() {
   const [subnetTimeout, setSubnetTimeout] = useState('1000')
   const [subnetConcurrency, setSubnetConcurrency] = useState('25')
   const [scanResult, setScanResult] = useState<SubnetScanResult | null>(null)
+
+  // Device type filter state
+  const [deviceTypeFilter, setDeviceTypeFilter] = useState<'all' | 'printer' | 'scanner'>('all')
+
+  // Staged devices query (lưu tạm)
+  const stagedQuery = useQuery({
+    queryKey: ['staged-devices'],
+    queryFn: () => getDiscoveredDevices(),
+  })
+
+  // Synchronize scanResult with staged query if not actively set by a scan
+  useEffect(() => {
+    if (stagedQuery.data && !scanResult && stagedQuery.data.discovered_printers.length > 0) {
+      setScanResult({
+        scanned_count: stagedQuery.data.total,
+        discovered_printers: stagedQuery.data.discovered_printers,
+      })
+    }
+  }, [stagedQuery.data, scanResult])
 
   // Bulk selection and registration state
   const departmentsQuery = useDepartments()
@@ -49,10 +79,25 @@ export function DiscoveryPage() {
   const [probeAddress, setProbeAddress] = useState('')
   const [probeCommunity, setProbeCommunity] = useState('public')
 
+  const allDiscovered = useMemo(() => scanResult?.discovered_printers ?? [], [scanResult])
+
+  const printerCount = useMemo(
+    () => allDiscovered.filter((p) => (p.device_type || 'printer') === 'printer').length,
+    [allDiscovered],
+  )
+  const scannerCount = useMemo(() => allDiscovered.filter((p) => p.device_type === 'scanner').length, [allDiscovered])
+
+  const displayedPrinters = useMemo(() => {
+    if (deviceTypeFilter === 'all') return allDiscovered
+    return allDiscovered.filter((p) => (p.device_type || 'printer') === deviceTypeFilter)
+  }, [allDiscovered, deviceTypeFilter])
+
   const singleDiscovery = useMutation({
     mutationFn: () => probeDiscovery({ address: probeAddress.trim(), version: '2c', community: probeCommunity }),
-    onSuccess: () => {
-      void showSuccess('Đã đọc thông tin máy in!', 'Hệ thống đã kết nối thành công tới thiết bị.')
+    onSuccess: (data) => {
+      void queryClient.invalidateQueries({ queryKey: ['staged-devices'] })
+      const devType = data.device_type === 'scanner' ? 'máy scan' : 'máy in'
+      void showSuccess(`Đã đọc thông tin ${devType}!`, 'Hệ thống đã kết nối thành công tới thiết bị.')
     },
     onError: (err) => {
       void showError(
@@ -77,16 +122,17 @@ export function DiscoveryPage() {
     onSuccess: (data) => {
       setScanResult(data)
       setSelectedIPs(new Set())
+      void queryClient.invalidateQueries({ queryKey: ['staged-devices'] })
       const count = (data.discovered_printers ?? []).length
       if (count > 0) {
         void showSuccess(
           'Quét mạng hoàn tất!',
-          `Đã quét ${data.scanned_count} địa chỉ IP, tìm thấy ${count} máy in trong mạng LAN.`,
+          `Đã quét ${data.scanned_count} địa chỉ IP, tìm thấy ${count} thiết bị và tự động lưu tạm vào hệ thống.`,
         )
       } else {
         void showSuccess(
           'Quét mạng hoàn tất!',
-          `Đã quét ${data.scanned_count} địa chỉ IP nhưng không phát hiện máy in nào phản hồi SNMP. Kiểm tra lại Community String hoặc dải IP.`,
+          `Đã quét ${data.scanned_count} địa chỉ IP nhưng không phát hiện thiết bị nào phản hồi SNMP. Kiểm tra lại Community String hoặc dải IP.`,
         )
       }
     },
@@ -108,14 +154,63 @@ export function DiscoveryPage() {
   }
 
   const toggleSelectAll = () => {
-    if (!scanResult?.discovered_printers) return
-    const unregistered = scanResult.discovered_printers.filter((p) => !p.already_registered)
+    const unregistered = displayedPrinters.filter((p) => !p.already_registered)
     const allUnregisteredSelected = unregistered.length > 0 && unregistered.every((p) => selectedIPs.has(p.address))
 
     if (allUnregisteredSelected) {
-      setSelectedIPs(new Set())
+      setSelectedIPs((prev) => {
+        const next = new Set(prev)
+        for (const p of unregistered) {
+          next.delete(p.address)
+        }
+        return next
+      })
     } else {
-      setSelectedIPs(new Set(unregistered.map((p) => p.address)))
+      setSelectedIPs((prev) => {
+        const next = new Set(prev)
+        for (const p of unregistered) {
+          next.add(p.address)
+        }
+        return next
+      })
+    }
+  }
+
+  const handleClearStaged = async () => {
+    const confirmed = await showConfirm(
+      'Xóa danh sách lưu tạm?',
+      'Bạn có chắc chắn muốn xóa toàn bộ thiết bị trong danh sách lưu tạm không?',
+    )
+    if (!confirmed) return
+    try {
+      await clearDiscoveredDevices()
+      setScanResult({ scanned_count: 0, discovered_printers: [] })
+      setSelectedIPs(new Set())
+      await queryClient.invalidateQueries({ queryKey: ['staged-devices'] })
+      void showSuccess('Đã xóa danh sách lưu tạm!', 'Toàn bộ danh sách thiết bị lưu tạm đã được làm trống.')
+    } catch (err) {
+      void showError('Không thể xóa', err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  const handleDeleteStagedItem = async (address: string) => {
+    try {
+      await clearDiscoveredDevices(address)
+      setScanResult((prev) => {
+        if (!prev) return null
+        return {
+          ...prev,
+          discovered_printers: (prev.discovered_printers ?? []).filter((p) => p.address !== address),
+        }
+      })
+      setSelectedIPs((prev) => {
+        const next = new Set(prev)
+        next.delete(address)
+        return next
+      })
+      await queryClient.invalidateQueries({ queryKey: ['staged-devices'] })
+    } catch (err) {
+      void showError('Không thể xóa thiết bị', err instanceof Error ? err.message : String(err))
     }
   }
 
@@ -131,9 +226,13 @@ export function DiscoveryPage() {
         port: p.port || 161,
         version: '2c',
         community: subnetCommunity.trim() || 'public',
-        display_name: [p.model, p.name].filter(Boolean).join(' - ') || p.name || `Máy in ${p.address}`,
+        display_name:
+          [p.model, p.name].filter(Boolean).join(' - ') ||
+          p.name ||
+          (p.device_type === 'scanner' ? `Máy scan ${p.address}` : `Máy in ${p.address}`),
         manufacturer: p.manufacturer || undefined,
         model: p.model || undefined,
+        device_type: p.device_type || 'printer',
         serial: p.serial || undefined,
         sys_object_id: p.sys_object_id || undefined,
         profile_id: p.matched_profile_id || undefined,
@@ -223,6 +322,7 @@ export function DiscoveryPage() {
             matched_profile_id: device.matched_profile_id,
             markers: device.markers,
             location: device.location,
+            device_type: device.device_type || 'printer',
           },
           community: subnetCommunity || 'public',
         },
@@ -447,39 +547,114 @@ export function DiscoveryPage() {
             </form>
           </div>
 
-          {/* Subnet Scan Results Table */}
-          {scanResult && (
+          {/* Subnet Scan Results Table / Staged Devices */}
+          {(scanResult || allDiscovered.length > 0) && (
             <div className="glass-panel overflow-hidden space-y-4">
               <div className="p-6 border-b border-slate-200 flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <div className="flex items-center gap-2">
                     <CheckCircle size={20} className="text-emerald-600" />
-                    <h3 className="text-lg font-bold text-slate-900">Kết quả quét dải mạng</h3>
+                    <h3 className="text-lg font-bold text-slate-900">Danh sách thiết bị phát hiện (Đã lưu tạm)</h3>
                   </div>
                   <p className="text-slate-600 text-xs mt-1">
-                    Đã quét <strong className="text-slate-800">{scanResult.scanned_count}</strong> địa chỉ IP · Phát
-                    hiện <strong className="text-cyan-700">{(scanResult.discovered_printers ?? []).length}</strong> máy
-                    in phản hồi SNMP
+                    Tổng cộng: <strong className="text-slate-900">{allDiscovered.length}</strong> thiết bị lưu tạm ·{' '}
+                    <strong className="text-sky-700">{printerCount}</strong> máy in ·{' '}
+                    <strong className="text-purple-700">{scannerCount}</strong> máy scan
                   </p>
                 </div>
 
-                {/* Quick select unregistered button */}
-                {(scanResult.discovered_printers ?? []).some((p) => !p.already_registered) && (
-                  <button
-                    type="button"
-                    onClick={toggleSelectAll}
-                    className="inline-flex items-center gap-1.5 text-xs text-cyan-800 hover:text-cyan-900 bg-cyan-50 hover:bg-cyan-100 border border-cyan-200 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+                <div className="flex items-center gap-2">
+                  {allDiscovered.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => void handleClearStaged()}
+                      className="inline-flex items-center gap-1.5 text-xs text-rose-700 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+                      title="Xóa toàn bộ danh sách thiết bị lưu tạm"
+                    >
+                      <Trash size={15} />
+                      <span>Xóa danh sách tạm</span>
+                    </button>
+                  )}
+
+                  {/* Quick select unregistered button */}
+                  {displayedPrinters.some((p) => !p.already_registered) && (
+                    <button
+                      type="button"
+                      onClick={toggleSelectAll}
+                      className="inline-flex items-center gap-1.5 text-xs text-cyan-800 hover:text-cyan-900 bg-cyan-50 hover:bg-cyan-100 border border-cyan-200 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+                    >
+                      <ListChecks size={16} weight="bold" />
+                      <span>
+                        {displayedPrinters.filter((p) => !p.already_registered).every((p) => selectedIPs.has(p.address))
+                          ? 'Bỏ chọn đang hiển thị'
+                          : `Chọn chưa đăng ký (${displayedPrinters.filter((p) => !p.already_registered).length})`}
+                      </span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Filter Tabs: Tất cả, Máy in, Máy scan */}
+              <div className="px-6 pt-2 flex flex-wrap items-center gap-2">
+                <span className="text-xs font-bold text-slate-500 mr-1">Phân loại:</span>
+                <button
+                  type="button"
+                  onClick={() => setDeviceTypeFilter('all')}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    deviceTypeFilter === 'all'
+                      ? 'bg-slate-900 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  <span>Tất cả thiết bị</span>
+                  <span
+                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                      deviceTypeFilter === 'all' ? 'bg-slate-700 text-slate-100' : 'bg-slate-200 text-slate-700'
+                    }`}
                   >
-                    <ListChecks size={16} weight="bold" />
-                    <span>
-                      {(scanResult.discovered_printers ?? [])
-                        .filter((p) => !p.already_registered)
-                        .every((p) => selectedIPs.has(p.address))
-                        ? 'Bỏ chọn tất cả'
-                        : `Chọn tất cả chưa đăng ký (${(scanResult.discovered_printers ?? []).filter((p) => !p.already_registered).length})`}
-                    </span>
-                  </button>
-                )}
+                    {allDiscovered.length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setDeviceTypeFilter('printer')}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    deviceTypeFilter === 'printer'
+                      ? 'bg-sky-600 text-white shadow-xs'
+                      : 'bg-sky-50 text-sky-800 border border-sky-200 hover:bg-sky-100'
+                  }`}
+                >
+                  <Printer size={15} weight="bold" />
+                  <span>Máy in</span>
+                  <span
+                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                      deviceTypeFilter === 'printer' ? 'bg-sky-700 text-white' : 'bg-sky-200/80 text-sky-900'
+                    }`}
+                  >
+                    {printerCount}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setDeviceTypeFilter('scanner')}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    deviceTypeFilter === 'scanner'
+                      ? 'bg-purple-600 text-white shadow-xs'
+                      : 'bg-purple-50 text-purple-800 border border-purple-200 hover:bg-purple-100'
+                  }`}
+                >
+                  <Scan size={15} weight="bold" />
+                  <span>Máy scan</span>
+                  <span
+                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                      deviceTypeFilter === 'scanner' ? 'bg-purple-700 text-white' : 'bg-purple-200/80 text-purple-900'
+                    }`}
+                  >
+                    {scannerCount}
+                  </span>
+                </button>
               </div>
 
               {/* Bulk Action Bar */}
@@ -490,7 +665,7 @@ export function DiscoveryPage() {
                       {selectedIPs.size}
                     </span>
                     <span className="text-sm font-semibold text-slate-900">
-                      máy in đã được chọn để đăng ký hàng loạt
+                      thiết bị đã được chọn để đăng ký hàng loạt
                     </span>
                   </div>
                   <div className="flex items-center gap-3">
@@ -507,19 +682,18 @@ export function DiscoveryPage() {
                       className="inline-flex items-center gap-1.5 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold px-4 py-2 rounded-xl text-xs sm:text-sm transition-all shadow-xs cursor-pointer"
                     >
                       <ListChecks size={18} weight="bold" />
-                      <span>Đăng ký hàng loạt ({selectedIPs.size} máy in)</span>
+                      <span>Đăng ký hàng loạt ({selectedIPs.size} thiết bị)</span>
                     </button>
                   </div>
                 </div>
               )}
 
-              {(scanResult.discovered_printers ?? []).length === 0 ? (
+              {displayedPrinters.length === 0 ? (
                 <div className="p-10 text-center text-slate-600 text-sm">
                   <Warning size={40} className="text-amber-500 mx-auto mb-2 opacity-80" />
-                  Không tìm thấy máy in nào trong dải mạng đã chọn phản hồi SNMP.
-                  <p className="text-xs text-slate-500 mt-1">
-                    Gợi ý: Kiểm tra xem máy in đã bật SNMP v2c chưa, và community string có phải là "public" không.
-                  </p>
+                  {allDiscovered.length > 0
+                    ? `Không có thiết bị nào thuộc phân loại "${deviceTypeFilter === 'printer' ? 'Máy in' : 'Máy scan'}".`
+                    : 'Không tìm thấy thiết bị nào trong dải mạng đã chọn phản hồi SNMP.'}
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -530,12 +704,12 @@ export function DiscoveryPage() {
                           <button
                             type="button"
                             onClick={toggleSelectAll}
-                            disabled={!(scanResult.discovered_printers ?? []).some((p) => !p.already_registered)}
+                            disabled={!displayedPrinters.some((p) => !p.already_registered)}
                             title="Chọn tất cả chưa đăng ký"
                             className="text-slate-400 hover:text-cyan-600 disabled:opacity-30 cursor-pointer flex items-center"
                           >
-                            {(scanResult.discovered_printers ?? []).some((p) => !p.already_registered) &&
-                            (scanResult.discovered_printers ?? [])
+                            {displayedPrinters.some((p) => !p.already_registered) &&
+                            displayedPrinters
                               .filter((p) => !p.already_registered)
                               .every((p) => selectedIPs.has(p.address)) ? (
                               <CheckSquare size={18} weight="fill" className="text-cyan-600" />
@@ -545,6 +719,7 @@ export function DiscoveryPage() {
                           </button>
                         </th>
                         <th className="p-4">Địa chỉ IP</th>
+                        <th className="p-4">Phân loại</th>
                         <th className="p-4">Hãng & Model</th>
                         <th className="p-4">Vị trí (SNMP)</th>
                         <th className="p-4">Số Serial</th>
@@ -555,7 +730,7 @@ export function DiscoveryPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200">
-                      {(scanResult.discovered_printers ?? []).map((printer) => {
+                      {displayedPrinters.map((printer) => {
                         const markerText = printer.markers?.length
                           ? printer.markers
                               .map(
@@ -564,6 +739,7 @@ export function DiscoveryPage() {
                               .join(' · ')
                           : '—'
                         const isSelected = selectedIPs.has(printer.address)
+                        const isScanner = printer.device_type === 'scanner'
 
                         return (
                           <tr
@@ -587,6 +763,19 @@ export function DiscoveryPage() {
                               </button>
                             </td>
                             <td className="p-4 font-mono text-cyan-700 font-semibold">{printer.address}</td>
+                            <td className="p-4">
+                              {isScanner ? (
+                                <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-lg bg-purple-50 text-purple-700 border border-purple-200 shadow-2xs">
+                                  <Scan size={14} weight="bold" className="text-purple-600" />
+                                  <span>Máy scan</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-lg bg-sky-50 text-sky-700 border border-sky-200 shadow-2xs">
+                                  <Printer size={14} weight="bold" className="text-sky-600" />
+                                  <span>Máy in</span>
+                                </span>
+                              )}
+                            </td>
                             <td className="p-4">
                               <span className="font-bold text-slate-900 block">
                                 {[printer.manufacturer, printer.model].filter(Boolean).join(' ') || printer.name || '—'}
@@ -617,7 +806,7 @@ export function DiscoveryPage() {
                             </td>
                             <td className="p-4">
                               <span className="text-xs font-mono bg-cyan-50 border border-cyan-200 text-cyan-800 px-2 py-0.5 rounded-lg font-medium">
-                                {printer.matched_profile_id || 'generic-printer-mib'}
+                                {printer.matched_profile_id || (isScanner ? 'brother-ads' : 'generic-printer-mib')}
                               </span>
                             </td>
                             <td className="p-4 text-slate-700 text-xs font-mono">{markerText}</td>
@@ -638,26 +827,43 @@ export function DiscoveryPage() {
                               )}
                             </td>
                             <td className="p-4 pr-6 text-right">
-                              {printer.is_ip_changed ? (
+                              <div className="inline-flex items-center gap-2 justify-end">
+                                {printer.is_ip_changed ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleRelocateIP(printer)}
+                                    className="inline-flex items-center gap-1.5 bg-amber-600 hover:bg-amber-500 text-white font-semibold px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer shadow-xs"
+                                    title={`Cập nhật IP cho ${printer.existing_display_name || printer.name} từ ${printer.old_address} sang ${printer.address}`}
+                                  >
+                                    <ArrowClockwise size={14} weight="bold" />
+                                    <span>Cập nhật IP</span>
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRegisterDiscovered(printer)}
+                                    className="inline-flex items-center gap-1.5 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer shadow-xs"
+                                  >
+                                    <PlusCircle size={14} weight="bold" />
+                                    <span>
+                                      {printer.already_registered
+                                        ? 'Cập nhật'
+                                        : isScanner
+                                          ? 'Thêm máy scan'
+                                          : 'Thêm máy in'}
+                                    </span>
+                                  </button>
+                                )}
+
                                 <button
                                   type="button"
-                                  onClick={() => void handleRelocateIP(printer)}
-                                  className="inline-flex items-center gap-1.5 bg-amber-600 hover:bg-amber-500 text-white font-semibold px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer shadow-xs"
-                                  title={`Cập nhật IP cho ${printer.existing_display_name || printer.name} từ ${printer.old_address} sang ${printer.address}`}
+                                  onClick={() => void handleDeleteStagedItem(printer.address)}
+                                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                  title="Xóa khỏi danh sách lưu tạm"
                                 >
-                                  <ArrowClockwise size={14} weight="bold" />
-                                  <span>Cập nhật IP</span>
+                                  <Trash size={16} />
                                 </button>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => handleRegisterDiscovered(printer)}
-                                  className="inline-flex items-center gap-1.5 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer shadow-xs"
-                                >
-                                  <PlusCircle size={14} weight="bold" />
-                                  <span>{printer.already_registered ? 'Cập nhật' : 'Thêm máy in'}</span>
-                                </button>
-                              )}
+                              </div>
                             </td>
                           </tr>
                         )

@@ -23,6 +23,7 @@ type Printer struct {
 	ProfileID    *string `json:"profile_id,omitempty"`
 	Status       string  `json:"status" enum:"online,offline,unknown,unavailable"`
 	LastSeenAt   *string `json:"last_seen_at,omitempty" format:"date-time"`
+	DeviceType   string  `json:"device_type,omitempty"`
 }
 
 type PrinterPageOutput struct {

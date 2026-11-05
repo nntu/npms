@@ -52,6 +52,11 @@ type DeviceStore interface {
 	ListJobsWithDevice(context.Context, int, int, string) ([]repository.JobWithDevice, int, error)
 	AcquirePollLease(context.Context, string, string, string, time.Time, time.Time) (bool, error)
 	ReleasePollLease(context.Context, string, string, string) error
+	UpsertDiscoveredDevices(context.Context, []repository.DiscoveredDeviceRecord) error
+	ListDiscoveredDevices(context.Context, string) ([]repository.DiscoveredDeviceRecord, error)
+	DeleteDiscoveredDevice(context.Context, string) error
+	ClearDiscoveredDevices(context.Context) error
+	MarkDiscoveredDeviceRegistered(context.Context, string) error
 }
 
 type StatusPoller interface {
@@ -177,6 +182,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/v1/snmp/profiles/test", s.testProfileConnection)
 	mux.HandleFunc("/api/v1/discovery/probe", s.probeDiscovery)
 	mux.HandleFunc("/api/v1/discovery/scan", s.scanSubnet)
+	mux.HandleFunc("/api/v1/discovery/devices", s.handleDiscoveredDevices)
+	mux.HandleFunc("/api/v1/discovery/devices/", s.handleDiscoveredDevices)
 	mux.HandleFunc("/api/v1/printers/register", s.registerPrinter)
 	mux.HandleFunc("/api/v1/printers/register/", s.registerPrinter)
 	mux.HandleFunc("/api/v1/printers/bulk-register", s.bulkRegisterPrinters)
@@ -435,6 +442,9 @@ func (s *Server) probeDiscovery(w http.ResponseWriter, r *http.Request) {
 			result.MatchedProfileID = selected.ID
 		}
 	}
+	if result.DeviceType == "" {
+		result.DeviceType = discovery.ClassifyDeviceType(result.Manufacturer, result.Model, result.Name, result.Description, result.SysObjectID, result.MatchedProfileID, len(result.Markers))
+	}
 	writeJSON(w, http.StatusOK, result)
 }
 
@@ -465,6 +475,7 @@ type discoveredPrinterItem struct {
 	Location            string                  `json:"location,omitempty"`
 	Manufacturer        string                  `json:"manufacturer,omitempty"`
 	Model               string                  `json:"model,omitempty"`
+	DeviceType          string                  `json:"device_type"`
 	MatchedProfileID    string                  `json:"matched_profile_id,omitempty"`
 	Markers             []discoveryMarkerOutput `json:"markers,omitempty"`
 	AlreadyRegistered   bool                    `json:"already_registered"`
@@ -624,6 +635,11 @@ func (s *Server) scanSubnet(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		devType := res.DeviceType
+		if devType == "" {
+			devType = discovery.ClassifyDeviceType(res.Manufacturer, res.Model, res.Name, res.Description, res.SysObjectID, matchedProfile, len(markers))
+		}
+
 		items = append(items, discoveredPrinterItem{
 			Address:             res.Address,
 			Port:                port,
@@ -635,6 +651,7 @@ func (s *Server) scanSubnet(w http.ResponseWriter, r *http.Request) {
 			Location:            res.Location,
 			Manufacturer:        res.Manufacturer,
 			Model:               res.Model,
+			DeviceType:          devType,
 			MatchedProfileID:    matchedProfile,
 			Markers:             markers,
 			AlreadyRegistered:   registeredIPs[res.Address],
@@ -645,10 +662,167 @@ func (s *Server) scanSubnet(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	// Persist discovered devices temporarily into SQLite (lưu tạm)
+	if s.store != nil && len(items) > 0 {
+		records := make([]repository.DiscoveredDeviceRecord, 0, len(items))
+		now := time.Now().UTC()
+		for _, it := range items {
+			markersJSON, _ := json.Marshal(it.Markers)
+			records = append(records, repository.DiscoveredDeviceRecord{
+				Address:           it.Address,
+				Port:              it.Port,
+				Name:              it.Name,
+				Description:       it.Description,
+				SysObjectID:       it.SysObjectID,
+				Serial:            it.Serial,
+				MAC:               it.MAC,
+				Location:          it.Location,
+				Manufacturer:      it.Manufacturer,
+				Model:             it.Model,
+				DeviceType:        it.DeviceType,
+				MatchedProfileID:  it.MatchedProfileID,
+				MarkersJSON:       string(markersJSON),
+				AlreadyRegistered: it.AlreadyRegistered,
+				Status:            "discovered",
+				DiscoveredAt:      now,
+				UpdatedAt:         now,
+			})
+		}
+		if err := s.store.UpsertDiscoveredDevices(r.Context(), records); err != nil {
+			slog.Warn("failed to persist discovered devices", "error", err)
+		}
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
 		"scanned_count":       len(ips),
 		"discovered_printers": items,
 	})
+}
+
+func (s *Server) handleDiscoveredDevices(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodOptions {
+		w.Header().Set("Access-Control-Allow-Origin", s.allowedOrigin)
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, DELETE, OPTIONS")
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if !s.authorized(r) {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "valid bearer token is required")
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		devType := strings.TrimSpace(r.URL.Query().Get("type"))
+		records, err := s.store.ListDiscoveredDevices(r.Context(), devType)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "list_discovered_failed", err.Error())
+			return
+		}
+
+		// Re-check against registered devices
+		registeredIPs := make(map[string]bool)
+		registeredSerials := make(map[string]repository.Device)
+		if existingDevices, err := s.store.ListDevices(r.Context(), 1000, 0); err == nil {
+			for _, dev := range existingDevices {
+				if dev.Address != "" {
+					registeredIPs[dev.Address] = true
+				}
+				sKey := strings.ToUpper(strings.TrimSpace(dev.Serial))
+				if sKey != "" {
+					registeredSerials[sKey] = dev
+				}
+			}
+		}
+
+		items := make([]discoveredPrinterItem, 0, len(records))
+		printersCount := 0
+		scannersCount := 0
+
+		for _, rec := range records {
+			var markers []discoveryMarkerOutput
+			if rec.MarkersJSON != "" {
+				_ = json.Unmarshal([]byte(rec.MarkersJSON), &markers)
+			}
+			isRegistered := registeredIPs[rec.Address] || rec.AlreadyRegistered
+			serialKey := strings.ToUpper(strings.TrimSpace(rec.Serial))
+			isIPChanged := false
+			existingDevID := ""
+			existingDevName := ""
+			oldAddress := ""
+
+			if !registeredIPs[rec.Address] && serialKey != "" {
+				if matchedDev, exists := registeredSerials[serialKey]; exists {
+					isIPChanged = true
+					existingDevID = matchedDev.ID
+					existingDevName = matchedDev.DisplayName
+					oldAddress = matchedDev.Address
+				}
+			}
+
+			dtype := rec.DeviceType
+			if dtype != "scanner" {
+				dtype = "printer"
+				printersCount++
+			} else {
+				scannersCount++
+			}
+
+			items = append(items, discoveredPrinterItem{
+				Address:             rec.Address,
+				Port:                rec.Port,
+				Name:                rec.Name,
+				Description:         rec.Description,
+				SysObjectID:         rec.SysObjectID,
+				Serial:              rec.Serial,
+				MAC:                 rec.MAC,
+				Location:            rec.Location,
+				Manufacturer:        rec.Manufacturer,
+				Model:               rec.Model,
+				DeviceType:          dtype,
+				MatchedProfileID:    rec.MatchedProfileID,
+				Markers:             markers,
+				AlreadyRegistered:   isRegistered,
+				IsIPChanged:         isIPChanged,
+				ExistingDeviceID:    existingDevID,
+				ExistingDisplayName: existingDevName,
+				OldAddress:          oldAddress,
+			})
+		}
+
+		writeJSON(w, http.StatusOK, map[string]any{
+			"discovered_printers": items,
+			"total":               len(items),
+			"printers_count":      printersCount,
+			"scanners_count":      scannersCount,
+		})
+
+	case http.MethodDelete:
+		address := strings.TrimSpace(r.URL.Query().Get("address"))
+		path := strings.TrimPrefix(r.URL.Path, "/api/v1/discovery/devices")
+		path = strings.TrimPrefix(path, "/")
+		if path != "" && address == "" {
+			address = path
+		}
+
+		if address != "" {
+			if err := s.store.DeleteDiscoveredDevice(r.Context(), address); err != nil {
+				writeError(w, http.StatusInternalServerError, "delete_discovered_failed", err.Error())
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"message": "Đã xóa thiết bị lưu tạm thành công", "address": address})
+		} else {
+			if err := s.store.ClearDiscoveredDevices(r.Context()); err != nil {
+				writeError(w, http.StatusInternalServerError, "clear_discovered_failed", err.Error())
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"message": "Đã xóa toàn bộ danh sách thiết bị lưu tạm"})
+		}
+
+	default:
+		s.methodNotAllowed(w)
+	}
 }
 
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
@@ -968,6 +1142,7 @@ type registerPrinterRequest struct {
 	AssetCode      string `json:"asset_code"`
 	Manufacturer   string `json:"manufacturer"`
 	Model          string `json:"model"`
+	DeviceType     string `json:"device_type"`
 	Serial         string `json:"serial"`
 	SysObjectID    string `json:"sys_object_id"`
 	DepartmentID   string `json:"department_id"`
@@ -1067,6 +1242,7 @@ func (s *Server) registerPrinterInternal(ctx context.Context, input registerPrin
 			Port:         uint16(port),
 			SNMPVersion:  secret.Version,
 			Status:       "unknown",
+			DeviceType:   strings.TrimSpace(input.DeviceType),
 		},
 		Credential: repository.SNMPCredential{
 			ID:                      credentialID,
@@ -1129,6 +1305,10 @@ func (s *Server) registerPrinterInternal(ctx context.Context, input registerPrin
 				discoveredInstance = probeMarkers[0].Instance
 			}
 		}
+	}
+
+	if registration.Device.DeviceType == "" {
+		registration.Device.DeviceType = discovery.ClassifyDeviceType(registration.Device.Manufacturer, registration.Device.Model, registration.Device.DisplayName, "", registration.Device.SysObjectID, input.ProfileID, len(probeMarkers))
 	}
 
 	if len(s.profiles) > 0 {
@@ -1496,6 +1676,10 @@ func (s *Server) updatePrinter(w http.ResponseWriter, r *http.Request, deviceID 
 				discoveredInstance = probeMarkers[0].Instance
 			}
 		}
+	}
+
+	if update.Device.DeviceType == "" {
+		update.Device.DeviceType = discovery.ClassifyDeviceType(update.Device.Manufacturer, update.Device.Model, update.Device.DisplayName, "", update.Device.SysObjectID, input.ProfileID, len(probeMarkers))
 	}
 
 	if len(s.profiles) > 0 {
@@ -2062,6 +2246,7 @@ type printerResponse struct {
 	ProfileID    *string `json:"profile_id,omitempty"`
 	Status       string  `json:"status"`
 	LastSeenAt   *string `json:"last_seen_at,omitempty"`
+	DeviceType   string  `json:"device_type"`
 }
 
 type profileResponse struct {
@@ -2108,6 +2293,10 @@ func toPrinterResponse(device repository.Device) printerResponse {
 		p := int(device.Port)
 		port = &p
 	}
+	devType := device.DeviceType
+	if devType != "scanner" {
+		devType = "printer"
+	}
 	return printerResponse{
 		ID: device.ID, AssetCode: nullable(device.AssetCode), DisplayName: device.DisplayName,
 		Manufacturer: nullable(device.Manufacturer), Model: nullable(device.Model), Serial: nullable(device.Serial),
@@ -2116,6 +2305,7 @@ func toPrinterResponse(device repository.Device) printerResponse {
 		Department:   nullable(device.Department),
 		Address:      nullable(device.Address), Port: port, SNMPVersion: nullable(device.SNMPVersion), ProfileID: nullable(device.ProfileKey),
 		Status: device.Status, LastSeenAt: nullableTime(device.LastSeenAt),
+		DeviceType: devType,
 	}
 }
 

@@ -559,6 +559,8 @@ components:
           type: boolean
         description:
           type: string
+        device_type:
+          type: string
         location:
           type: string
         manufacturer:
@@ -683,6 +685,8 @@ components:
           format: ipv4
           type: string
         description:
+          type: string
+        device_type:
           type: string
         location:
           type: string
@@ -1026,6 +1030,8 @@ components:
         department:
           type: string
         department_id:
+          type: string
+        device_type:
           type: string
         display_name:
           type: string

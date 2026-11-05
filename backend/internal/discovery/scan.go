@@ -266,7 +266,11 @@ func isLikelyPrinter(r Result) bool {
 		return true
 	}
 	combined := strings.ToLower(r.Name + " " + r.Description + " " + r.Model)
-	keywords := []string{"print", "laserjet", "pagepro", "ricoh", "brother", "epson", "canon", "kyocera", "xerox", "lexmark", "inkjet", "copier", "mfp"}
+	keywords := []string{
+		"print", "laserjet", "pagepro", "ricoh", "brother", "epson", "canon",
+		"kyocera", "xerox", "lexmark", "inkjet", "copier", "mfp",
+		"scan", "scanner", "scanjet", "ads-", "nc-04h", "nc-10h", "imageformula", "scansnap", "fujitsu", "plustek", "avision",
+	}
 	for _, kw := range keywords {
 		if strings.Contains(combined, kw) {
 			return true

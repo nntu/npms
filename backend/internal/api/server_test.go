@@ -28,6 +28,7 @@ type fakeStore struct {
 	registrationCh chan repository.PrinterRegistration
 	finishCh       chan string
 	leaseHeld      bool
+	discoveredDevs []repository.DiscoveredDeviceRecord
 }
 
 type fakePoller struct {
@@ -240,6 +241,25 @@ func (f fakeStore) SoftDeleteDevice(_ context.Context, id string) error {
 	}
 	return sql.ErrNoRows
 }
+
+func (fakeStore) UpsertDiscoveredDevices(context.Context, []repository.DiscoveredDeviceRecord) error {
+	return nil
+}
+func (f fakeStore) ListDiscoveredDevices(_ context.Context, deviceType string) ([]repository.DiscoveredDeviceRecord, error) {
+	if deviceType == "" {
+		return f.discoveredDevs, nil
+	}
+	var res []repository.DiscoveredDeviceRecord
+	for _, d := range f.discoveredDevs {
+		if d.DeviceType == deviceType {
+			res = append(res, d)
+		}
+	}
+	return res, nil
+}
+func (fakeStore) DeleteDiscoveredDevice(context.Context, string) error         { return nil }
+func (fakeStore) ClearDiscoveredDevices(context.Context) error                 { return nil }
+func (fakeStore) MarkDiscoveredDeviceRegistered(context.Context, string) error { return nil }
 
 func TestListPrintersReturnsPaginatedSafeDTO(t *testing.T) {
 	server, err := NewServer(fakeStore{devices: []repository.Device{{ID: "d1", DisplayName: "Front", Status: "online", Serial: "secret", LastSeenAt: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)}}, total: 1}, "token", "http://localhost:5173")
@@ -992,5 +1012,93 @@ func TestDepartmentEndpoints(t *testing.T) {
 	}
 	if !containsAll(recDel.Body.String(), `"status":"success"`) {
 		t.Fatalf("unexpected delete body: %s", recDel.Body.String())
+	}
+}
+
+func TestDiscoveryDevicesStagingAPI(t *testing.T) {
+	stagedDevs := []repository.DiscoveredDeviceRecord{
+		{
+			Address:          "10.141.6.10",
+			Port:             161,
+			Name:             "IM 2500",
+			Manufacturer:     "Ricoh",
+			Model:            "IM 2500",
+			DeviceType:       "printer",
+			MatchedProfileID: "ricoh-im-2xxx",
+		},
+		{
+			Address:          "10.141.6.41",
+			Port:             161,
+			Name:             "BRNB42200441557",
+			Manufacturer:     "Brother",
+			Model:            "Brother ADS-2400N",
+			DeviceType:       "scanner",
+			MatchedProfileID: "brother-ads",
+		},
+	}
+
+	server, err := NewServer(fakeStore{
+		discoveredDevs: stagedDevs,
+	}, "token", "http://localhost:5173")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. GET all staged devices
+	reqAll := httptest.NewRequest(http.MethodGet, "/api/v1/discovery/devices", nil)
+	reqAll.Header.Set("Authorization", "Bearer token")
+	recAll := httptest.NewRecorder()
+	server.Handler().ServeHTTP(recAll, reqAll)
+	if recAll.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", recAll.Code, recAll.Body.String())
+	}
+	var resAll struct {
+		DiscoveredPrinters []discoveredPrinterItem `json:"discovered_printers"`
+		Total              int                     `json:"total"`
+		PrintersCount      int                     `json:"printers_count"`
+		ScannersCount      int                     `json:"scanners_count"`
+	}
+	if err := json.Unmarshal(recAll.Body.Bytes(), &resAll); err != nil {
+		t.Fatal(err)
+	}
+	if resAll.Total != 2 || resAll.PrintersCount != 1 || resAll.ScannersCount != 1 {
+		t.Fatalf("unexpected staging totals: %+v", resAll)
+	}
+
+	// 2. GET filter by scanner
+	reqScan := httptest.NewRequest(http.MethodGet, "/api/v1/discovery/devices?type=scanner", nil)
+	reqScan.Header.Set("Authorization", "Bearer token")
+	recScan := httptest.NewRecorder()
+	server.Handler().ServeHTTP(recScan, reqScan)
+	if recScan.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", recScan.Code, recScan.Body.String())
+	}
+	var resScan struct {
+		DiscoveredPrinters []discoveredPrinterItem `json:"discovered_printers"`
+		Total              int                     `json:"total"`
+	}
+	if err := json.Unmarshal(recScan.Body.Bytes(), &resScan); err != nil {
+		t.Fatal(err)
+	}
+	if resScan.Total != 1 || resScan.DiscoveredPrinters[0].DeviceType != "scanner" {
+		t.Fatalf("expected 1 scanner, got %+v", resScan)
+	}
+
+	// 3. DELETE single staged device
+	reqDel := httptest.NewRequest(http.MethodDelete, "/api/v1/discovery/devices/10.141.6.41", nil)
+	reqDel.Header.Set("Authorization", "Bearer token")
+	recDel := httptest.NewRecorder()
+	server.Handler().ServeHTTP(recDel, reqDel)
+	if recDel.Code != http.StatusOK {
+		t.Fatalf("expected 200 on delete, got %d: %s", recDel.Code, recDel.Body.String())
+	}
+
+	// 4. DELETE clear all
+	reqClear := httptest.NewRequest(http.MethodDelete, "/api/v1/discovery/devices", nil)
+	reqClear.Header.Set("Authorization", "Bearer token")
+	recClear := httptest.NewRecorder()
+	server.Handler().ServeHTTP(recClear, reqClear)
+	if recClear.Code != http.StatusOK {
+		t.Fatalf("expected 200 on clear, got %d: %s", recClear.Code, recClear.Body.String())
 	}
 }

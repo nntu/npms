@@ -30,6 +30,7 @@ type Result struct {
 	Model            string           `json:"model,omitempty"`
 	MatchedProfileID string           `json:"matched_profile_id,omitempty"`
 	Markers          []snmp.MarkerRow `json:"markers,omitempty"`
+	DeviceType       string           `json:"device_type"`
 }
 
 type ClientFactory func(snmp.Config) (snmp.Client, error)
@@ -108,6 +109,7 @@ func Probe(ctx context.Context, config snmp.Config, factory ClientFactory) (Resu
 		}
 		result.Markers = markers
 	}
+	result.DeviceType = ClassifyDeviceType(result.Manufacturer, result.Model, result.Name, result.Description, result.SysObjectID, result.MatchedProfileID, len(result.Markers))
 	return result, nil
 }
 
@@ -180,6 +182,10 @@ func extractModelFromSysDescr(sysDescr string) string {
 	if desc == "" {
 		return ""
 	}
+	if strings.HasPrefix(desc, "Brother NC-") {
+		parts := strings.Split(desc, ",")
+		return strings.TrimSpace(parts[0])
+	}
 	for _, token := range strings.FieldsFunc(desc, func(r rune) bool { return r == ',' || r == ';' }) {
 		part := strings.TrimSpace(token)
 		upper := strings.ToUpper(part)
@@ -228,4 +234,38 @@ func lookup(values []snmp.VarBind, oid string) string {
 		}
 	}
 	return ""
+}
+
+// ClassifyDeviceType determines whether a discovered device is a "scanner" or "printer".
+func ClassifyDeviceType(manufacturer, model, name, descr, sysObjectID, matchedProfileID string, markerCount int) string {
+	combined := strings.ToLower(strings.Join([]string{manufacturer, model, name, descr, sysObjectID, matchedProfileID}, " "))
+
+	// Check matched profile ID or name containing scanner terms
+	if strings.Contains(strings.ToLower(matchedProfileID), "scan") || strings.Contains(strings.ToLower(matchedProfileID), "brother-ads") {
+		return "scanner"
+	}
+
+	// Brother ADS series or Brother scanner network interfaces (NC-04h, NC-10h, etc.)
+	if strings.Contains(combined, "ads-") || strings.Contains(combined, "nc-04h") || strings.Contains(combined, "nc-10h") {
+		return "scanner"
+	}
+
+	// Dedicated scanner keywords
+	scannerKeywords := []string{
+		"scanner", "scanjet", "imageformula", "scansnap",
+		"documate", "workforce ds-", "sheetfed", "flatbed scanner",
+	}
+	for _, kw := range scannerKeywords {
+		if strings.Contains(combined, kw) {
+			return "scanner"
+		}
+	}
+
+	// Common scanner model prefixes (ADS, FI, DR, KV-S)
+	upperModel := strings.ToUpper(strings.TrimSpace(model))
+	if strings.HasPrefix(upperModel, "ADS-") || strings.HasPrefix(upperModel, "FI-") || strings.HasPrefix(upperModel, "DR-") || strings.HasPrefix(upperModel, "KV-S") {
+		return "scanner"
+	}
+
+	return "printer"
 }

@@ -117,9 +117,17 @@ export type DiscoveredPrinter = components['schemas']['DiscoveredDevice'] & {
   existing_device_id?: string
   existing_display_name?: string
   old_address?: string
+  device_type?: 'printer' | 'scanner'
 }
 export type SubnetScanResult = Omit<components['schemas']['SubnetScanOutputBody'], 'discovered_printers'> & {
   discovered_printers?: DiscoveredPrinter[]
+}
+
+export interface StagedDevicesResult {
+  discovered_printers: DiscoveredPrinter[]
+  total: number
+  printers_count: number
+  scanners_count: number
 }
 
 export type BulkRegisterPrinterItem = components['schemas']['BulkRegisterPrinterItem']
