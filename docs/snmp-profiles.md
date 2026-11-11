@@ -27,6 +27,10 @@ The repository includes initial experimental profiles for HP LaserJet Pro
 M402dn, HP LaserJet Enterprise M501dn, Brother HL-L5100DN/T and Brother
 HL-L6210DW/T. They currently use the generic Printer-MIB marker-life walk and
 are marked `experimental`; they do not claim verified vendor counter semantics.
+Ricoh IM 2500 is matched separately from IM 2702: the IM 2500 vendor counters
+remain `experimental`, while IM 2702 uses only its fixture-backed Printer-MIB
+marker definition. A vendor OID observed on IM 2500 must not be generalized to
+another IM 2xxx model.
 Promote a profile only after collecting an anonymized SNMP walk and comparing
 unit/index and counter values with the printer panel or configuration page.
 
@@ -36,3 +40,8 @@ The selected profile is snapshotted in SQLite with a checksum and its counter
 definitions are created atomically. A WALK counter is accepted only when its
 value/unit columns produce exactly one validated marker row; multiple rows are
 reported as ambiguous rather than guessed.
+
+If a scalar GET returns `NoSuchObject` or `NoSuchInstance`, the counter
+definition is persisted as `unsupported`. The scheduler does not retry that
+permanent capability failure, and later polling cycles exclude the definition.
+Historical readings and counter events are retained.

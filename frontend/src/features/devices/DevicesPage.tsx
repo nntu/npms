@@ -11,11 +11,11 @@ import {
   Warning,
   X,
 } from '@phosphor-icons/react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { deletePrinter, probeDiscovery, registerPrinter, updatePrinter } from '../../api/client'
+import { deletePrinter, getSystemConfig, probeDiscovery, registerPrinter, updatePrinter } from '../../api/client'
 import type { DiscoveryResult, Printer, PrinterStatus } from '../../api/types'
 import { DataTable } from '../../components/DataTable'
 import { showConfirm, showError, showSuccess } from '../../utils/sweetalert'
@@ -86,6 +86,24 @@ export function DevicesPage() {
   const [registrationJobID, setRegistrationJobID] = useState<string | null>(null)
   const registrationJob = usePollJob(registrationJobID)
 
+  const systemConfigQuery = useQuery({
+    queryKey: ['system-config'],
+    queryFn: () => getSystemConfig(),
+  })
+  const defaultPort = String(systemConfigQuery.data?.snmp?.default_port ?? '161')
+  const defaultCommunity = systemConfigQuery.data?.snmp?.default_community ?? 'public'
+
+  useEffect(() => {
+    if (systemConfigQuery.data?.snmp) {
+      if (port === '161' && systemConfigQuery.data.snmp.default_port) {
+        setPort(String(systemConfigQuery.data.snmp.default_port))
+      }
+      if (community === 'public' && systemConfigQuery.data.snmp.default_community) {
+        setCommunity(systemConfigQuery.data.snmp.default_community)
+      }
+    }
+  }, [systemConfigQuery.data])
+
   // Prefill from DiscoveryPage if navigated with state
   useEffect(() => {
     const state = location.state as LocationDiscoveryState | null
@@ -93,7 +111,7 @@ export function DevicesPage() {
       const { result, community: discCommunity } = state.prefillFromDiscovery
       setShowCreate(true)
       setAddress(result.address || '')
-      setCommunity(discCommunity || 'public')
+      setCommunity(discCommunity || defaultCommunity)
       setManufacturer(result.manufacturer || '')
       setModel(result.model || '')
       setSerial(result.serial || '')
@@ -108,7 +126,7 @@ export function DevicesPage() {
       setProbePreview(result)
       window.history.replaceState({}, document.title)
     }
-  }, [location.state])
+  }, [location.state, defaultCommunity])
 
   const resetCreateForm = () => {
     setDisplayName('')
@@ -116,8 +134,8 @@ export function DevicesPage() {
     setDepartmentId('')
     setDepartment('')
     setAddress('')
-    setPort('161')
-    setCommunity('public')
+    setPort(defaultPort)
+    setCommunity(defaultCommunity)
     setManufacturer('')
     setModel('')
     setSerial('')

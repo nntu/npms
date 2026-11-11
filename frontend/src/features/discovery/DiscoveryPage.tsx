@@ -23,6 +23,7 @@ import {
   bulkRegisterPrinters,
   clearDiscoveredDevices,
   getDiscoveredDevices,
+  getSystemConfig,
   probeDiscovery,
   relocatePrinterIP,
   scanSubnet,
@@ -49,6 +50,41 @@ export function DiscoveryPage() {
 
   // Device type filter state
   const [deviceTypeFilter, setDeviceTypeFilter] = useState<'all' | 'printer' | 'scanner'>('all')
+
+  // System config query (tham số hóa từ server)
+  const systemConfigQuery = useQuery({
+    queryKey: ['system-config'],
+    queryFn: () => getSystemConfig(),
+  })
+
+  // Synchronize discovery inputs with server-configured defaults
+  useEffect(() => {
+    if (systemConfigQuery.data) {
+      const disc = systemConfigQuery.data.discovery
+      const snmp = systemConfigQuery.data.snmp
+      if (disc?.default_cidr) {
+        setScanCIDR(disc.default_cidr)
+      }
+      if (disc?.default_community) {
+        setSubnetCommunity(disc.default_community)
+        setProbeCommunity(disc.default_community)
+      } else if (snmp?.default_community) {
+        setSubnetCommunity(snmp.default_community)
+        setProbeCommunity(snmp.default_community)
+      }
+      if (disc?.default_port) {
+        setSubnetPort(String(disc.default_port))
+      } else if (snmp?.default_port) {
+        setSubnetPort(String(snmp.default_port))
+      }
+      if (disc?.default_timeout_ms) {
+        setSubnetTimeout(String(disc.default_timeout_ms))
+      }
+      if (disc?.concurrency) {
+        setSubnetConcurrency(String(disc.concurrency))
+      }
+    }
+  }, [systemConfigQuery.data])
 
   // Staged devices query (lưu tạm)
   const stagedQuery = useQuery({
@@ -428,9 +464,17 @@ export function DiscoveryPage() {
                     className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-cyan-500 font-mono shadow-2xs"
                     required
                   />
-                  <small className="text-slate-500 text-[11px] mt-1 block">
-                    Chỉ hỗ trợ dải mạng cục bộ/nội bộ (RFC 1918: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16).
-                  </small>
+                  {systemConfigQuery.data?.discovery?.allowed_cidrs &&
+                  systemConfigQuery.data.discovery.allowed_cidrs.length > 0 ? (
+                    <small className="text-slate-500 text-[11px] mt-1 block">
+                      Hỗ trợ dải mạng RFC 1918 và các dải được cấu hình:{' '}
+                      {systemConfigQuery.data.discovery.allowed_cidrs.join(', ')}.
+                    </small>
+                  ) : (
+                    <small className="text-slate-500 text-[11px] mt-1 block">
+                      Chỉ hỗ trợ dải mạng cục bộ/nội bộ (RFC 1918: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16).
+                    </small>
+                  )}
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl">

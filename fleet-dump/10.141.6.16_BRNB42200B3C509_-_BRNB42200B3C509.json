@@ -1802,7 +1802,7 @@
     }
   ],
   "current_profile_id": "brother-hl-l5100dn",
-  "display_name": "Brother HL-L5100DN series (GDKH)",
+  "display_name": "Brother HL-L5100DN (GDKH)",
   "id": "e8a18987-3367-4259-b740-c261ef6c8f1c",
   "manufacturer": "Brother",
   "markers": [
@@ -1813,7 +1813,7 @@
       "unit_name": "sheets"
     }
   ],
-  "model": "Brother HL-L5100DN series",
+  "model": "Brother HL-L5100DN",
   "port": 161,
   "raw_marker_binds": [
     {

@@ -1,5 +1,5 @@
 {
-  "exported_at": "2026-10-16T01:07:10.0068836Z",
+  "exported_at": "2026-11-11T08:24:41.0873995Z",
   "printer_count": 20,
   "online_count": 20,
   "printers": [
@@ -26,9 +26,9 @@
     {
       "file": "10.141.6.13_BRNB42200B39DB8_-_BRNB42200B39DB8.json",
       "address": "10.141.6.13",
-      "name": "Brother HL-L5100DN series - BRNB42200B39DB8",
+      "name": "Brother HL-L5100DN - BRNB42200B39DB8",
       "manufacturer": "Brother",
-      "model": "Brother HL-L5100DN series",
+      "model": "Brother HL-L5100DN",
       "sys_object_id": "1.3.6.1.4.1.2435.2.3.9.1",
       "status": "online",
       "candidate_counters_count": 255
@@ -36,9 +36,9 @@
     {
       "file": "10.141.6.14_BRNB42200B39DCE_-_BRNB42200B39DCE.json",
       "address": "10.141.6.14",
-      "name": "Brother HL-L5100DN series (GDKH)",
+      "name": "Brother HL-L5100DN (GDKH)",
       "manufacturer": "Brother",
-      "model": "Brother HL-L5100DN series",
+      "model": "Brother HL-L5100DN",
       "sys_object_id": "1.3.6.1.4.1.2435.2.3.9.1",
       "status": "online",
       "candidate_counters_count": 258
@@ -46,9 +46,9 @@
     {
       "file": "10.141.6.16_BRNB42200B3C509_-_BRNB42200B3C509.json",
       "address": "10.141.6.16",
-      "name": "Brother HL-L5100DN series (GDKH)",
+      "name": "Brother HL-L5100DN (GDKH)",
       "manufacturer": "Brother",
-      "model": "Brother HL-L5100DN series",
+      "model": "Brother HL-L5100DN",
       "sys_object_id": "1.3.6.1.4.1.2435.2.3.9.1",
       "status": "online",
       "candidate_counters_count": 257
@@ -66,9 +66,9 @@
     {
       "file": "10.141.6.31_BRN94DDF8E43CFA_-_BRN94DDF8E43CFA.json",
       "address": "10.141.6.31",
-      "name": "Brother HL-L6210DW series (KHCN2)",
+      "name": "Brother HL-L6210DW (KHCN2)",
       "manufacturer": "Brother",
-      "model": "Brother HL-L6210DW series",
+      "model": "Brother HL-L6210DW",
       "sys_object_id": "1.3.6.1.4.1.2435.2.3.9.1",
       "status": "online",
       "candidate_counters_count": 504
@@ -76,9 +76,9 @@
     {
       "file": "10.141.6.37_BRN3C2AF4AE0B1A.json",
       "address": "10.141.6.37",
-      "name": "Brother HL-L8260CDN series - BRN3C2AF4AE0B1A",
+      "name": "Brother HL-L8260CDN - BRN3C2AF4AE0B1A",
       "manufacturer": "Brother",
-      "model": "Brother HL-L8260CDN series",
+      "model": "Brother HL-L8260CDN",
       "sys_object_id": "1.3.6.1.4.1.2435.2.3.9.1",
       "status": "online",
       "candidate_counters_count": 390
@@ -136,9 +136,9 @@
     {
       "file": "10.141.6.45_BRN94DDF8E43CD4_-_BRN94DDF8E43CD4.json",
       "address": "10.141.6.45",
-      "name": "Brother HL-L6210DW series - BRN94DDF8E43CD4",
+      "name": "Brother HL-L6210DW - BRN94DDF8E43CD4",
       "manufacturer": "Brother",
-      "model": "Brother HL-L6210DW series",
+      "model": "Brother HL-L6210DW",
       "sys_object_id": "1.3.6.1.4.1.2435.2.3.9.1",
       "status": "online",
       "candidate_counters_count": 500
@@ -156,9 +156,9 @@
     {
       "file": "10.141.6.50_BRN94DDF8E76184_-_BRN94DDF8E76184.json",
       "address": "10.141.6.50",
-      "name": "Brother HL-L6210DW series (KHDN)",
+      "name": "Brother HL-L6210DW (KHDN)",
       "manufacturer": "Brother",
-      "model": "Brother HL-L6210DW series",
+      "model": "Brother HL-L6210DW",
       "sys_object_id": "1.3.6.1.4.1.2435.2.3.9.1",
       "status": "online",
       "candidate_counters_count": 508

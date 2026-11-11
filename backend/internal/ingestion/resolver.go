@@ -14,8 +14,11 @@ type CredentialStore interface {
 }
 
 type ConfigResolver struct {
-	Store CredentialStore
-	Box   *security.SecretBox
+	Store                 CredentialStore
+	Box                   *security.SecretBox
+	DefaultTimeoutSeconds int
+	DefaultRetries        int
+	DefaultMaxRepetitions int
 }
 
 func (r ConfigResolver) Resolve(ctx context.Context, endpoint repository.DeviceEndpoint) (snmp.Config, error) {
@@ -43,7 +46,34 @@ func (r ConfigResolver) Resolve(ctx context.Context, endpoint repository.DeviceE
 	if stored.Version != secret.Version {
 		return snmp.Config{}, fmt.Errorf("credential version %q does not match secret version %q", stored.Version, secret.Version)
 	}
-	config := snmp.Config{Host: endpoint.Address, Port: endpoint.Port, Version: snmp.Version(secret.Version), Community: secret.Community, Username: secret.Username, AuthProtocol: secret.AuthProtocol, AuthPassphrase: secret.AuthPassphrase, PrivProtocol: secret.PrivProtocol, PrivPassphrase: secret.PrivPassphrase, TimeoutSeconds: 3, Retries: 1, MaxRepetitions: 25}
+
+	timeout := r.DefaultTimeoutSeconds
+	if timeout <= 0 {
+		timeout = 3
+	}
+	retries := r.DefaultRetries
+	if retries < 0 {
+		retries = 1
+	}
+	maxRepetitions := r.DefaultMaxRepetitions
+	if maxRepetitions <= 0 {
+		maxRepetitions = 25
+	}
+
+	config := snmp.Config{
+		Host:           endpoint.Address,
+		Port:           endpoint.Port,
+		Version:        snmp.Version(secret.Version),
+		Community:      secret.Community,
+		Username:       secret.Username,
+		AuthProtocol:   secret.AuthProtocol,
+		AuthPassphrase: secret.AuthPassphrase,
+		PrivProtocol:   secret.PrivProtocol,
+		PrivPassphrase: secret.PrivPassphrase,
+		TimeoutSeconds: timeout,
+		Retries:        retries,
+		MaxRepetitions: uint8(maxRepetitions),
+	}
 	if err := config.Validate(); err != nil {
 		return snmp.Config{}, err
 	}

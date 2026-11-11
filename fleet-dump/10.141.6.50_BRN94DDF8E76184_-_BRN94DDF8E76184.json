@@ -3559,7 +3559,7 @@
     }
   ],
   "current_profile_id": "brother-hl-l6210",
-  "display_name": "Brother HL-L6210DW series (KHDN)",
+  "display_name": "Brother HL-L6210DW (KHDN)",
   "id": "1a504392-cc63-408e-99f4-a2f2cf618e5d",
   "manufacturer": "Brother",
   "markers": [
@@ -3570,7 +3570,7 @@
       "unit_name": "sheets"
     }
   ],
-  "model": "Brother HL-L6210DW series",
+  "model": "Brother HL-L6210DW",
   "port": 161,
   "raw_marker_binds": [
     {

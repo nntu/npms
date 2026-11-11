@@ -56,3 +56,88 @@ func TestIANATimezoneValidation(t *testing.T) {
 		t.Fatalf("expected timezone Asia/Ho_Chi_Minh, got %s", cfg.Report.Timezone)
 	}
 }
+
+func TestCustomSNMPAndDiscoveryConfig(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	contents := []byte(`
+database:
+  path: ./data/test.db
+server:
+  listen: 127.0.0.1:8080
+  api_token: test-token
+security:
+  encryption_key: key
+snmp:
+  default_port: 1161
+  default_community: internal-read
+  default_version: "2c"
+  timeout_seconds: 5
+  retries: 2
+  max_repetitions: 30
+discovery:
+  rules_file: ./custom-discovery.yaml
+  default_cidr: 10.141.6.0/24
+  default_community: internal-read
+  default_port: 1161
+  allowed_cidrs:
+    - 10.141.6.0/24
+    - 10.141.7.0/24
+  max_range_ips: 1024
+  concurrency: 30
+  timeout_ms: 1500
+counter:
+  max_delta: 5000
+polling:
+  concurrency: 10
+  status_interval: 5m
+  counter_interval: 2h
+  max_attempts: 3
+  retry_delay: 2s
+  lease_duration: 60s
+`)
+	if err := os.WriteFile(path, contents, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("unexpected load error: %v", err)
+	}
+	if cfg.SNMP.DefaultPort != 1161 || cfg.SNMP.DefaultCommunity != "internal-read" || cfg.SNMP.TimeoutSeconds != 5 {
+		t.Fatalf("unexpected snmp config: %+v", cfg.SNMP)
+	}
+	if cfg.Discovery.DefaultCIDR != "10.141.6.0/24" || cfg.Discovery.MaxRangeIPs != 1024 || len(cfg.Discovery.AllowedCIDRs) != 2 {
+		t.Fatalf("unexpected discovery config: %+v", cfg.Discovery)
+	}
+	if cfg.Counter.MaxDelta != 5000 {
+		t.Fatalf("unexpected counter config: %+v", cfg.Counter)
+	}
+	if cfg.Polling.MaxAttempts != 3 {
+		t.Fatalf("unexpected polling max attempts: %d", cfg.Polling.MaxAttempts)
+	}
+	retryDelay, err := cfg.RetryDelay()
+	if err != nil || retryDelay.Seconds() != 2 {
+		t.Fatalf("unexpected retry delay: %v, err: %v", retryDelay, err)
+	}
+}
+
+func TestInvalidDiscoveryCIDR(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	contents := []byte(`
+database:
+  path: ./data/test.db
+server:
+  listen: 127.0.0.1:8080
+  api_token: test-token
+security:
+  encryption_key: key
+discovery:
+  allowed_cidrs:
+    - not-a-cidr
+`)
+	if err := os.WriteFile(path, contents, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(path); err == nil {
+		t.Fatal("expected invalid CIDR error, got nil")
+	}
+}

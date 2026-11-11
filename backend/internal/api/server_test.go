@@ -1102,3 +1102,41 @@ func TestDiscoveryDevicesStagingAPI(t *testing.T) {
 		t.Fatalf("expected 200 on clear, got %d: %s", recClear.Code, recClear.Body.String())
 	}
 }
+
+func TestSystemConfigEndpoint(t *testing.T) {
+	server, err := NewServer(&fakeStore{}, "", "http://localhost:5173")
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.SetPublicSystemConfig(PublicSystemConfig{
+		Discovery: PublicDiscoveryConfig{
+			DefaultCIDR:      "10.141.6.0/24",
+			DefaultCommunity: "branch-read",
+			DefaultPort:      161,
+			DefaultTimeoutMS: 1500,
+			MaxRangeIPs:      1024,
+			Concurrency:      30,
+			AllowedCIDRs:     []string{"10.141.6.0/24"},
+		},
+		SNMP: PublicSNMPConfig{
+			DefaultPort:      161,
+			DefaultCommunity: "branch-read",
+			DefaultVersion:   "2c",
+			TimeoutSeconds:   5,
+			Retries:          2,
+			MaxRepetitions:   30,
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/system/config", nil)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !containsAll(body, `"default_cidr":"10.141.6.0/24"`, `"branch-read"`, `"max_range_ips":1024`) {
+		t.Fatalf("unexpected system config response: %s", body)
+	}
+}

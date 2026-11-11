@@ -12,7 +12,8 @@ that its counter semantics are correct.
 | HP LaserJet Enterprise M501dn | `hp-laserjet-enterprise-m501dn.json` (synthetic) | Not tested | `experimental` |
 | Brother HL-L5100DN/T | `brother-hl-l5100dn.json` (synthetic) | Not tested | `experimental` |
 | Brother HL-L6210 | `brother-hl-l6210dw.json` (synthetic) | Not tested | `experimental` |
-| Ricoh IM 2702 (multi-marker) | `ricoh-im-2702-multi-marker.json` (synthetic) | Not tested | `unverified` |
+| Ricoh IM 2500 vendor counters | Local fleet dumps only; no panel-correlated shared fixture | Not verified | `experimental` |
+| Ricoh IM 2702 (multi-marker) | `ricoh-im-2702-multi-marker.json` (synthetic) | Not tested | `experimental` |
 | Generic Printer-MIB | Synthetic join & replay tests | Not tested | `unverified` |
 
 The repository includes synthetic `Printer-MIB.yaml` fixtures (`synthetic_fixture: true`) for automated offline replay (`FixtureClient`), OID resolution, and fast-path polling tests. Do not promote a profile to `verified` until an anonymized capture from real hardware is compared against the printer panel or configuration page.

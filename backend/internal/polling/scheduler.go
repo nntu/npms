@@ -2,6 +2,7 @@ package polling
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -115,6 +116,10 @@ func (s *Scheduler) pollOne(ctx context.Context, target Target, poll PollFunc) R
 		lastErr = poll(ctx, target)
 		if lastErr == nil {
 			return result
+		}
+		var retryable interface{ Retryable() bool }
+		if errors.As(lastErr, &retryable) && !retryable.Retryable() {
+			break
 		}
 		if attempt == s.config.MaxAttempts {
 			break

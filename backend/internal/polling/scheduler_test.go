@@ -6,6 +6,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"npms/backend/internal/counter"
 )
 
 func TestSchedulerBoundsConcurrencyAndPreservesOrder(t *testing.T) {
@@ -53,6 +55,21 @@ func TestSchedulerRetriesWithBackoff(t *testing.T) {
 	})
 	if err != nil || results[0].Err != nil || results[0].Attempts != 3 {
 		t.Fatalf("unexpected retry result: %#v, %v", results, err)
+	}
+}
+
+func TestSchedulerDoesNotRetryPermanentFailure(t *testing.T) {
+	scheduler, err := NewScheduler(Config{Concurrency: 1, MaxAttempts: 3, Sleep: func(context.Context, time.Duration) error { return nil }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	attempts := 0
+	results, err := scheduler.Run(context.Background(), []Target{{ID: "unsupported"}}, func(context.Context, Target) error {
+		attempts++
+		return &counter.UnsupportedError{Message: "unsupported counter"}
+	})
+	if err != nil || attempts != 1 || results[0].Attempts != 1 || results[0].Err == nil {
+		t.Fatalf("unexpected permanent-failure result: attempts=%d results=%#v err=%v", attempts, results, err)
 	}
 }
 

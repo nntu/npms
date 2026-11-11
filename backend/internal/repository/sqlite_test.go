@@ -31,6 +31,52 @@ func TestRepositoryQualityValidation(t *testing.T) {
 	}
 }
 
+func TestUnsupportedCounterCapabilityIsPersistedAndExcludedFromPolling(t *testing.T) {
+	db, err := database.OpenSQLite(filepath.Join(t.TempDir(), "npms.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ctx := context.Background()
+	if err := db.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	repo, err := NewSQLiteRepository(db.DB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.CreateDevice(ctx, Device{ID: "device-unsupported", DisplayName: "Unsupported", Status: "online"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.CreateCounterDefinition(ctx, CounterDefinition{ID: "counter-unsupported", DeviceID: "device-unsupported", Key: "copy_pages", SourceProtocol: "snmp", OID: "1.2.3", Unit: "pages", SemanticType: "copy_pages", Scope: "copy", Verified: true}); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.CreatePollingRun(ctx, PollingRun{ID: "run-unsupported", DeviceID: "device-unsupported", JobKind: "counter"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.CompleteCounterPoll(ctx, CounterPollCompletion{
+		PollRunID: "run-unsupported", DeviceID: "device-unsupported", CounterDefinitionID: "counter-unsupported",
+		Result: "failed", ErrorCode: "counter_unsupported", EventType: "capability_unsupported", EventDetails: `{}`, AttemptCount: 1,
+		CapabilityState: CounterCapabilityUnsupported,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	definitions, err := repo.ListCounterDefinitions(ctx, "device-unsupported")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(definitions) != 0 {
+		t.Fatalf("unsupported definition remained pollable: %#v", definitions)
+	}
+	var state string
+	if err := db.DB.QueryRowContext(ctx, `SELECT capability_state FROM counter_definitions WHERE id = 'counter-unsupported'`).Scan(&state); err != nil {
+		t.Fatal(err)
+	}
+	if state != CounterCapabilityUnsupported {
+		t.Fatalf("capability state = %q", state)
+	}
+}
+
 func TestDeviceEndpointValidation(t *testing.T) {
 	valid := DeviceEndpoint{ID: "endpoint-1", DeviceID: "device-1", Address: "192.168.1.20", Protocol: "snmp", Port: 161}
 	if err := valid.Validate(); err != nil {

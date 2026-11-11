@@ -2732,8 +2732,8 @@
       "value": 1
     }
   ],
-  "current_profile_id": "brother-generic",
-  "display_name": "Brother HL-L8260CDN series - BRN3C2AF4AE0B1A",
+  "current_profile_id": "brother-hl-l8260cdn",
+  "display_name": "Brother HL-L8260CDN - BRN3C2AF4AE0B1A",
   "id": "ff001d56-185e-4416-898a-ef738d49cb83",
   "manufacturer": "Brother",
   "markers": [
@@ -2744,7 +2744,7 @@
       "unit_name": "sheets"
     }
   ],
-  "model": "Brother HL-L8260CDN series",
+  "model": "Brother HL-L8260CDN",
   "port": 161,
   "raw_marker_binds": [
     {

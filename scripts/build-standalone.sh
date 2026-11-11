@@ -75,6 +75,10 @@ if [ -f "$ROOT_DIR/Printer-MIB.yaml" ]; then
     cp "$ROOT_DIR/Printer-MIB.yaml" "$DIST_DIR/Printer-MIB.yaml"
 fi
 
+if [ -f "$ROOT_DIR/discovery.yaml" ]; then
+    cp "$ROOT_DIR/discovery.yaml" "$DIST_DIR/discovery.yaml"
+fi
+
 # 5. Copy profiles & Printer-MIB sample fixtures
 if [ -d "$ROOT_DIR/backend/profiles" ]; then
     cp -R "$ROOT_DIR/backend/profiles/." "$DIST_DIR/profiles/"

@@ -1788,7 +1788,7 @@
     }
   ],
   "current_profile_id": "brother-hl-l5100dn",
-  "display_name": "Brother HL-L5100DN series - BRNB42200B39DB8",
+  "display_name": "Brother HL-L5100DN - BRNB42200B39DB8",
   "id": "44f3ff75-01da-4cff-8da3-2d64ed8b4e06",
   "manufacturer": "Brother",
   "markers": [
@@ -1799,7 +1799,7 @@
       "unit_name": "sheets"
     }
   ],
-  "model": "Brother HL-L5100DN series",
+  "model": "Brother HL-L5100DN",
   "port": 161,
   "raw_marker_binds": [
     {

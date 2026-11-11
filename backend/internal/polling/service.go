@@ -87,10 +87,17 @@ func (s *Service) Run(ctx context.Context, targets []RunTarget) ([]Result, error
 		}
 		if result.Err != nil {
 			status, errorCode = "failed", "poll_failed"
+			eventType := "poll_failed"
+			var unsupported *counter.UnsupportedError
+			if errors.As(result.Err, &unsupported) {
+				errorCode = "counter_unsupported"
+				eventType = "capability_unsupported"
+				completion.CapabilityState = repository.CounterCapabilityUnsupported
+			}
 			details, _ := json.Marshal(map[string]string{"error": result.Err.Error(), "error_code": errorCode})
 			completion.Result = status
 			completion.ErrorCode = errorCode
-			completion.EventType = "poll_failed"
+			completion.EventType = eventType
 			completion.EventDetails = string(details)
 		} else {
 			completion.Reading = &readings[index]

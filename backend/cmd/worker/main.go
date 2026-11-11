@@ -35,6 +35,7 @@ type registryRunner struct {
 	counterService *polling.Service
 	reportLocation *time.Location
 	retention      repository.CleanupPolicy
+	leaseDuration  time.Duration
 }
 
 func (r registryRunner) RunStatus(ctx context.Context) error {
@@ -50,10 +51,14 @@ func (r registryRunner) RunStatus(ctx context.Context) error {
 	for i, device := range devices {
 		targets[i] = polling.Target{ID: device.ID}
 	}
+	leaseDur := r.leaseDuration
+	if leaseDur <= 0 {
+		leaseDur = 45 * time.Second
+	}
 	results, err := r.scheduler.Run(ctx, targets, func(pollCtx context.Context, target polling.Target) error {
 		acquiredAt := time.Now().UTC()
 		ownerID := "status:" + cycleID + ":" + target.ID
-		acquired, err := r.repository.AcquirePollLease(pollCtx, target.ID, "status", ownerID, acquiredAt, acquiredAt.Add(45*time.Second))
+		acquired, err := r.repository.AcquirePollLease(pollCtx, target.ID, "status", ownerID, acquiredAt, acquiredAt.Add(leaseDur))
 		if err != nil {
 			return err
 		}
@@ -274,6 +279,9 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
+	if cfg.Counter.MaxDelta > 0 {
+		repo.SetCounterPolicy(counter.Policy{MaxDelta: cfg.Counter.MaxDelta})
+	}
 	key, err := security.ParseKey(cfg.Security.EncryptionKey)
 	if err != nil {
 		fail(err)
@@ -282,12 +290,34 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
-	resolver := ingestion.ConfigResolver{Store: repo, Box: box}
+	resolver := ingestion.ConfigResolver{
+		Store:                 repo,
+		Box:                   box,
+		DefaultTimeoutSeconds: cfg.SNMP.TimeoutSeconds,
+		DefaultRetries:        cfg.SNMP.Retries,
+		DefaultMaxRepetitions: cfg.SNMP.MaxRepetitions,
+	}
 	poller, err := ingestion.NewStatusPoller(repo, resolver, ingestion.ConnectSNMP)
 	if err != nil {
 		fail(err)
 	}
-	scheduler, err := polling.NewScheduler(polling.Config{Concurrency: cfg.Polling.Concurrency, MaxAttempts: 2, RetryDelay: time.Second})
+	retryDelay, err := cfg.RetryDelay()
+	if err != nil {
+		fail(err)
+	}
+	leaseDuration, err := cfg.LeaseDuration()
+	if err != nil {
+		fail(err)
+	}
+	maxAttempts := cfg.Polling.MaxAttempts
+	if maxAttempts <= 0 {
+		maxAttempts = 2
+	}
+	scheduler, err := polling.NewScheduler(polling.Config{
+		Concurrency: cfg.Polling.Concurrency,
+		MaxAttempts: maxAttempts,
+		RetryDelay:  retryDelay,
+	})
 	if err != nil {
 		fail(err)
 	}
@@ -300,7 +330,20 @@ func main() {
 		fail(err)
 	}
 	now := time.Now().UTC()
-	runner := registryRunner{repository: repo, poller: poller, counterPoller: counterPoller, scheduler: scheduler, counterService: counterService, reportLocation: reportLocation, retention: repository.CleanupPolicy{PollingRunsBefore: now.AddDate(0, 0, -cfg.Retention.PollingRunsDays), CounterEventsBefore: now.AddDate(0, 0, -cfg.Retention.CounterEventsDays), JobsBefore: now.AddDate(0, 0, -cfg.Retention.JobsDays)}}
+	runner := registryRunner{
+		repository:     repo,
+		poller:         poller,
+		counterPoller:  counterPoller,
+		scheduler:      scheduler,
+		counterService: counterService,
+		reportLocation: reportLocation,
+		retention: repository.CleanupPolicy{
+			PollingRunsBefore:   now.AddDate(0, 0, -cfg.Retention.PollingRunsDays),
+			CounterEventsBefore: now.AddDate(0, 0, -cfg.Retention.CounterEventsDays),
+			JobsBefore:          now.AddDate(0, 0, -cfg.Retention.JobsDays),
+		},
+		leaseDuration: leaseDuration,
+	}
 	if *once {
 		if err := runner.RunStatus(context.Background()); err != nil {
 			fail(err)

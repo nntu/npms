@@ -12,6 +12,7 @@ func TestCartridgeContractRegistersAllOperations(t *testing.T) {
 		"/api/v1/health/live":                     "get",
 		"/api/v1/health/ready":                    "get",
 		"/api/v1/version":                         "get",
+		"/api/v1/system/config":                   "get",
 		"/api/v1/snmp/profiles":                   "get",
 		"/api/v1/discovery/probe":                 "post",
 		"/api/v1/discovery/scan":                  "post",

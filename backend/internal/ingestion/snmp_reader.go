@@ -41,7 +41,7 @@ func (r SNMPReader) Read(ctx context.Context) (counter.Reading, error) {
 			continue
 		}
 		if snmp.IsExceptionVarBind(value) {
-			return counter.Reading{}, fmt.Errorf("SNMP OID %s not supported by device", requestOID)
+			return counter.Reading{}, &counter.UnsupportedError{Message: fmt.Sprintf("SNMP OID %s not supported by device", requestOID)}
 		}
 		raw, ok := snmp.NumericValue(value.Value)
 		if !ok {

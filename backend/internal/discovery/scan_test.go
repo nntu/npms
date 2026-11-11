@@ -170,3 +170,38 @@ func (f *fakeFailingClient) Walk(ctx context.Context, oid string) ([]snmp.VarBin
 func (f *fakeFailingClient) Close() error {
 	return nil
 }
+
+func TestCustomAllowedCIDRsAndMaxRange(t *testing.T) {
+	// Public IP normally rejected
+	publicIP := "203.0.113.1"
+	if IsPrivateIPv4(net.ParseIP(publicIP)) {
+		t.Fatalf("expected %s to not be private by default", publicIP)
+	}
+
+	// Add to allowed CIDRs
+	if err := SetAllowedCIDRs([]string{"203.0.113.0/24"}); err != nil {
+		t.Fatalf("failed to set allowed CIDR: %v", err)
+	}
+	defer func() { _ = SetAllowedCIDRs(nil) }()
+
+	if !IsPrivateIPv4(net.ParseIP(publicIP)) {
+		t.Fatalf("expected %s to be allowed after SetAllowedCIDRs", publicIP)
+	}
+
+	ips, err := GenerateIPList("203.0.113.0/24", "", "")
+	if err != nil {
+		t.Fatalf("expected allowed CIDR to generate IP list, got err: %v", err)
+	}
+	if len(ips) != 254 {
+		t.Fatalf("expected 254 IPs, got %d", len(ips))
+	}
+
+	// Test custom max range IPs
+	SetMaxRangeIPs(100)
+	defer SetMaxRangeIPs(512)
+
+	_, err = GenerateIPList("203.0.113.0/24", "", "")
+	if !errors.Is(err, ErrSubnetTooLarge) {
+		t.Fatalf("expected ErrSubnetTooLarge when max range is 100 and CIDR has 254 IPs, got: %v", err)
+	}
+}

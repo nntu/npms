@@ -2,6 +2,7 @@ package ingestion
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -10,6 +11,22 @@ import (
 	"npms/backend/internal/repository"
 	"npms/backend/internal/snmp"
 )
+
+type exceptionCounterClient struct{}
+
+func (exceptionCounterClient) Get(_ context.Context, oids []string) ([]snmp.VarBind, error) {
+	return []snmp.VarBind{{OID: oids[0], Type: "NoSuchObject"}}, nil
+}
+func (exceptionCounterClient) Walk(context.Context, string) ([]snmp.VarBind, error) { return nil, nil }
+func (exceptionCounterClient) Close() error                                         { return nil }
+
+func TestSNMPReaderClassifiesUnsupportedOID(t *testing.T) {
+	_, err := (SNMPReader{Client: exceptionCounterClient{}, OID: "1.2.3"}).Read(context.Background())
+	var unsupported *counter.UnsupportedError
+	if !errors.As(err, &unsupported) {
+		t.Fatalf("expected unsupported error, got %v", err)
+	}
+}
 
 type fakeCounterClient struct {
 	life, units []snmp.VarBind

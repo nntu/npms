@@ -11,7 +11,14 @@ import (
 	"npms/backend/internal/counter"
 )
 
-type SQLiteRepository struct{ db *sql.DB }
+type SQLiteRepository struct {
+	db            *sql.DB
+	counterPolicy counter.Policy
+}
+
+func (r *SQLiteRepository) SetCounterPolicy(p counter.Policy) {
+	r.counterPolicy = p
+}
 
 type CleanupPolicy struct {
 	PollingRunsBefore   time.Time
@@ -527,7 +534,8 @@ func (r *SQLiteRepository) RegisterPrinter(ctx context.Context, registration Pri
 			return fmt.Errorf("assign profile: %w", err)
 		}
 		for _, definition := range registration.CounterDefinitions {
-			if _, err := tx.ExecContext(ctx, `INSERT INTO counter_definitions(id, device_id, key, source_protocol, oid, instance, unit, semantic_type, scope, verified, mode, unit_oid, selection, aggregation, require_unit_validation) VALUES (?, ?, ?, ?, ?, NULLIF(?, ''), ?, ?, ?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?)`, definition.ID, definition.DeviceID, definition.Key, definition.SourceProtocol, definition.OID, definition.Instance, definition.Unit, definition.SemanticType, definition.Scope, boolInt(definition.Verified), definition.Mode, definition.UnitOID, definition.Selection, definition.Aggregation, boolInt(definition.RequireUnitValidation)); err != nil {
+			definition.CapabilityState = initialCapabilityState(definition)
+			if _, err := tx.ExecContext(ctx, `INSERT INTO counter_definitions(id, device_id, key, source_protocol, oid, instance, unit, semantic_type, scope, verified, mode, unit_oid, selection, aggregation, require_unit_validation, capability_state) VALUES (?, ?, ?, ?, ?, NULLIF(?, ''), ?, ?, ?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, ?)`, definition.ID, definition.DeviceID, definition.Key, definition.SourceProtocol, definition.OID, definition.Instance, definition.Unit, definition.SemanticType, definition.Scope, boolInt(definition.Verified), definition.Mode, definition.UnitOID, definition.Selection, definition.Aggregation, boolInt(definition.RequireUnitValidation), definition.CapabilityState); err != nil {
 				return fmt.Errorf("store counter definition %q: %w", definition.Key, err)
 			}
 		}
@@ -817,8 +825,9 @@ func (r *SQLiteRepository) UpdatePrinter(ctx context.Context, update PrinterUpda
 			return fmt.Errorf("assign profile: %w", err)
 		}
 		for _, definition := range update.CounterDefinitions {
-			if _, err := tx.ExecContext(ctx, `INSERT INTO counter_definitions(id, device_id, key, source_protocol, oid, instance, unit, semantic_type, scope, verified, mode, unit_oid, selection, aggregation, require_unit_validation)
-				VALUES (?, ?, ?, ?, ?, NULLIF(?, ''), ?, ?, ?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?)
+			definition.CapabilityState = initialCapabilityState(definition)
+			if _, err := tx.ExecContext(ctx, `INSERT INTO counter_definitions(id, device_id, key, source_protocol, oid, instance, unit, semantic_type, scope, verified, mode, unit_oid, selection, aggregation, require_unit_validation, capability_state)
+				VALUES (?, ?, ?, ?, ?, NULLIF(?, ''), ?, ?, ?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, ?)
 				ON CONFLICT(id) DO UPDATE SET
 					oid = excluded.oid,
 					instance = COALESCE(excluded.instance, counter_definitions.instance),
@@ -830,8 +839,9 @@ func (r *SQLiteRepository) UpdatePrinter(ctx context.Context, update PrinterUpda
 					unit_oid = excluded.unit_oid,
 					selection = excluded.selection,
 					aggregation = excluded.aggregation,
-					require_unit_validation = excluded.require_unit_validation`,
-				definition.ID, definition.DeviceID, definition.Key, definition.SourceProtocol, definition.OID, definition.Instance, definition.Unit, definition.SemanticType, definition.Scope, boolInt(definition.Verified), definition.Mode, definition.UnitOID, definition.Selection, definition.Aggregation, boolInt(definition.RequireUnitValidation)); err != nil {
+					require_unit_validation = excluded.require_unit_validation,
+					capability_state = excluded.capability_state`,
+				definition.ID, definition.DeviceID, definition.Key, definition.SourceProtocol, definition.OID, definition.Instance, definition.Unit, definition.SemanticType, definition.Scope, boolInt(definition.Verified), definition.Mode, definition.UnitOID, definition.Selection, definition.Aggregation, boolInt(definition.RequireUnitValidation), definition.CapabilityState); err != nil {
 				return fmt.Errorf("upsert counter definition %q: %w", definition.Key, err)
 			}
 		}
@@ -880,7 +890,14 @@ type CounterPollCompletion struct {
 	EventDetails        string
 	EndedAt             time.Time
 	AttemptCount        int
+	CapabilityState     string
 }
+
+const (
+	CounterCapabilityValid       = "valid"
+	CounterCapabilityUnverified  = "unverified"
+	CounterCapabilityUnsupported = "unsupported"
+)
 
 type PollingRunRecord struct {
 	ID             string
@@ -1233,6 +1250,14 @@ func (r *SQLiteRepository) CompleteCounterPoll(ctx context.Context, completion C
 			return fmt.Errorf("insert counter reading: %w", err)
 		}
 	} else {
+		if completion.CapabilityState != "" {
+			if !validCapabilityState(completion.CapabilityState) {
+				return fmt.Errorf("invalid counter capability state %q", completion.CapabilityState)
+			}
+			if _, err := tx.ExecContext(ctx, `UPDATE counter_definitions SET capability_state = ? WHERE id = ? AND device_id = ?`, completion.CapabilityState, completion.CounterDefinitionID, completion.DeviceID); err != nil {
+				return fmt.Errorf("update counter capability state: %w", err)
+			}
+		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO counter_events(device_id, counter_definition_id, event_type, details, created_at)
 			VALUES (?, ?, ?, ?, ?)`, completion.DeviceID, completion.CounterDefinitionID, completion.EventType, completion.EventDetails, completion.EndedAt.UTC().Format(time.RFC3339Nano)); err != nil {
 			return fmt.Errorf("insert counter event: %w", err)
@@ -1247,6 +1272,7 @@ func (r *SQLiteRepository) CompleteCounterPoll(ctx context.Context, completion C
 type CounterDefinition struct {
 	ID, DeviceID, Key, SourceProtocol, OID, Instance, Unit, SemanticType, Scope string
 	Mode, UnitOID, Selection, Aggregation                                       string
+	CapabilityState                                                             string
 	Verified, RequireUnitValidation                                             bool
 }
 
@@ -1371,7 +1397,7 @@ func (r *SQLiteRepository) RecalculateDailyUsage(ctx context.Context, deviceID s
 	}
 	computedAt := time.Now().UTC().Format(time.RFC3339Nano)
 	for definitionID, readings := range grouped {
-		usage, err := counter.AggregateDaily(readings, location, counter.Policy{})
+		usage, err := counter.AggregateDaily(readings, location, r.counterPolicy)
 		if err != nil {
 			return fmt.Errorf("calculate daily usage for %s: %w", definitionID, err)
 		}
@@ -1405,7 +1431,8 @@ func (r *SQLiteRepository) CreateCounterDefinition(ctx context.Context, definiti
 	if definition.Mode != "get" && definition.Mode != "walk" {
 		return fmt.Errorf("unsupported counter definition mode %q", definition.Mode)
 	}
-	_, err := r.db.ExecContext(ctx, `INSERT INTO counter_definitions(id, device_id, key, source_protocol, oid, instance, unit, semantic_type, scope, verified, mode, unit_oid, selection, aggregation, require_unit_validation) VALUES (?, ?, ?, ?, ?, NULLIF(?, ''), ?, ?, ?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?)`, definition.ID, definition.DeviceID, definition.Key, definition.SourceProtocol, definition.OID, definition.Instance, definition.Unit, definition.SemanticType, definition.Scope, boolInt(definition.Verified), definition.Mode, definition.UnitOID, definition.Selection, definition.Aggregation, boolInt(definition.RequireUnitValidation))
+	definition.CapabilityState = initialCapabilityState(definition)
+	_, err := r.db.ExecContext(ctx, `INSERT INTO counter_definitions(id, device_id, key, source_protocol, oid, instance, unit, semantic_type, scope, verified, mode, unit_oid, selection, aggregation, require_unit_validation, capability_state) VALUES (?, ?, ?, ?, ?, NULLIF(?, ''), ?, ?, ?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, ?)`, definition.ID, definition.DeviceID, definition.Key, definition.SourceProtocol, definition.OID, definition.Instance, definition.Unit, definition.SemanticType, definition.Scope, boolInt(definition.Verified), definition.Mode, definition.UnitOID, definition.Selection, definition.Aggregation, boolInt(definition.RequireUnitValidation), definition.CapabilityState)
 	if err != nil {
 		return fmt.Errorf("create counter definition: %w", err)
 	}
@@ -1413,7 +1440,7 @@ func (r *SQLiteRepository) CreateCounterDefinition(ctx context.Context, definiti
 }
 
 func (r *SQLiteRepository) ListCounterDefinitions(ctx context.Context, deviceID string) ([]CounterDefinition, error) {
-	rows, err := r.db.QueryContext(ctx, `SELECT id, device_id, key, source_protocol, oid, instance, unit, semantic_type, scope, verified, mode, unit_oid, selection, aggregation, require_unit_validation FROM counter_definitions WHERE device_id = ? ORDER BY key, id`, deviceID)
+	rows, err := r.db.QueryContext(ctx, `SELECT id, device_id, key, source_protocol, oid, instance, unit, semantic_type, scope, verified, mode, unit_oid, selection, aggregation, require_unit_validation, capability_state FROM counter_definitions WHERE device_id = ? AND capability_state != 'unsupported' ORDER BY key, id`, deviceID)
 	if err != nil {
 		return nil, fmt.Errorf("list counter definitions: %w", err)
 	}
@@ -1423,7 +1450,7 @@ func (r *SQLiteRepository) ListCounterDefinitions(ctx context.Context, deviceID 
 		var definition CounterDefinition
 		var instance, unitOID, selection, aggregation sql.NullString
 		var verified, requireUnitValidation int
-		if err := rows.Scan(&definition.ID, &definition.DeviceID, &definition.Key, &definition.SourceProtocol, &definition.OID, &instance, &definition.Unit, &definition.SemanticType, &definition.Scope, &verified, &definition.Mode, &unitOID, &selection, &aggregation, &requireUnitValidation); err != nil {
+		if err := rows.Scan(&definition.ID, &definition.DeviceID, &definition.Key, &definition.SourceProtocol, &definition.OID, &instance, &definition.Unit, &definition.SemanticType, &definition.Scope, &verified, &definition.Mode, &unitOID, &selection, &aggregation, &requireUnitValidation, &definition.CapabilityState); err != nil {
 			return nil, fmt.Errorf("scan counter definition: %w", err)
 		}
 		definition.Instance, definition.UnitOID, definition.Selection, definition.Aggregation = nullString(instance), nullString(unitOID), nullString(selection), nullString(aggregation)
@@ -1437,6 +1464,25 @@ func (r *SQLiteRepository) ListCounterDefinitions(ctx context.Context, deviceID 
 		return nil, fmt.Errorf("iterate counter definitions: %w", err)
 	}
 	return result, nil
+}
+
+func initialCapabilityState(definition CounterDefinition) string {
+	if validCapabilityState(definition.CapabilityState) {
+		return definition.CapabilityState
+	}
+	if definition.Verified {
+		return CounterCapabilityValid
+	}
+	return CounterCapabilityUnverified
+}
+
+func validCapabilityState(state string) bool {
+	switch state {
+	case "valid", "unverified", "unsupported", "unavailable", "suspicious":
+		return true
+	default:
+		return false
+	}
 }
 
 func (r *SQLiteRepository) InsertCounterReading(ctx context.Context, pollRunID, definitionID string, reading counter.Reading) (bool, error) {

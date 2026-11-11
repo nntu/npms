@@ -141,6 +141,31 @@ func TestServicePersistsActualRetryAttemptCount(t *testing.T) {
 	}
 }
 
+func TestServiceMarksUnsupportedCounterCapability(t *testing.T) {
+	scheduler, err := NewScheduler(Config{Concurrency: 1, MaxAttempts: 3, Sleep: func(context.Context, time.Duration) error { return nil }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := &fakeStore{}
+	service, err := NewService(scheduler, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = service.Run(context.Background(), []RunTarget{{
+		Target: Target{ID: "unsupported"}, Run: repository.PollingRun{ID: "run-unsupported", DeviceID: "device-1", JobKind: "counter"}, CounterDefinitionID: "counter-1",
+		Read: func(context.Context) (counter.Reading, error) {
+			return counter.Reading{}, &counter.UnsupportedError{Message: "OID is not supported"}
+		},
+	}})
+	if err != nil || len(store.completions) != 1 {
+		t.Fatalf("unexpected service result: completions=%#v err=%v", store.completions, err)
+	}
+	completion := store.completions[0]
+	if completion.AttemptCount != 1 || completion.ErrorCode != "counter_unsupported" || completion.EventType != "capability_unsupported" || completion.CapabilityState != repository.CounterCapabilityUnsupported {
+		t.Fatalf("unexpected unsupported completion: %#v", completion)
+	}
+}
+
 func TestServiceValidatesAllTargetsBeforeCreatingRuns(t *testing.T) {
 	scheduler, err := NewScheduler(Config{Concurrency: 1, MaxAttempts: 1})
 	if err != nil {

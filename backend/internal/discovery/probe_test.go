@@ -3,6 +3,7 @@ package discovery
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -193,5 +194,48 @@ func TestClassifyDeviceType(t *testing.T) {
 				t.Errorf("ClassifyDeviceType() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestLoadDiscoveryRules(t *testing.T) {
+	tempFile := filepath.Join(t.TempDir(), "rules.yaml")
+	content := []byte(`
+vendor_oids:
+  "1.3.6.1.4.1.9999": "CustomVendor"
+vendor_keywords:
+  CustomVendor:
+    - "custombrand"
+scanner_keywords:
+  - "custom-scanner"
+`)
+	if err := os.WriteFile(tempFile, content, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	rules, err := LoadRules(tempFile)
+	if err != nil {
+		t.Fatalf("failed to load rules: %v", err)
+	}
+
+	if rules.VendorOIDs["1.3.6.1.4.1.9999"] != "CustomVendor" {
+		t.Fatalf("expected custom vendor OID to be present")
+	}
+	// Verify default rules still present
+	if rules.VendorOIDs["1.3.6.1.4.1.11"] != "HP" {
+		t.Fatalf("expected default HP OID to be preserved")
+	}
+
+	oldRules := GetGlobalRules()
+	SetGlobalRules(rules)
+	defer SetGlobalRules(oldRules)
+
+	mfg, _ := InferPrinterModelAndVendor("1.3.6.1.4.1.9999.1", "", "")
+	if mfg != "CustomVendor" {
+		t.Fatalf("expected CustomVendor from OID, got %q", mfg)
+	}
+
+	devType := ClassifyDeviceType("", "", "my-custom-scanner-device", "", "", "", 0)
+	if devType != "scanner" {
+		t.Fatalf("expected scanner from custom keyword, got %q", devType)
 	}
 }

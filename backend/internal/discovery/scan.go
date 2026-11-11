@@ -16,10 +16,53 @@ import (
 )
 
 var (
-	ErrPublicIPNotAllowed = errors.New("only private and local IPv4 networks (RFC 1918, 127.0.0.0/8, 169.254.0.0/16) are permitted for scanning")
-	ErrSubnetTooLarge     = errors.New("subnet scan target is too large; maximum 512 IP addresses allowed per scan")
+	ErrPublicIPNotAllowed = errors.New("only private and local IPv4 networks (RFC 1918, 127.0.0.0/8, 169.254.0.0/16, or allowed subnets) are permitted for scanning")
+	ErrSubnetTooLarge     = errors.New("subnet scan target is too large; maximum allowed IP addresses exceeded")
 	ErrInvalidIPRange     = errors.New("invalid IP range or CIDR specification")
+
+	allowedCIDRsMu sync.RWMutex
+	allowedCIDRs   []*net.IPNet
+
+	maxRangeIPsMu sync.RWMutex
+	maxRangeIPs   = 512
 )
+
+// SetAllowedCIDRs sets additional permitted network ranges for discovery.
+func SetAllowedCIDRs(cidrs []string) error {
+	allowedCIDRsMu.Lock()
+	defer allowedCIDRsMu.Unlock()
+	var list []*net.IPNet
+	for _, s := range cidrs {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
+		_, ipnet, err := net.ParseCIDR(s)
+		if err != nil {
+			return fmt.Errorf("invalid CIDR %q: %w", s, err)
+		}
+		list = append(list, ipnet)
+	}
+	allowedCIDRs = list
+	return nil
+}
+
+// SetMaxRangeIPs updates the maximum number of IPs allowed per subnet scan.
+func SetMaxRangeIPs(n int) {
+	maxRangeIPsMu.Lock()
+	defer maxRangeIPsMu.Unlock()
+	if n <= 0 {
+		n = 512
+	}
+	maxRangeIPs = n
+}
+
+// GetMaxRangeIPs returns the configured maximum IP addresses per subnet scan.
+func GetMaxRangeIPs() int {
+	maxRangeIPsMu.RLock()
+	defer maxRangeIPsMu.RUnlock()
+	return maxRangeIPs
+}
 
 // Private/local IPv4 network blocks per RFC 1918, RFC 3927, RFC 1122
 var privateCIDRs = []*net.IPNet{
@@ -38,13 +81,20 @@ func mustParseCIDR(s string) *net.IPNet {
 	return ipnet
 }
 
-// IsPrivateIPv4 checks if an IP belongs to private or link-local/loopback address spaces.
+// IsPrivateIPv4 checks if an IP belongs to private, link-local, loopback, or configured allowed networks.
 func IsPrivateIPv4(ip net.IP) bool {
 	ipv4 := ip.To4()
 	if ipv4 == nil {
 		return false
 	}
 	for _, block := range privateCIDRs {
+		if block.Contains(ipv4) {
+			return true
+		}
+	}
+	allowedCIDRsMu.RLock()
+	defer allowedCIDRsMu.RUnlock()
+	for _, block := range allowedCIDRs {
 		if block.Contains(ipv4) {
 			return true
 		}
@@ -71,18 +121,19 @@ func GenerateIPList(cidr, startIPStr, endIPStr string) ([]string, error) {
 			return nil, ErrPublicIPNotAllowed
 		}
 
-		ones, bits := ipNet.Mask.Size()
+		_, bits := ipNet.Mask.Size()
 		if bits != 32 {
 			return nil, fmt.Errorf("%w: not an IPv4 mask", ErrInvalidIPRange)
 		}
-		if ones < 23 { // /23 is 512 IPs; /24 is 256 IPs
-			return nil, ErrSubnetTooLarge
-		}
+		maxIPs := GetMaxRangeIPs()
 
 		startInt := binary.BigEndian.Uint32(ipNet.IP.To4())
 		maskInt := binary.BigEndian.Uint32(ipNet.Mask)
 		broadcastInt := startInt | ^maskInt
 		count := broadcastInt - startInt + 1
+		if count > uint32(maxIPs) {
+			return nil, ErrSubnetTooLarge
+		}
 
 		var ips []string
 		if count <= 2 {
@@ -101,7 +152,7 @@ func GenerateIPList(cidr, startIPStr, endIPStr string) ([]string, error) {
 			}
 		}
 
-		if len(ips) > 512 {
+		if len(ips) > maxIPs {
 			return nil, ErrSubnetTooLarge
 		}
 		return ips, nil
@@ -123,7 +174,8 @@ func GenerateIPList(cidr, startIPStr, endIPStr string) ([]string, error) {
 			return nil, fmt.Errorf("%w: start IP %s must be <= end IP %s", ErrInvalidIPRange, startIPStr, endIPStr)
 		}
 		count := endInt - startInt + 1
-		if count > 512 {
+		maxIPs := GetMaxRangeIPs()
+		if count > uint32(maxIPs) {
 			return nil, ErrSubnetTooLarge
 		}
 
@@ -265,14 +317,15 @@ func isLikelyPrinter(r Result) bool {
 	if r.Manufacturer != "" && r.Manufacturer != "generic" {
 		return true
 	}
+	rules := GetGlobalRules()
 	combined := strings.ToLower(r.Name + " " + r.Description + " " + r.Model)
-	keywords := []string{
-		"print", "laserjet", "pagepro", "ricoh", "brother", "epson", "canon",
-		"kyocera", "xerox", "lexmark", "inkjet", "copier", "mfp",
-		"scan", "scanner", "scanjet", "ads-", "nc-04h", "nc-10h", "imageformula", "scansnap", "fujitsu", "plustek", "avision",
+	for _, kw := range rules.PrinterKeywords {
+		if strings.Contains(combined, strings.ToLower(kw)) {
+			return true
+		}
 	}
-	for _, kw := range keywords {
-		if strings.Contains(combined, kw) {
+	for _, kw := range rules.ScannerKeywords {
+		if strings.Contains(combined, strings.ToLower(kw)) {
 			return true
 		}
 	}

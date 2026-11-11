@@ -3503,7 +3503,7 @@
     }
   ],
   "current_profile_id": "brother-hl-l6210",
-  "display_name": "Brother HL-L6210DW series - BRN94DDF8E43CD4",
+  "display_name": "Brother HL-L6210DW - BRN94DDF8E43CD4",
   "id": "4bef3086-a031-4279-8280-98fa4ca9294f",
   "manufacturer": "Brother",
   "markers": [
@@ -3514,7 +3514,7 @@
       "unit_name": "sheets"
     }
   ],
-  "model": "Brother HL-L6210DW series",
+  "model": "Brother HL-L6210DW",
   "port": 161,
   "raw_marker_binds": [
     {

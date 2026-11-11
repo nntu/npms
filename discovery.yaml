@@ -1,0 +1,80 @@
+# NPMS Device Discovery and Classification Rules
+# Tệp quy tắc nhận diện hãng sản xuất, model và phân loại thiết bị (máy in / máy scan)
+
+# Ánh xạ OID nhà sản xuất (Private Enterprise Number - PEN)
+vendor_oids:
+  "1.3.6.1.4.1.11": "HP"
+  "1.3.6.1.4.1.2435": "Brother"
+  "1.3.6.1.4.1.367": "Ricoh"
+  "1.3.6.1.4.1.1602": "Canon"
+  "1.3.6.1.4.1.1248": "Epson"
+  "1.3.6.1.4.1.1347": "Kyocera"
+  "1.3.6.1.4.1.253": "Xerox"
+  "1.3.6.1.4.1.641": "Lexmark"
+
+# Từ khóa nhận diện hãng trong chuỗi mô tả (sysDescr / printerName)
+vendor_keywords:
+  HP:
+    - "hewlett-packard"
+    - "laserjet"
+    - "hp "
+  Brother:
+    - "brother"
+  Ricoh:
+    - "ricoh"
+  Canon:
+    - "canon"
+  Epson:
+    - "epson"
+  Kyocera:
+    - "kyocera"
+  Xerox:
+    - "xerox"
+  Lexmark:
+    - "lexmark"
+
+# Từ khóa nhận diện máy quét (scanner) chuyên dụng
+scanner_keywords:
+  - "scanner"
+  - "scanjet"
+  - "imageformula"
+  - "scansnap"
+  - "documate"
+  - "workforce ds-"
+  - "sheetfed"
+  - "flatbed scanner"
+  - "ads-"
+  - "nc-04h"
+  - "nc-10h"
+
+# Tiền tố mã model máy quét chuyên dụng
+scanner_model_prefixes:
+  - "ADS-"
+  - "FI-"
+  - "DR-"
+  - "KV-S"
+
+# Từ khóa nhận diện thiết bị in ấn
+printer_keywords:
+  - "print"
+  - "laserjet"
+  - "pagepro"
+  - "ricoh"
+  - "brother"
+  - "epson"
+  - "canon"
+  - "kyocera"
+  - "xerox"
+  - "lexmark"
+  - "inkjet"
+  - "copier"
+  - "mfp"
+
+# Tiền tố trích xuất model từ chuỗi sysDescr
+model_extraction:
+  adapter_prefixes:
+    - "Brother NC-"
+  token_prefixes:
+    - "PID:"
+    - "MODEL:"
+    - "MDL:"

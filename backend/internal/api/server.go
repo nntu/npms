@@ -128,6 +128,35 @@ type Server struct {
 	profileTester      ProfileTester
 	backupManager      DatabaseBackupManager
 	pollTimeout        time.Duration
+	systemConfig       PublicSystemConfig
+}
+
+type PublicSystemConfig struct {
+	Discovery PublicDiscoveryConfig `json:"discovery"`
+	SNMP      PublicSNMPConfig      `json:"snmp"`
+}
+
+type PublicDiscoveryConfig struct {
+	DefaultCIDR      string   `json:"default_cidr"`
+	DefaultCommunity string   `json:"default_community"`
+	DefaultPort      int      `json:"default_port"`
+	DefaultTimeoutMS int      `json:"default_timeout_ms"`
+	MaxRangeIPs      int      `json:"max_range_ips"`
+	Concurrency      int      `json:"concurrency"`
+	AllowedCIDRs     []string `json:"allowed_cidrs,omitempty"`
+}
+
+type PublicSNMPConfig struct {
+	DefaultPort      int    `json:"default_port"`
+	DefaultCommunity string `json:"default_community"`
+	DefaultVersion   string `json:"default_version"`
+	TimeoutSeconds   int    `json:"timeout_seconds"`
+	Retries          int    `json:"retries"`
+	MaxRepetitions   int    `json:"max_repetitions"`
+}
+
+func (s *Server) SetPublicSystemConfig(cfg PublicSystemConfig) {
+	s.systemConfig = cfg
 }
 
 func NewServer(store DeviceStore, apiToken, allowedOrigin string) (*Server, error) {
@@ -178,6 +207,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("/api/v1/health/live", s.healthHandler())
 	mux.Handle("/api/v1/health/ready", s.healthHandler())
 	mux.Handle("/api/v1/version", s.healthHandler())
+	mux.HandleFunc("/api/v1/system/config", s.handleSystemConfig)
 	mux.Handle("/api/v1/snmp/profiles", s.profileHandler())
 	mux.HandleFunc("/api/v1/snmp/profiles/test", s.testProfileConnection)
 	mux.HandleFunc("/api/v1/discovery/probe", s.probeDiscovery)
@@ -247,6 +277,14 @@ func (s *Server) Handler() http.Handler {
 		}
 		static.ServeHTTP(w, r)
 	})
+}
+
+func (s *Server) handleSystemConfig(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		s.methodNotAllowed(w)
+		return
+	}
+	writeJSON(w, http.StatusOK, s.systemConfig)
 }
 
 func (s *Server) listProfiles(w http.ResponseWriter, r *http.Request) {
@@ -338,15 +376,37 @@ func (s *Server) testProfileConnection(w http.ResponseWriter, r *http.Request) {
 
 	port := input.Port
 	if port == 0 {
+		port = s.systemConfig.SNMP.DefaultPort
+	}
+	if port == 0 {
 		port = 161
 	}
 	version := strings.TrimSpace(input.Version)
+	if version == "" {
+		version = s.systemConfig.SNMP.DefaultVersion
+	}
 	if version == "" {
 		version = "2c"
 	}
 	community := input.Community
 	if version == "2c" && community == "" {
+		community = s.systemConfig.SNMP.DefaultCommunity
+	}
+	if version == "2c" && community == "" {
 		community = "public"
+	}
+
+	timeout := s.systemConfig.SNMP.TimeoutSeconds
+	if timeout <= 0 {
+		timeout = 4
+	}
+	retries := s.systemConfig.SNMP.Retries
+	if retries < 0 {
+		retries = 1
+	}
+	maxRepetitions := s.systemConfig.SNMP.MaxRepetitions
+	if maxRepetitions <= 0 {
+		maxRepetitions = 25
 	}
 
 	cfg := snmp.Config{
@@ -359,9 +419,9 @@ func (s *Server) testProfileConnection(w http.ResponseWriter, r *http.Request) {
 		AuthPassphrase: input.AuthPassphrase,
 		PrivProtocol:   strings.TrimSpace(input.PrivProtocol),
 		PrivPassphrase: input.PrivPassphrase,
-		TimeoutSeconds: 4,
-		Retries:        1,
-		MaxRepetitions: 25,
+		TimeoutSeconds: timeout,
+		Retries:        retries,
+		MaxRepetitions: uint8(maxRepetitions),
 	}
 
 	report, err := s.profileTester.TestProfileWithConfig(r.Context(), cfg, selectedProfile)
@@ -413,9 +473,15 @@ func (s *Server) probeDiscovery(w http.ResponseWriter, r *http.Request) {
 	}
 	port := input.Port
 	if port == 0 {
+		port = s.systemConfig.Discovery.DefaultPort
+	}
+	if port == 0 {
 		port = 161
 	}
 	timeout := input.Timeout
+	if timeout == 0 && s.systemConfig.Discovery.DefaultTimeoutMS > 0 {
+		timeout = s.systemConfig.Discovery.DefaultTimeoutMS / 1000
+	}
 	if timeout == 0 {
 		timeout = 3
 	}
@@ -423,12 +489,55 @@ func (s *Server) probeDiscovery(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_discovery_options", "port must be 1-65535 and timeout must be 1-30 seconds")
 		return
 	}
-	secret := security.SNMPSecret{Version: strings.TrimSpace(input.Version), Community: input.Community, Username: strings.TrimSpace(input.Username), AuthProtocol: strings.TrimSpace(input.AuthProtocol), AuthPassphrase: input.AuthPassphrase, PrivProtocol: strings.TrimSpace(input.PrivProtocol), PrivPassphrase: input.PrivPassphrase}
+	community := input.Community
+	if community == "" {
+		community = s.systemConfig.Discovery.DefaultCommunity
+	}
+	if community == "" {
+		community = "public"
+	}
+	version := strings.TrimSpace(input.Version)
+	if version == "" {
+		version = s.systemConfig.SNMP.DefaultVersion
+	}
+	if version == "" {
+		version = "2c"
+	}
+	secret := security.SNMPSecret{
+		Version:        version,
+		Community:      community,
+		Username:       strings.TrimSpace(input.Username),
+		AuthProtocol:   strings.TrimSpace(input.AuthProtocol),
+		AuthPassphrase: input.AuthPassphrase,
+		PrivProtocol:   strings.TrimSpace(input.PrivProtocol),
+		PrivPassphrase: input.PrivPassphrase,
+	}
 	if err := secret.Validate(); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_credential", err.Error())
 		return
 	}
-	result, err := s.discovery(r.Context(), snmp.Config{Host: address, Port: uint16(port), Version: snmp.Version(secret.Version), Community: secret.Community, Username: secret.Username, AuthProtocol: secret.AuthProtocol, AuthPassphrase: secret.AuthPassphrase, PrivProtocol: secret.PrivProtocol, PrivPassphrase: secret.PrivPassphrase, TimeoutSeconds: timeout, Retries: 1, MaxRepetitions: 25})
+	retries := s.systemConfig.SNMP.Retries
+	if retries < 0 {
+		retries = 1
+	}
+	maxRep := s.systemConfig.SNMP.MaxRepetitions
+	if maxRep <= 0 {
+		maxRep = 25
+	}
+	result, err := s.discovery(r.Context(), snmp.Config{
+		Host:           address,
+		Port:           uint16(port),
+		Version:        snmp.Version(secret.Version),
+		Community:      secret.Community,
+		Username:       secret.Username,
+		AuthProtocol:   secret.AuthProtocol,
+		AuthPassphrase: secret.AuthPassphrase,
+		PrivProtocol:   secret.PrivProtocol,
+		PrivPassphrase: secret.PrivPassphrase,
+		TimeoutSeconds: timeout,
+		Retries:        retries,
+		MaxRepetitions: uint8(maxRep),
+	})
 	if err != nil {
 		writeError(w, http.StatusBadGateway, "discovery_failed", "could not read the printer identity")
 		return
@@ -529,24 +638,43 @@ func (s *Server) scanSubnet(w http.ResponseWriter, r *http.Request) {
 
 	port := input.Port
 	if port == 0 {
+		port = s.systemConfig.Discovery.DefaultPort
+	}
+	if port == 0 {
 		port = 161
 	}
 	version := strings.TrimSpace(input.Version)
+	if version == "" {
+		version = s.systemConfig.SNMP.DefaultVersion
+	}
 	if version == "" {
 		version = "2c"
 	}
 	timeoutMS := input.TimeoutMS
 	if timeoutMS <= 0 {
+		timeoutMS = s.systemConfig.Discovery.DefaultTimeoutMS
+	}
+	if timeoutMS <= 0 {
 		timeoutMS = 1000
 	}
 	concurrency := input.Concurrency
 	if concurrency <= 0 {
+		concurrency = s.systemConfig.Discovery.Concurrency
+	}
+	if concurrency <= 0 {
 		concurrency = 25
+	}
+	community := input.Community
+	if community == "" {
+		community = s.systemConfig.Discovery.DefaultCommunity
+	}
+	if community == "" {
+		community = "public"
 	}
 
 	secret := security.SNMPSecret{
 		Version:        version,
-		Community:      input.Community,
+		Community:      community,
 		Username:       strings.TrimSpace(input.Username),
 		AuthProtocol:   strings.TrimSpace(input.AuthProtocol),
 		AuthPassphrase: input.AuthPassphrase,
@@ -1193,6 +1321,9 @@ func (s *Server) registerPrinterInternal(ctx context.Context, input registerPrin
 
 	port := input.Port
 	if port == 0 {
+		port = s.systemConfig.SNMP.DefaultPort
+	}
+	if port == 0 {
 		port = 161
 	}
 	if port < 1 || port > 65535 {
@@ -1201,9 +1332,15 @@ func (s *Server) registerPrinterInternal(ctx context.Context, input registerPrin
 
 	version := strings.TrimSpace(input.Version)
 	if version == "" {
+		version = s.systemConfig.SNMP.DefaultVersion
+	}
+	if version == "" {
 		version = "2c"
 	}
 	community := input.Community
+	if version == "2c" && community == "" {
+		community = s.systemConfig.SNMP.DefaultCommunity
+	}
 	if version == "2c" && community == "" {
 		community = "public"
 	}

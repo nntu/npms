@@ -114,7 +114,7 @@ func Probe(ctx context.Context, config snmp.Config, factory ClientFactory) (Resu
 }
 
 // InferPrinterModelAndVendor derives a normalized manufacturer and model name
-// from standard MIB-II and Printer-MIB identity fields.
+// from standard MIB-II and Printer-MIB identity fields using active discovery rules.
 func InferPrinterModelAndVendor(sysObjectID, printerName, sysDescr string) (manufacturer, model string) {
 	cleanPn := strings.TrimSpace(printerName)
 	descrModel := extractModelFromSysDescr(sysDescr)
@@ -124,45 +124,31 @@ func InferPrinterModelAndVendor(sysObjectID, printerName, sysDescr string) (manu
 		model = descrModel
 	}
 
+	rules := GetGlobalRules()
 	oid := strings.TrimPrefix(strings.TrimSpace(sysObjectID), ".")
-	switch {
-	case oid == "1.3.6.1.4.1.11" || strings.HasPrefix(oid, "1.3.6.1.4.1.11."):
-		manufacturer = "HP"
-	case oid == "1.3.6.1.4.1.2435" || strings.HasPrefix(oid, "1.3.6.1.4.1.2435."):
-		manufacturer = "Brother"
-	case oid == "1.3.6.1.4.1.367" || strings.HasPrefix(oid, "1.3.6.1.4.1.367."):
-		manufacturer = "Ricoh"
-	case oid == "1.3.6.1.4.1.1602" || strings.HasPrefix(oid, "1.3.6.1.4.1.1602."):
-		manufacturer = "Canon"
-	case oid == "1.3.6.1.4.1.1248" || strings.HasPrefix(oid, "1.3.6.1.4.1.1248."):
-		manufacturer = "Epson"
-	case oid == "1.3.6.1.4.1.1347" || strings.HasPrefix(oid, "1.3.6.1.4.1.1347."):
-		manufacturer = "Kyocera"
-	case oid == "1.3.6.1.4.1.253" || strings.HasPrefix(oid, "1.3.6.1.4.1.253."):
-		manufacturer = "Xerox"
-	case oid == "1.3.6.1.4.1.641" || strings.HasPrefix(oid, "1.3.6.1.4.1.641."):
-		manufacturer = "Lexmark"
+
+	// Match via vendor OID prefixes (longest match first or exact match)
+	for prefix, vendorName := range rules.VendorOIDs {
+		cleanPrefix := strings.TrimPrefix(prefix, ".")
+		if oid == cleanPrefix || strings.HasPrefix(oid, cleanPrefix+".") {
+			manufacturer = vendorName
+			break
+		}
 	}
 
+	// Fallback to substring matching in model and description
 	if manufacturer == "" {
 		combined := strings.ToLower(model + " " + sysDescr)
-		switch {
-		case strings.Contains(combined, "hewlett-packard") || strings.Contains(combined, "laserjet") || strings.HasPrefix(combined, "hp "):
-			manufacturer = "HP"
-		case strings.Contains(combined, "brother"):
-			manufacturer = "Brother"
-		case strings.Contains(combined, "ricoh"):
-			manufacturer = "Ricoh"
-		case strings.Contains(combined, "canon"):
-			manufacturer = "Canon"
-		case strings.Contains(combined, "epson"):
-			manufacturer = "Epson"
-		case strings.Contains(combined, "kyocera"):
-			manufacturer = "Kyocera"
-		case strings.Contains(combined, "xerox"):
-			manufacturer = "Xerox"
-		case strings.Contains(combined, "lexmark"):
-			manufacturer = "Lexmark"
+		for vendorName, keywords := range rules.VendorKeywords {
+			for _, kw := range keywords {
+				if strings.Contains(combined, strings.ToLower(kw)) {
+					manufacturer = vendorName
+					break
+				}
+			}
+			if manufacturer != "" {
+				break
+			}
 		}
 	}
 	return manufacturer, model
@@ -182,14 +168,17 @@ func extractModelFromSysDescr(sysDescr string) string {
 	if desc == "" {
 		return ""
 	}
-	if strings.HasPrefix(desc, "Brother NC-") {
-		parts := strings.Split(desc, ",")
-		return strings.TrimSpace(parts[0])
+	rules := GetGlobalRules()
+	for _, pfx := range rules.ModelExtraction.AdapterPrefixes {
+		if strings.HasPrefix(desc, pfx) {
+			parts := strings.Split(desc, ",")
+			return strings.TrimSpace(parts[0])
+		}
 	}
 	for _, token := range strings.FieldsFunc(desc, func(r rune) bool { return r == ',' || r == ';' }) {
 		part := strings.TrimSpace(token)
 		upper := strings.ToUpper(part)
-		for _, prefix := range []string{"PID:", "MODEL:", "MDL:"} {
+		for _, prefix := range rules.ModelExtraction.TokenPrefixes {
 			if strings.HasPrefix(upper, prefix) {
 				return trimSeriesSuffix(strings.TrimSpace(part[len(prefix):]))
 			}
@@ -245,26 +234,21 @@ func ClassifyDeviceType(manufacturer, model, name, descr, sysObjectID, matchedPr
 		return "scanner"
 	}
 
-	// Brother ADS series or Brother scanner network interfaces (NC-04h, NC-10h, etc.)
-	if strings.Contains(combined, "ads-") || strings.Contains(combined, "nc-04h") || strings.Contains(combined, "nc-10h") {
-		return "scanner"
-	}
+	rules := GetGlobalRules()
 
-	// Dedicated scanner keywords
-	scannerKeywords := []string{
-		"scanner", "scanjet", "imageformula", "scansnap",
-		"documate", "workforce ds-", "sheetfed", "flatbed scanner",
-	}
-	for _, kw := range scannerKeywords {
-		if strings.Contains(combined, kw) {
+	// Dedicated scanner keywords from active rules
+	for _, kw := range rules.ScannerKeywords {
+		if strings.Contains(combined, strings.ToLower(kw)) {
 			return "scanner"
 		}
 	}
 
-	// Common scanner model prefixes (ADS, FI, DR, KV-S)
+	// Common scanner model prefixes from active rules (e.g. ADS, FI, DR, KV-S)
 	upperModel := strings.ToUpper(strings.TrimSpace(model))
-	if strings.HasPrefix(upperModel, "ADS-") || strings.HasPrefix(upperModel, "FI-") || strings.HasPrefix(upperModel, "DR-") || strings.HasPrefix(upperModel, "KV-S") {
-		return "scanner"
+	for _, pfx := range rules.ScannerModelPrefixes {
+		if strings.HasPrefix(upperModel, strings.ToUpper(pfx)) {
+			return "scanner"
+		}
 	}
 
 	return "printer"

@@ -135,6 +135,8 @@ export type BulkRegisterInput = components['schemas']['BulkRegisterInputBody']
 export type BulkRegisterItemResult = components['schemas']['BulkRegisterItemResult']
 export type BulkRegisterOutput = components['schemas']['BulkRegisterOutputBody']
 
+export type PublicSystemConfig = components['schemas']['SystemConfigOutputBody']
+
 export type Cartridge = components['schemas']['Cartridge']
 
 export interface CreateCartridgeInput {

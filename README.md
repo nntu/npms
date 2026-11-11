@@ -139,10 +139,31 @@ server:
   open_browser: true
 security:
   encryption_key: thay-bang-khoa-32-byte-base64-hoac-64-ky-tu-hex
+snmp:
+  default_port: 161
+  default_community: public
+  default_version: "2c"
+  timeout_seconds: 4
+  retries: 1
+  max_repetitions: 25
+discovery:
+  rules_file: ./discovery.yaml
+  default_cidr: ""
+  default_community: public
+  default_port: 161
+  allowed_cidrs: []
+  max_range_ips: 512
+  concurrency: 25
+  timeout_ms: 1000
+counter:
+  max_delta: 0
 polling:
   concurrency: 5
-  status_interval: 5m
-  counter_interval: 15m
+  status_interval: 15m
+  counter_interval: 6h
+  max_attempts: 2
+  retry_delay: 1s
+  lease_duration: 45s
 report:
   timezone: Asia/Ho_Chi_Minh
 retention:
@@ -156,8 +177,9 @@ profiles:
   path: ./profiles
 ```
 
+`discovery.yaml` là file cấu hình quy tắc nhận diện hãng sản xuất, tiền tố OID/model và từ khóa phân loại máy in/máy scan riêng biệt, giúp dễ dàng mở rộng thêm các dòng thiết bị mới mà không cần sửa code Go.
 
-`database.path` và `profiles.path` được tính tương đối từ vị trí `config.yaml`.
+`database.path`, `profiles.path` và `discovery.rules_file` được tính tương đối từ vị trí `config.yaml`.
 `logging.error_file` cũng được tính tương đối và chỉ ghi log mức error dạng
 JSON để phục vụ debug. `logging.daily: true` tạo file hậu tố ngày như
 `npms-errors-2026-10-08.log`; khi vượt `logging.max_size_mb`, file được tách
@@ -216,10 +238,16 @@ khi khởi động. Profile hiện có:
 - HP LaserJet Enterprise M501dn.
 - Brother HL-L5100DN/T.
 - Brother HL-L6210DW/T.
+- Ricoh IM 2500 (vendor counters `experimental`).
+- Ricoh IM 2702 (Printer-MIB marker `experimental`).
 
 Profile model hiện là `experimental`. Chỉ chuyển sang `verified` sau khi có
 SNMP WALK ẩn danh, xác nhận index/unit và đối chiếu với configuration page
 hoặc panel máy in.
+
+Counter trả về `NoSuchObject`/`NoSuchInstance` được đánh dấu capability
+`unsupported`, không retry như lỗi mạng tạm thời và không được poll lại ở các
+chu kỳ sau. Lịch sử reading và event trước đó vẫn được giữ nguyên.
 
 Xem [docs/snmp-profiles.md](docs/snmp-profiles.md).
 

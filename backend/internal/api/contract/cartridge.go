@@ -244,6 +244,28 @@ type SubnetScanOutput struct {
 	}
 }
 
+type SystemConfigOutput struct {
+	Body struct {
+		Discovery struct {
+			DefaultCIDR      string   `json:"default_cidr"`
+			DefaultCommunity string   `json:"default_community"`
+			DefaultPort      int      `json:"default_port"`
+			DefaultTimeoutMS int      `json:"default_timeout_ms"`
+			MaxRangeIPs      int      `json:"max_range_ips"`
+			Concurrency      int      `json:"concurrency"`
+			AllowedCIDRs     []string `json:"allowed_cidrs,omitempty"`
+		} `json:"discovery"`
+		SNMP struct {
+			DefaultPort      int    `json:"default_port"`
+			DefaultCommunity string `json:"default_community"`
+			DefaultVersion   string `json:"default_version"`
+			TimeoutSeconds   int    `json:"timeout_seconds"`
+			Retries          int    `json:"retries"`
+			MaxRepetitions   int    `json:"max_repetitions"`
+		} `json:"snmp"`
+	}
+}
+
 func NewCartridgeAPI() (http.Handler, *huma.OpenAPI) {
 	mux := http.NewServeMux()
 	api := humago.New(mux, huma.DefaultConfig("NPMS API", version.Get().Version))
@@ -252,6 +274,7 @@ func NewCartridgeAPI() (http.Handler, *huma.OpenAPI) {
 	huma.Get(api, "/api/v1/health/live", func(context.Context, *struct{}) (*HealthOutput, error) { return &HealthOutput{}, nil })
 	huma.Get(api, "/api/v1/health/ready", func(context.Context, *struct{}) (*HealthOutput, error) { return &HealthOutput{}, nil })
 	huma.Get(api, "/api/v1/version", func(context.Context, *struct{}) (*VersionOutput, error) { return &VersionOutput{}, nil })
+	huma.Get(api, "/api/v1/system/config", func(context.Context, *struct{}) (*SystemConfigOutput, error) { return &SystemConfigOutput{}, nil })
 	huma.Get(api, "/api/v1/snmp/profiles", func(context.Context, *struct{}) (*ProfileListOutput, error) { return &ProfileListOutput{}, nil })
 	huma.Post(api, "/api/v1/discovery/probe", func(context.Context, *DiscoveryInput) (*DiscoveryOutput, error) { return &DiscoveryOutput{}, nil })
 	huma.Post(api, "/api/v1/discovery/scan", func(context.Context, *SubnetScanInput) (*SubnetScanOutput, error) { return &SubnetScanOutput{}, nil })

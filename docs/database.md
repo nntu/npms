@@ -36,6 +36,10 @@ When a printer is registered with a loaded profile, the profile snapshot,
 checksum, device assignment and counter definitions are committed in the same
 transaction as the device, credential and endpoint. A profile with the same
 key/version but a different checksum is rejected until its version is bumped.
+Counter definitions also store an explicit `capability_state`. Migration 11
+initializes existing verified definitions as `valid` and other definitions as
+`unverified`; a confirmed SNMP exception changes the state to `unsupported` so
+workers stop polling that definition without deleting its history.
 
 Cartridge replacement logs also store counter quality and capture time. The API
 reads the configured marker counter over SNMP before a replacement when

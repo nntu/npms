@@ -18,6 +18,7 @@ import (
 	_ "modernc.org/sqlite"
 
 	"npms/backend/internal/config"
+	"npms/backend/internal/discovery"
 	"npms/backend/internal/profile"
 	"npms/backend/internal/repository"
 	"npms/backend/internal/security"
@@ -41,7 +42,58 @@ type DeviceRecord struct {
 func main() {
 	fmt.Println("=== NPMS Sync & Import Device Models ===")
 
-	// 1. Read DevicesList.csv
+	// 1. Load config for paths & security
+	configCandidates := []string{"config.yaml", "../config.yaml", "d:/go_project/npms/config.yaml"}
+	var configPath string
+	for _, c := range configCandidates {
+		if _, err := os.Stat(c); err == nil {
+			configPath = c
+			break
+		}
+	}
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		fmt.Printf("load config error: %v\n", err)
+		return
+	}
+
+	// 2. Load discovery rules
+	rulesCandidates := []string{"discovery.yaml", "../discovery.yaml", "d:/go_project/npms/discovery.yaml"}
+	for _, rc := range rulesCandidates {
+		if _, err := os.Stat(rc); err == nil {
+			if r, err := discovery.LoadRules(rc); err == nil {
+				discovery.SetGlobalRules(r)
+				break
+			}
+		}
+	}
+
+	// 3. Load device profiles dynamically
+	profilesPath := cfg.Profiles.Path
+	if profilesPath == "" {
+		profilesPath = "./profiles"
+	}
+	if _, err := os.Stat(profilesPath); err != nil {
+		altProfiles := []string{"../profiles", "d:/go_project/npms/profiles"}
+		for _, alt := range altProfiles {
+			if _, err := os.Stat(alt); err == nil {
+				profilesPath = alt
+				break
+			}
+		}
+	}
+	profiles, err := profile.LoadDir(profilesPath)
+	if err != nil {
+		fmt.Printf("load profiles error: %v\n", err)
+		return
+	}
+	resolver := profile.Resolver{Profiles: profiles}
+	profileMap := make(map[string]profile.Profile, len(profiles))
+	for _, p := range profiles {
+		profileMap[p.ID] = p
+	}
+
+	// 4. Read DevicesList.csv
 	csvCandidates := []string{
 		`DevicesList.csv`,
 		`../DevicesList.csv`,
@@ -97,14 +149,12 @@ func main() {
 		loc := get(row, "Location")
 		node := get(row, "Node Name")
 
-		mfg := "Brother"
-		if strings.HasPrefix(strings.ToUpper(model), "RICOH") {
-			mfg = "Ricoh"
+		mfg, cleanModel := discovery.InferPrinterModelAndVendor("", model, "")
+		if cleanModel != "" {
+			model = cleanModel
 		}
-
-		cat := "printer"
-		if strings.Contains(model, "ADS-") {
-			cat = "scanner"
+		if mfg == "" {
+			mfg = "Brother"
 		}
 
 		dispName := model
@@ -113,6 +163,16 @@ func main() {
 		} else if node != "" {
 			dispName = fmt.Sprintf("%s - %s", model, node)
 		}
+
+		profileKey := "generic-printer-mib"
+		if matched, err := resolver.Resolve(profile.DeviceIdentity{
+			Manufacturer: mfg,
+			Model:        model,
+		}, ""); err == nil {
+			profileKey = matched.ID
+		}
+
+		cat := discovery.ClassifyDeviceType(mfg, model, dispName, "", "", profileKey, 0)
 
 		devicesByIP[ip] = &DeviceRecord{
 			IP:           ip,
@@ -123,6 +183,7 @@ func main() {
 			MAC:          mac,
 			Location:     loc,
 			Category:     cat,
+			ProfileKey:   profileKey,
 		}
 	}
 
@@ -151,19 +212,12 @@ func main() {
 
 		d, exists := devicesByIP[addr]
 		if !exists {
-			cat := "printer"
-			if strings.Contains(model, "M501") {
-				model = "HP LaserJet Pro M501dn"
-				mfg = "HP"
-			} else if strings.Contains(model, "M402") {
-				model = "HP LaserJet M402dn"
-				mfg = "HP"
-			} else if strings.Contains(model, "HP87DAF4") || strings.Contains(sysDescr, "M404") {
-				model = "HP LaserJet Pro M404dn"
-				mfg = "HP"
-			} else if strings.Contains(sysObjID, "641.") {
-				model = "Lexmark MS510dn"
-				mfg = "Lexmark"
+			inferredMfg, inferredModel := discovery.InferPrinterModelAndVendor(sysObjID, model, sysDescr)
+			if inferredModel != "" {
+				model = inferredModel
+			}
+			if inferredMfg != "" {
+				mfg = inferredMfg
 			}
 
 			dispName := model
@@ -178,20 +232,18 @@ func main() {
 				DisplayName:  dispName,
 				Serial:       serial,
 				Location:     sysLoc,
-				Category:     cat,
 			}
 			devicesByIP[addr] = d
-		}
-
-		// Handle 10.141.6.40 which is Brother ADS-2400N
-		if addr == "10.141.6.40" {
-			d.Model = "Brother ADS-2400N"
-			d.Manufacturer = "Brother"
-			d.Category = "scanner"
-			if d.Location == "" {
-				d.Location = sysLoc
+		} else {
+			if d.Manufacturer == "" || d.Model == "" {
+				inferredMfg, inferredModel := discovery.InferPrinterModelAndVendor(sysObjID, d.Model, sysDescr)
+				if d.Manufacturer == "" && inferredMfg != "" {
+					d.Manufacturer = inferredMfg
+				}
+				if d.Model == "" && inferredModel != "" {
+					d.Model = inferredModel
+				}
 			}
-			d.DisplayName = fmt.Sprintf("Brother ADS-2400N (%s)", d.Location)
 		}
 
 		d.SysObjectID = sysObjID
@@ -203,40 +255,46 @@ func main() {
 			d.Location = sysLoc
 		}
 
-		// Profile selection
-		switch {
-		case strings.Contains(d.Model, "ADS-"):
-			d.ProfileKey = "brother-ads"
-		case strings.Contains(d.Model, "HL-L5100DN"):
-			d.ProfileKey = "brother-hl-l5100dn"
-		case strings.Contains(d.Model, "HL-L6210"):
-			d.ProfileKey = "brother-hl-l6210"
-		case d.Manufacturer == "Brother":
-			d.ProfileKey = "brother-generic"
-		case strings.Contains(d.Model, "M501"):
-			d.ProfileKey = "hp-laserjet-enterprise-m501dn"
-		case strings.Contains(d.Model, "M402"):
-			d.ProfileKey = "hp-laserjet-pro-m402dn"
-		case strings.Contains(d.Model, "M404"):
-			d.ProfileKey = "hp-laserjet-pro-m404dn"
-		case d.Manufacturer == "HP":
-			d.ProfileKey = "hp-generic"
-		case strings.Contains(d.Model, "IM 2500") || strings.Contains(d.Model, "IM 2702"):
-			d.ProfileKey = "ricoh-im-2xxx"
-		case d.Manufacturer == "Ricoh":
-			d.ProfileKey = "ricoh-generic"
-		default:
+		// Dynamic profile resolution using profile.Resolver driven by YAML profile definitions
+		identity := profile.DeviceIdentity{
+			SysObjectID:  d.SysObjectID,
+			Manufacturer: d.Manufacturer,
+			Model:        d.Model,
+		}
+		if matched, err := resolver.Resolve(identity, ""); err == nil {
+			d.ProfileKey = matched.ID
+		} else if d.ProfileKey == "" {
 			d.ProfileKey = "generic-printer-mib"
 		}
 
-		// Extract initial counter reading from dump
+		// Dynamic classification based on configurable rules
+		d.Category = discovery.ClassifyDeviceType(d.Manufacturer, d.Model, d.DisplayName, d.SysDescr, d.SysObjectID, d.ProfileKey, 0)
+
+		// Extract initial counter reading dynamically from dump using the matched profile's counter OIDs
+		targetOIDs := make(map[string]bool)
+		if prof, ok := profileMap[d.ProfileKey]; ok {
+			for _, counterDef := range prof.Counters {
+				cleanOID := strings.TrimPrefix(counterDef.ValueColumn, ".")
+				targetOIDs[cleanOID] = true
+			}
+		}
+		if len(targetOIDs) == 0 {
+			targetOIDs["1.3.6.1.2.1.43.10.2.1.4"] = true
+		}
+
 		if candidates, ok := raw["candidate_counters"].([]any); ok {
 			for _, item := range candidates {
 				if cMap, ok := item.(map[string]any); ok {
 					oid, _ := cMap["oid"].(string)
 					valNum, _ := cMap["value"].(float64)
-					if (strings.Contains(oid, "43.10.2.1.4") || strings.Contains(oid, "2435.2.3.9.4.2.1.5.5.54.2.2.1.3.3")) && valNum > 0 {
-						d.InitialReading = int64(valNum)
+					cleanCandidateOID := strings.TrimPrefix(oid, ".")
+					for target := range targetOIDs {
+						if (cleanCandidateOID == target || strings.HasPrefix(cleanCandidateOID, target+".")) && valNum > 0 {
+							d.InitialReading = int64(valNum)
+							break
+						}
+					}
+					if d.InitialReading > 0 {
 						break
 					}
 				}
@@ -322,20 +380,7 @@ func main() {
 	_ = os.WriteFile(filepath.Join(dumpDir, "summary.json"), mJSON, 0o644)
 	fmt.Printf("[fleet-dump] Updated all %d dump JSON files and summary.json!\n", len(manifest.Printers))
 
-	// 4. Load config for DB path & Encryption Key
-	configCandidates := []string{"config.yaml", "../config.yaml", "d:/go_project/npms/config.yaml"}
-	var configPath string
-	for _, c := range configCandidates {
-		if _, err := os.Stat(c); err == nil {
-			configPath = c
-			break
-		}
-	}
-	cfg, err := config.Load(configPath)
-	if err != nil {
-		fmt.Printf("load config error: %v\n", err)
-		return
-	}
+	// 4. Initialize SecretBox for SNMP credentials
 	keyBytes, err := security.ParseKey(cfg.Security.EncryptionKey)
 	if err != nil {
 		fmt.Printf("parse key error: %v\n", err)
@@ -349,12 +394,21 @@ func main() {
 
 	// 5. Populate / Synchronize Databases
 	dbPaths := []string{
+		cfg.Database.Path,
 		`d:/go_project/npms/data/npms.db`,
 		`d:/go_project/npms/dist/data/npms.db`,
 	}
+	syncedPaths := make(map[string]bool)
 
 	for _, dbPath := range dbPaths {
-		if err := syncDatabase(dbPath, devicesByIP, box); err != nil {
+		if dbPath == "" || syncedPaths[dbPath] {
+			continue
+		}
+		if _, err := os.Stat(filepath.Dir(dbPath)); err != nil {
+			continue
+		}
+		syncedPaths[dbPath] = true
+		if err := syncDatabase(dbPath, devicesByIP, profileMap, box); err != nil {
 			fmt.Printf("Error syncing %s: %v\n", dbPath, err)
 		} else {
 			fmt.Printf("Successfully populated/synced %d devices into %s\n", len(devicesByIP), dbPath)
@@ -362,7 +416,7 @@ func main() {
 	}
 }
 
-func syncDatabase(dbPath string, devices map[string]*DeviceRecord, box *security.SecretBox) error {
+func syncDatabase(dbPath string, devices map[string]*DeviceRecord, profileMap map[string]profile.Profile, box *security.SecretBox) error {
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return fmt.Errorf("open sqlite %s: %w", dbPath, err)
@@ -470,38 +524,60 @@ func syncDatabase(dbPath string, devices map[string]*DeviceRecord, box *security
 			`, deviceID, d.MAC)
 		}
 
-		// Device Profile Assignment & Counter Definitions
-		profileID := d.ProfileKey + "-v1"
+		// Device Profile Assignment
 		var storedProfileID string
-		_ = db.QueryRowContext(ctx, `SELECT id FROM snmp_profiles WHERE id = ?`, profileID).Scan(&storedProfileID)
+		_ = db.QueryRowContext(ctx, `SELECT id FROM snmp_profiles WHERE profile_key = ? ORDER BY version DESC LIMIT 1`, d.ProfileKey).Scan(&storedProfileID)
 		if storedProfileID == "" {
-			profileID = "generic-printer-mib-v1"
+			_ = db.QueryRowContext(ctx, `SELECT id FROM snmp_profiles WHERE profile_key = 'generic-printer-mib' ORDER BY version DESC LIMIT 1`).Scan(&storedProfileID)
+		}
+		if storedProfileID == "" {
+			storedProfileID = "generic-printer-mib-v1"
 		}
 
 		_, _ = db.ExecContext(ctx, `
 			INSERT INTO device_profile_assignments(device_id, profile_id, assigned_at, explicit)
 			VALUES (?, ?, ?, 1)
 			ON CONFLICT(device_id, profile_id) DO NOTHING
-		`, deviceID, profileID, now)
+		`, deviceID, storedProfileID, now)
 
-		// Counter definition
-		cDefID := deviceID + ":marker_life"
-		if d.Category == "scanner" {
+		// Insert or update Counter definitions dynamically from resolved profile
+		prof, hasProf := profileMap[d.ProfileKey]
+		if !hasProf {
+			prof = profileMap["generic-printer-mib"]
+		}
+		primaryCounterKey := ""
+		for cKey, cDef := range prof.Counters {
+			if primaryCounterKey == "" || cKey == "marker_life" || cKey == "page_count" {
+				primaryCounterKey = cKey
+			}
+			cDefID := fmt.Sprintf("%s:%s", deviceID, cKey)
+			instance := ""
+			if cDef.Mode == "walk" {
+				instance = "1.1"
+			}
 			_, _ = db.ExecContext(ctx, `
-				INSERT INTO counter_definitions(id, device_id, key, source_protocol, oid, instance, unit, semantic_type, scope, verified, mode, unit_oid, require_unit_validation)
-				VALUES (?, ?, 'page_count', 'snmp', '1.3.6.1.4.1.2435.2.3.9.4.2.1.5.5.54.2.2.1.3.3', '', 'pages', 'marker_life', 'engine', 1, 'get', '', 0)
-				ON CONFLICT(id) DO UPDATE SET oid=excluded.oid, mode=excluded.mode
-			`, cDefID, deviceID)
-		} else {
-			_, _ = db.ExecContext(ctx, `
-				INSERT INTO counter_definitions(id, device_id, key, source_protocol, oid, instance, unit, semantic_type, scope, verified, mode, unit_oid, selection, aggregation, require_unit_validation)
-				VALUES (?, ?, 'marker_life', 'snmp', '1.3.6.1.2.1.43.10.2.1.4', '1.1', 'impressions', 'marker_life', 'engine', 1, 'walk', '1.3.6.1.2.1.43.10.2.1.3', 'validated_marker_rows', 'none', 0)
-				ON CONFLICT(id) DO NOTHING
-			`, cDefID, deviceID)
+				INSERT INTO counter_definitions(
+					id, device_id, key, source_protocol, oid, instance, unit,
+					semantic_type, scope, verified, mode, unit_oid, selection,
+					aggregation, require_unit_validation, capability_state
+				)
+				VALUES (?, ?, ?, 'snmp', ?, NULLIF(?, ''), ?, ?, ?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, 'valid')
+				ON CONFLICT(id) DO UPDATE SET
+					oid = excluded.oid,
+					mode = excluded.mode,
+					unit = excluded.unit,
+					unit_oid = excluded.unit_oid,
+					semantic_type = excluded.semantic_type,
+					scope = excluded.scope
+			`, cDefID, deviceID, cKey, cDef.ValueColumn, instance, cDef.Unit,
+				cDef.SemanticType, cDef.Scope, boolInt(prof.VerificationStatus == profile.VerificationVerified),
+				cDef.Mode, cDef.UnitColumn, cDef.Selection, cDef.Aggregation,
+				boolInt(cDef.RequireUnitValidation))
 		}
 
 		// If initial reading was extracted from dump, insert baseline snapshot reading only (delta = 0, no daily_counter_usage spike)
-		if d.InitialReading > 0 {
+		if d.InitialReading > 0 && primaryCounterKey != "" {
+			cDefID := fmt.Sprintf("%s:%s", deviceID, primaryCounterKey)
 			runID := uuid.NewString()
 			_, _ = db.ExecContext(ctx, `
 				INSERT INTO polling_runs(id, device_id, job_kind, started_at, ended_at, result)
@@ -533,4 +609,11 @@ func syncDatabase(dbPath string, devices map[string]*DeviceRecord, box *security
 	}
 
 	return nil
+}
+
+func boolInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }

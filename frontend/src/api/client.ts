@@ -17,6 +17,7 @@ import type {
   Printer,
   PrinterProfile,
   PrintersRestoreResponse,
+  PublicSystemConfig,
   RegisterPrinterInput,
   RegisterPrinterResult,
   UpdateDepartmentInput,
@@ -165,6 +166,10 @@ export async function startPrinterPoll(id: string): Promise<PollJob> {
 
 export async function getJob(id: string): Promise<PollJob> {
   return request<PollJob>(`/jobs/${encodeURIComponent(id)}`)
+}
+
+export async function getSystemConfig(): Promise<PublicSystemConfig> {
+  return request<PublicSystemConfig>('/system/config')
 }
 
 export async function listProfiles(): Promise<{ data: PrinterProfile[]; total: number }> {

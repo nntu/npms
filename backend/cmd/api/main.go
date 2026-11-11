@@ -14,6 +14,7 @@ import (
 
 	"npms/backend/internal/api"
 	"npms/backend/internal/config"
+	"npms/backend/internal/counter"
 	"npms/backend/internal/database"
 	"npms/backend/internal/discovery"
 	"npms/backend/internal/ingestion"
@@ -102,13 +103,56 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
-	server, err := api.NewServer(store, "", cfg.Server.AllowedOrigin)
+	if cfg.Counter.MaxDelta > 0 {
+		store.SetCounterPolicy(counter.Policy{MaxDelta: cfg.Counter.MaxDelta})
+	}
+
+	server, err := api.NewServer(store, cfg.Server.APIToken, cfg.Server.AllowedOrigin)
 	if err != nil {
 		fail(err)
 	}
 	server.SetFrontendFS(web.Assets())
 	server.SetProfiles(profiles)
 	server.SetDatabaseBackupManager(db)
+
+	// Configure discovery rules and network boundaries
+	if cfg.Discovery.RulesFile != "" {
+		rules, rulesErr := discovery.LoadRules(cfg.Discovery.RulesFile)
+		if rulesErr != nil {
+			slog.Warn("failed to load discovery rules file, using defaults", "path", cfg.Discovery.RulesFile, "error", rulesErr)
+		} else {
+			discovery.SetGlobalRules(rules)
+			slog.Info("discovery rules loaded", "path", cfg.Discovery.RulesFile)
+		}
+	}
+	if len(cfg.Discovery.AllowedCIDRs) > 0 {
+		if err := discovery.SetAllowedCIDRs(cfg.Discovery.AllowedCIDRs); err != nil {
+			fail(fmt.Errorf("set allowed CIDRs: %w", err))
+		}
+	}
+	if cfg.Discovery.MaxRangeIPs > 0 {
+		discovery.SetMaxRangeIPs(cfg.Discovery.MaxRangeIPs)
+	}
+
+	server.SetPublicSystemConfig(api.PublicSystemConfig{
+		Discovery: api.PublicDiscoveryConfig{
+			DefaultCIDR:      cfg.Discovery.DefaultCIDR,
+			DefaultCommunity: cfg.Discovery.DefaultCommunity,
+			DefaultPort:      cfg.Discovery.DefaultPort,
+			DefaultTimeoutMS: cfg.Discovery.TimeoutMS,
+			MaxRangeIPs:      cfg.Discovery.MaxRangeIPs,
+			Concurrency:      cfg.Discovery.Concurrency,
+			AllowedCIDRs:     cfg.Discovery.AllowedCIDRs,
+		},
+		SNMP: api.PublicSNMPConfig{
+			DefaultPort:      cfg.SNMP.DefaultPort,
+			DefaultCommunity: cfg.SNMP.DefaultCommunity,
+			DefaultVersion:   cfg.SNMP.DefaultVersion,
+			TimeoutSeconds:   cfg.SNMP.TimeoutSeconds,
+			Retries:          cfg.SNMP.Retries,
+			MaxRepetitions:   cfg.SNMP.MaxRepetitions,
+		},
+	})
 
 	key, err := security.ParseKey(cfg.Security.EncryptionKey)
 	if err != nil {
@@ -125,16 +169,25 @@ func main() {
 	server.SetSubnetScanner(func(ctx context.Context, config discovery.SubnetScanConfig) ([]discovery.Result, error) {
 		return discovery.ScanSubnet(ctx, config, ingestion.ConnectSNMP)
 	})
-	poller, err := ingestion.NewStatusPoller(store, ingestion.ConfigResolver{Store: store, Box: box}, ingestion.ConnectSNMP)
+
+	resolver := ingestion.ConfigResolver{
+		Store:                 store,
+		Box:                   box,
+		DefaultTimeoutSeconds: cfg.SNMP.TimeoutSeconds,
+		DefaultRetries:        cfg.SNMP.Retries,
+		DefaultMaxRepetitions: cfg.SNMP.MaxRepetitions,
+	}
+
+	poller, err := ingestion.NewStatusPoller(store, resolver, ingestion.ConnectSNMP)
 	if err != nil {
 		fail(err)
 	}
-	counterPoller, err := ingestion.NewCounterPoller(ingestion.ConfigResolver{Store: store, Box: box}, ingestion.ConnectSNMP)
+	counterPoller, err := ingestion.NewCounterPoller(resolver, ingestion.ConnectSNMP)
 	if err != nil {
 		fail(err)
 	}
 	server.SetCounterSnapshotter(counterPoller)
-	profileTester, err := ingestion.NewProfileTester(ingestion.ConfigResolver{Store: store, Box: box}, ingestion.ConnectSNMP)
+	profileTester, err := ingestion.NewProfileTester(resolver, ingestion.ConnectSNMP)
 	if err != nil {
 		fail(err)
 	}
@@ -156,7 +209,19 @@ func main() {
 	if err != nil {
 		fail(fmt.Errorf("load report timezone: %w", err))
 	}
-	scheduler, err := polling.NewScheduler(polling.Config{Concurrency: cfg.Polling.Concurrency, MaxAttempts: 2, RetryDelay: time.Second})
+	retryDelay, err := cfg.RetryDelay()
+	if err != nil {
+		fail(err)
+	}
+	maxAttempts := cfg.Polling.MaxAttempts
+	if maxAttempts <= 0 {
+		maxAttempts = 2
+	}
+	scheduler, err := polling.NewScheduler(polling.Config{
+		Concurrency: cfg.Polling.Concurrency,
+		MaxAttempts: maxAttempts,
+		RetryDelay:  retryDelay,
+	})
 	if err != nil {
 		fail(err)
 	}

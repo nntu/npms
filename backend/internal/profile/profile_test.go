@@ -58,7 +58,7 @@ func TestRepositoryModelProfilesResolveTheirDeclaredIdentities(t *testing.T) {
 		{name: "Brother ADS-2400N", manufacturer: "Brother", model: "Brother ADS-2400N", wantID: "brother-ads"},
 		{name: "Brother ADS-4300N", manufacturer: "Brother", model: "Brother ADS-4300N", wantID: "brother-ads"},
 		{name: "Ricoh IM 2500", manufacturer: "Ricoh", model: "RICOH IM 2500", wantID: "ricoh-im-2xxx"},
-		{name: "Ricoh IM 2702", manufacturer: "Ricoh", model: "RICOH IM 2702", wantID: "ricoh-im-2xxx"},
+		{name: "Ricoh IM 2702", manufacturer: "Ricoh", model: "RICOH IM 2702", wantID: "ricoh-im-2702"},
 		{name: "Lexmark MS510dn", manufacturer: "Lexmark", model: "Lexmark MS510dn", wantID: "lexmark-ms510dn"},
 	}
 	for _, tc := range cases {

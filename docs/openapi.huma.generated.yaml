@@ -715,6 +715,39 @@ components:
         - sys_object_id
         - serial
       type: object
+    DiscoveryStruct:
+      additionalProperties: false
+      properties:
+        allowed_cidrs:
+          items:
+            type: string
+          type:
+            - array
+            - "null"
+        concurrency:
+          format: int64
+          type: integer
+        default_cidr:
+          type: string
+        default_community:
+          type: string
+        default_port:
+          format: int64
+          type: integer
+        default_timeout_ms:
+          format: int64
+          type: integer
+        max_range_ips:
+          format: int64
+          type: integer
+      required:
+        - default_cidr
+        - default_community
+        - default_port
+        - default_timeout_ms
+        - max_range_ips
+        - concurrency
+      type: object
     EndpointInputBody:
       additionalProperties: false
       properties:
@@ -1353,6 +1386,33 @@ components:
         - device_id
         - source_type
       type: object
+    SNMPStruct:
+      additionalProperties: false
+      properties:
+        default_community:
+          type: string
+        default_port:
+          format: int64
+          type: integer
+        default_version:
+          type: string
+        max_repetitions:
+          format: int64
+          type: integer
+        retries:
+          format: int64
+          type: integer
+        timeout_seconds:
+          format: int64
+          type: integer
+      required:
+        - default_port
+        - default_community
+        - default_version
+        - timeout_seconds
+        - retries
+        - max_repetitions
+      type: object
     StatusOutputBody:
       additionalProperties: false
       properties:
@@ -1466,6 +1526,24 @@ components:
       required:
         - scanned_count
         - discovered_printers
+      type: object
+    SystemConfigOutputBody:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          examples:
+            - https://example.com/schemas/SystemConfigOutputBody.json
+          format: uri
+          readOnly: true
+          type: string
+        discovery:
+          $ref: "#/components/schemas/DiscoveryStruct"
+        snmp:
+          $ref: "#/components/schemas/SNMPStruct"
+      required:
+        - discovery
+        - snmp
       type: object
     UpdatePrinterInputBody:
       additionalProperties: false
@@ -2395,6 +2473,25 @@ paths:
       security:
         - bearerAuth: []
       summary: Get API v1 snmp profiles
+  /api/v1/system/config:
+    get:
+      operationId: get-api-v1-system-config
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemConfigOutputBody"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      security:
+        - bearerAuth: []
+      summary: Get API v1 system config
   /api/v1/version:
     get:
       operationId: get-api-v1-version

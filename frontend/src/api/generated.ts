@@ -416,6 +416,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get API v1 system config */
+        get: operations["get-api-v1-system-config"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/version": {
         parameters: {
             query?: never;
@@ -756,6 +773,19 @@ export interface components {
             serial: string;
             sys_object_id: string;
         };
+        DiscoveryStruct: {
+            allowed_cidrs?: string[] | null;
+            /** Format: int64 */
+            concurrency: number;
+            default_cidr: string;
+            default_community: string;
+            /** Format: int64 */
+            default_port: number;
+            /** Format: int64 */
+            default_timeout_ms: number;
+            /** Format: int64 */
+            max_range_ips: number;
+        };
         EndpointInputBody: {
             /**
              * Format: uri
@@ -1081,6 +1111,18 @@ export interface components {
             /** @enum {string} */
             source_type: "new" | "refilled";
         };
+        SNMPStruct: {
+            default_community: string;
+            /** Format: int64 */
+            default_port: number;
+            default_version: string;
+            /** Format: int64 */
+            max_repetitions: number;
+            /** Format: int64 */
+            retries: number;
+            /** Format: int64 */
+            timeout_seconds: number;
+        };
         StatusOutputBody: {
             /**
              * Format: uri
@@ -1149,6 +1191,16 @@ export interface components {
             discovered_printers: components["schemas"]["DiscoveredDevice"][] | null;
             /** Format: int64 */
             scanned_count: number;
+        };
+        SystemConfigOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/SystemConfigOutputBody.json
+             */
+            readonly $schema?: string;
+            discovery: components["schemas"]["DiscoveryStruct"];
+            snmp: components["schemas"]["SNMPStruct"];
         };
         UpdatePrinterInputBody: {
             /**
@@ -2124,6 +2176,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProfileListOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-api-v1-system-config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemConfigOutputBody"];
                 };
             };
             /** @description Error */
